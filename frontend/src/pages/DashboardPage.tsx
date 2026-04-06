@@ -14,9 +14,10 @@ import { useCallback, useEffect, useState } from "react";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-/** Relative `/api/...` works with Vite dev proxy; set VITE_API_BASE for other setups. */
+const DEFAULT_API_BASE = "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net";
+
 function apiUrl(path: string): string {
-  const base = import.meta.env.VITE_API_BASE ?? "";
+  const base = (import.meta.env.VITE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }
