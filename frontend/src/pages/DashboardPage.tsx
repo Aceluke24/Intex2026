@@ -14,10 +14,13 @@ import { useCallback, useEffect, useState } from "react";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-/** Relative `/api/...` works with Vite dev proxy; set VITE_API_BASE for other setups. */
+/** Full URL when VITE_API_BASE_URL is set; otherwise relative `/api/...` (Vite dev proxy). */
 function apiUrl(path: string): string {
-  const base = import.meta.env.VITE_API_BASE ?? "";
+  const raw =
+    import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_BASE ?? "";
+  const base = String(raw).trim().replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return p;
   return `${base}${p}`;
 }
 
