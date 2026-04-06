@@ -32,7 +32,7 @@ export function DonationChart({ data, insight }: DonationChartProps) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="font-display text-xl font-semibold tracking-tight text-foreground">Donation trends</h3>
-          <p className="mt-1 font-body text-sm text-muted-foreground">Monthly totals (mock)</p>
+          <p className="mt-1 font-body text-sm text-muted-foreground">Monthly totals (from your records)</p>
         </div>
         {last && prior && (
           <p className="font-body text-sm tabular-nums text-muted-foreground">

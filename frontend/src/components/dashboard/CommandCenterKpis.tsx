@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import type { AttentionItem, DashboardMetric } from "@/lib/dashboardMockData";
-import { donationActivity } from "@/lib/dashboardMockData";
 import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, Calendar, Heart, Minus, Percent, Sparkles, Users } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -107,11 +106,20 @@ type CommandCenterKpisProps = {
   supporting: DashboardMetric[];
   reintegration: DashboardMetric;
   activityItems: AttentionItem[];
+  /** Last points for donation KPI sparkline (e.g. monthly totals) */
+  donationSpark?: number[];
+  /** Trend for active residents card (e.g. admissions per month) */
+  residentSpark?: number[];
 };
 
-export function CommandCenterKpis({ primary, supporting, reintegration, activityItems }: CommandCenterKpisProps) {
-  const donationSpark = donationActivity.slice(-6).map((m) => m.total);
-  const residentSpark = [34, 36, 37, 39, 41, 42];
+export function CommandCenterKpis({
+  primary,
+  supporting,
+  reintegration,
+  activityItems,
+  donationSpark = [],
+  residentSpark = [],
+}: CommandCenterKpisProps) {
 
   const row = [
     primary,
@@ -128,7 +136,13 @@ export function CommandCenterKpis({ primary, supporting, reintegration, activity
             key={m.key}
             metric={m}
             index={i}
-            spark={m.key === "donations" ? donationSpark : m.key === "residents" ? residentSpark : undefined}
+            spark={
+              m.key === "donations" && donationSpark.length > 1
+                ? donationSpark
+                : m.key === "residents" && residentSpark.length > 1
+                  ? residentSpark
+                  : undefined
+            }
           />
         ))}
       </div>
