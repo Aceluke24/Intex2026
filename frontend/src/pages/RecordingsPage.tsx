@@ -1,86 +1,162 @@
 import { AdminLayout } from "@/components/AdminLayout";
-import { useState, useEffect } from "react";
-import { delay, processRecordings } from "@/lib/mockData";
-import { SkeletonTable } from "@/components/SkeletonLoaders";
-import { Input } from "@/components/ui/input";
+import { usePageHeader } from "@/contexts/AdminChromeContext";
+import { AddSessionDialog, ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
+import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, FileText } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { delay } from "@/lib/mockData";
+import {
+  initialProcessSessions,
+  processResidents,
+  type ProcessSessionEntry,
+} from "@/lib/processRecordingMockData";
+import { motion } from "framer-motion";
+import { PenLine, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const RecordingsPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  useEffect(() => { delay(600).then(() => setLoading(false)); }, []);
+  usePageHeader("Process Recordings", "Clinical session documentation");
 
-  const filtered = processRecordings.filter((r) =>
-    r.title.toLowerCase().includes(search.toLowerCase()) || r.worker.toLowerCase().includes(search.toLowerCase())
+  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<ProcessSessionEntry[]>(initialProcessSessions);
+  const [residentFilter, setResidentFilter] = useState<string | "all">("all");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+
+  useEffect(() => {
+    delay(640).then(() => setLoading(false));
+  }, []);
+
+  const filteredSessions = useMemo(() => {
+    const list =
+      residentFilter === "all" ? sessions : sessions.filter((s) => s.residentId === residentFilter);
+    return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [sessions, residentFilter]);
+
+  const selectedEntry = useMemo(
+    () => sessions.find((s) => s.id === selectedEntryId) ?? null,
+    [sessions, selectedEntryId]
   );
 
+  const openEntry = (id: string) => {
+    setSelectedEntryId(id);
+    setSheetOpen(true);
+  };
+
   return (
-    <AdminLayout>
-      <div className="space-y-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="font-display text-2xl lg:text-3xl font-bold text-foreground">Recordings</h1>
-            <p className="font-body text-sm text-muted-foreground mt-1">Session notes, assessments, and case documentation.</p>
-          </div>
-          <Button className="rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body gap-1.5 h-9 text-sm">
-            <Plus className="w-3.5 h-3.5" /> New
-          </Button>
-        </div>
-
-        {loading ? <SkeletonTable rows={5} /> : (
+    <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Clinical documentation"
+        eyebrowIcon={<PenLine className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Process Recording"
+        description="Document and review resident counseling sessions."
+        actions={
           <>
-            <div className="relative max-w-xs">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 h-10 rounded-xl border-0 bg-secondary font-body text-sm" />
-            </div>
-
-            <div className="bg-card rounded-2xl overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border/50 hover:bg-transparent">
-                    <TableHead className="font-body text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Document</TableHead>
-                    <TableHead className="font-body text-[11px] uppercase tracking-wider text-muted-foreground font-medium hidden md:table-cell">Type</TableHead>
-                    <TableHead className="font-body text-[11px] uppercase tracking-wider text-muted-foreground font-medium hidden md:table-cell">Worker</TableHead>
-                    <TableHead className="font-body text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Date</TableHead>
-                    <TableHead className="font-body text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((r) => (
-                    <TableRow key={r.id} className="border-b border-border/30 cursor-pointer hover:bg-secondary/30 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center flex-shrink-0">
-                            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <p className="font-body font-medium text-sm text-foreground">{r.title}</p>
-                            <p className="text-xs text-muted-foreground md:hidden">{r.worker}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-body text-sm text-muted-foreground hidden md:table-cell">{r.type}</TableCell>
-                      <TableCell className="font-body text-sm text-muted-foreground hidden md:table-cell">{r.worker}</TableCell>
-                      <TableCell className="font-body text-sm text-muted-foreground">{r.date}</TableCell>
-                      <TableCell>
-                        <span className={cn("text-xs font-body font-medium", {
-                          "text-sage": r.status === "Complete",
-                          "text-gold": r.status === "Pending" || r.status === "Draft",
-                          "text-terracotta": r.status === "Urgent Review",
-                        })}>{r.status}</span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.3)]"
+              >
+                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
+                <span className="relative z-[1] flex items-center">
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                  New Entry
+                </span>
+              </Button>
+            </motion.div>
           </>
-        )}
-      </div>
+        }
+      >
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.05 }}
+          className="mb-10 max-w-xl"
+        >
+          {loading ? (
+            <Skeleton className="h-[120px] rounded-[1.15rem] bg-white/45" />
+          ) : (
+            <ResidentSelector residents={processResidents} value={residentFilter} onChange={setResidentFilter} />
+          )}
+        </motion.section>
+
+        <section className="relative">
+          <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+                Session timeline
+              </p>
+              <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
+                Chronological record
+              </h2>
+              <p className="mt-2 font-body text-sm text-muted-foreground">
+                {filteredSessions.length} {filteredSessions.length === 1 ? "entry" : "entries"} — newest first
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-[132px] rounded-[1.1rem] bg-white/40" />
+              ))}
+            </div>
+          ) : (
+            <SessionTimeline entries={filteredSessions} onSelect={openEntry} />
+          )}
+        </section>
+      </StaffPageShell>
+
+      <SlideOverPanel
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        className="sm:max-w-[min(100%,26rem)] lg:max-w-[min(100%,34rem)]"
+      >
+        {selectedEntry && <SessionEntrySheet entry={selectedEntry} />}
+      </SlideOverPanel>
+
+      <motion.button
+        type="button"
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        whileHover={{ scale: 1.04, y: -2 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setAddOpen(true)}
+        className="fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] text-white shadow-[0_14px_44px_rgba(190,100,130,0.4)] lg:bottom-10 lg:right-10"
+        aria-label="New session entry"
+      >
+        <Plus className="h-6 w-6" strokeWidth={2} />
+      </motion.button>
+
+      <AddSessionDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        defaultResidentId={residentFilter}
+        onSave={(payload) => {
+          const id = `PR-${Date.now().toString().slice(-6)}`;
+          const full: ProcessSessionEntry = {
+            id,
+            residentId: payload.residentId,
+            date: payload.date,
+            worker: payload.worker,
+            sessionType: payload.sessionType,
+            emotionalState: payload.emotionalState,
+            narrativePreview: payload.narrativePreview,
+            emotionalObserved: payload.emotionalObserved,
+            narrativeFull: payload.narrativeFull,
+            interventions: payload.interventions,
+            followUp: payload.followUp,
+          };
+          setSessions((prev) => [full, ...prev]);
+          toast.success("Session saved", { description: "Entry added to the timeline (demo)." });
+        }}
+      />
     </AdminLayout>
   );
 };

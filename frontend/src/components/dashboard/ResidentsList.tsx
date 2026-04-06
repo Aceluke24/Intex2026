@@ -25,9 +25,9 @@ export function ResidentsList({ rows }: ResidentsListProps) {
           <li
             key={r.id}
             className={cn(
-              "grid grid-cols-1 gap-3 rounded-2xl px-4 py-5 sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-4",
+              "grid grid-cols-1 gap-3 rounded-2xl border border-transparent px-4 py-5 sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-4",
               "bg-[hsl(36,28%,99%)]/90 shadow-[0_1px_3px_rgba(45,35,48,0.035)]",
-              "transition-all duration-200 ease-out hover:bg-[hsl(350,26%,99%)] hover:shadow-[0_6px_28px_rgba(45,35,48,0.06)]"
+              "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[hsl(340,22%,90%)] hover:bg-[hsl(350,26%,99%)] hover:shadow-[0_8px_32px_rgba(45,35,48,0.08)]"
             )}
           >
             <div>

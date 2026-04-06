@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { AdminChromeProvider } from "@/contexts/AdminChromeContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,6 +22,14 @@ import DashboardPage from "./pages/DashboardPage.tsx";
 
 const queryClient = new QueryClient();
 
+function DashboardChromeLayout() {
+  return (
+    <AdminChromeProvider>
+      <Outlet />
+    </AdminChromeProvider>
+  );
+}
+
 const App = () => (
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
@@ -34,13 +43,15 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/about" element={<About />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/dashboard/donors" element={<DonorsPage />} />
-            <Route path="/dashboard/caseload" element={<CaseloadPage />} />
-            <Route path="/dashboard/recordings" element={<RecordingsPage />} />
-            <Route path="/dashboard/visitations" element={<VisitationsPage />} />
-            <Route path="/dashboard/reports" element={<ReportsPage />} />
-            <Route path="/dashboard/insights" element={<InsightsPage />} />
+            <Route element={<DashboardChromeLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/donors" element={<DonorsPage />} />
+              <Route path="/dashboard/caseload" element={<CaseloadPage />} />
+              <Route path="/dashboard/recordings" element={<RecordingsPage />} />
+              <Route path="/dashboard/visitations" element={<VisitationsPage />} />
+              <Route path="/dashboard/reports" element={<ReportsPage />} />
+              <Route path="/dashboard/insights" element={<InsightsPage />} />
+            </Route>
             <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
             <Route path="/admin/donors" element={<Navigate to="/dashboard/donors" replace />} />
             <Route path="/admin/caseload" element={<Navigate to="/dashboard/caseload" replace />} />

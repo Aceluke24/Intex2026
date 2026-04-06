@@ -1,3 +1,4 @@
+import { StickyStaffBar } from "@/components/admin/StickyStaffBar";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
@@ -28,23 +29,23 @@ const navGroups = [
   {
     label: "Overview",
     items: [
-      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Command Center", path: "/dashboard", icon: LayoutDashboard },
       { label: "AI Insights", path: "/dashboard/insights", icon: Brain },
     ],
   },
   {
     label: "Case Management",
     items: [
-      { label: "Caseload", path: "/dashboard/caseload", icon: ClipboardList },
-      { label: "Recordings", path: "/dashboard/recordings", icon: FileText },
-      { label: "Visitations", path: "/dashboard/visitations", icon: MapPin },
+      { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
+      { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
+      { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
     ],
   },
   {
     label: "Operations",
     items: [
-      { label: "Donors & contributions", path: "/dashboard/donors", icon: Heart },
-      { label: "Reports", path: "/dashboard/reports", icon: BarChart3 },
+      { label: "Donors & Contributions", path: "/dashboard/donors", icon: Heart },
+      { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3 },
     ],
   },
 ];
@@ -97,10 +98,10 @@ export const AdminLayout = ({
                       to={item.path}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-body transition-all duration-200",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-body transition-all duration-200",
                         active
-                          ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                          : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
+                          ? "bg-sidebar-accent text-sidebar-primary font-medium shadow-[inset_3px_0_0_0_hsl(10_55%_58%)] ring-1 ring-white/5"
+                          : "text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent/45 hover:shadow-sm"
                       )}
                     >
                       <item.icon className="w-4 h-4 flex-shrink-0" />
@@ -141,7 +142,10 @@ export const AdminLayout = ({
       </aside>
 
       <main className={cn("flex-1 transition-all duration-300 min-h-screen", collapsed ? "ml-16" : "ml-60")}>
-        <div className={cn("p-6 lg:p-10 max-w-6xl", contentClassName)}>{children}</div>
+        <div className={cn("p-6 lg:p-10 max-w-6xl", contentClassName)}>
+          <StickyStaffBar />
+          {children}
+        </div>
       </main>
     </div>
   );

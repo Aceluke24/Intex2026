@@ -125,6 +125,16 @@ export const supportingMetrics: DashboardMetric[] = [
   },
 ];
 
+/** Reintegration headline KPI (Command Center top row) */
+export const reintegrationSuccessMetric: DashboardMetric = {
+  key: "reintegration",
+  label: "Reintegration success rate",
+  value: "87%",
+  trendLabel: "+2 pts YoY",
+  trend: "up",
+  icon: "percent",
+};
+
 export const safehousesSummary = {
   label: "Safehouses operating",
   value: "4",

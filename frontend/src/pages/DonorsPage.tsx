@@ -1,4 +1,6 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { StatCard } from "@/components/StatCard";
 import {
   AddContributionDialog,
@@ -30,7 +32,18 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import watermarkSrc from "@/img/NorthStarLogo.png";
 
+function donorInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 const DonorsPage = () => {
+  usePageHeader("Donors & Contributions", "Supporter relationship management");
+
   const [loading, setLoading] = useState(true);
   const [supporters, setSupporters] = useState<Supporter[]>(initialSupporters);
   const [notesById, setNotesById] = useState<Record<string, string>>(() =>
@@ -50,6 +63,10 @@ const DonorsPage = () => {
   }, []);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
+
+  const topDonors = useMemo(() => {
+    return [...supporters].sort((a, b) => b.totalContributionsValue - a.totalContributionsValue).slice(0, 3);
+  }, [supporters]);
 
   const filtered = useMemo(() => {
     return supporters.filter((s) => {
@@ -254,6 +271,51 @@ const DonorsPage = () => {
             </section>
           )}
 
+          {!loading && (
+            <section className="mb-14 mt-4">
+              <div className="mb-8">
+                <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+                  Highlights
+                </p>
+                <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[1.85rem]">
+                  Top Donors
+                </h2>
+                <p className="mt-2 font-body text-sm text-muted-foreground">By lifetime contribution value (demo data)</p>
+              </div>
+              <div className="grid gap-5 md:grid-cols-3">
+                {topDonors.map((s, i) => (
+                  <motion.button
+                    key={s.id}
+                    type="button"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 * i }}
+                    whileHover={{ y: -3 }}
+                    onClick={() => openProfile(s.id)}
+                    className="rounded-[1.15rem] border border-white/50 bg-white/55 p-6 text-left shadow-[0_6px_32px_rgba(45,35,48,0.06)] backdrop-blur-md transition-shadow hover:shadow-[0_14px_44px_rgba(45,35,48,0.1)] dark:border-white/10 dark:bg-white/[0.07]"
+                  >
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-12 w-12 border border-white/70 shadow-sm dark:border-white/15">
+                        <AvatarFallback className="bg-gradient-to-br from-[hsl(340_45%_88%)] to-[hsl(36_35%_90%)] font-display text-sm font-semibold text-foreground/85">
+                          {donorInitials(s.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-display text-base font-semibold text-foreground">{s.name}</p>
+                        <span className="mt-1 inline-flex rounded-full border border-[hsl(340_30%_88%)]/90 bg-white/50 px-2 py-0.5 font-body text-[10px] font-semibold text-[hsl(340_32%_32%)] dark:border-white/12 dark:bg-white/10 dark:text-[hsl(340_35%_88%)]">
+                          {s.kind}
+                        </span>
+                        <p className="mt-3 font-display text-xl font-bold tabular-nums text-foreground">
+                          ${s.totalContributionsValue.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Impact overview — timeline + allocation */}
           {!loading && <ImpactOverview feed={feed} allocation={allocationByDestination} />}
 
@@ -265,7 +327,7 @@ const DonorsPage = () => {
                   Community
                 </p>
                 <h2 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-[2.1rem]">
-                  Supporter directory
+                  Supporter Directory
                 </h2>
                 <p className="mt-3 font-body text-base text-muted-foreground/95">
                   {filtered.length} {filtered.length === 1 ? "person" : "people"} match your filters
