@@ -19,6 +19,7 @@ const DEFAULT_API_BASE = "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-0
 function apiUrl(path: string): string {
   const base = (import.meta.env.VITE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return p;
   return `${base}${p}`;
 }
 
