@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import { Moon, Sun, Menu, X, Heart } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
@@ -14,59 +14,75 @@ const navItems = [
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
-            <Link to="/" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 rounded-full bg-gold flex items-center justify-center">
-                <span className="text-navy font-display font-bold text-sm">NS</span>
+      {/* Floating nav — glass morphism */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          scrolled
+            ? "bg-background/70 backdrop-blur-xl shadow-sm"
+            : "bg-transparent"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 lg:h-20">
+            <Link to="/" className="flex items-center gap-2.5 group">
+              <div className="w-7 h-7 rounded-full bg-terracotta/90 flex items-center justify-center transition-transform group-hover:scale-105">
+                <span className="text-terracotta-foreground font-display font-bold text-[11px]">NS</span>
               </div>
-              <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-                North Star <span className="text-gold">Sanctuary</span>
+              <span className="font-display text-base font-semibold text-foreground tracking-tight">
+                North Star
               </span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-0.5">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-full text-[13px] font-body font-medium transition-all duration-300 ${
                     location.pathname === item.path
-                      ? "text-foreground bg-secondary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {item.label}
                 </Link>
               ))}
-              <div className="w-px h-6 bg-border mx-2" />
+              <div className="w-px h-5 bg-foreground/10 mx-3" />
               <Link to="/login">
-                <Button variant="ghost" size="sm" className="font-body">Sign In</Button>
+                <Button variant="ghost" size="sm" className="font-body text-[13px] rounded-full text-muted-foreground hover:text-foreground">
+                  Sign In
+                </Button>
               </Link>
               <Link to="/#donate">
-                <Button size="sm" className="bg-gold text-navy hover:bg-gold/90 font-body font-semibold gap-1">
-                  <Heart className="w-3.5 h-3.5" /> Donate
+                <Button size="sm" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-[13px] px-5 gap-1.5 ml-1 transition-all duration-300 hover:shadow-lg hover:shadow-terracotta/20">
+                  <Heart className="w-3 h-3" /> Donate
                 </Button>
               </Link>
               <button
                 onClick={toggle}
-                className="ml-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                className="ml-3 p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Toggle theme"
               >
-                {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
               </button>
             </nav>
 
-            <div className="flex md:hidden items-center gap-2">
-              <button onClick={toggle} className="p-2 rounded-lg text-muted-foreground" aria-label="Toggle theme">
+            <div className="flex md:hidden items-center gap-1">
+              <button onClick={toggle} className="p-2 rounded-full text-muted-foreground" aria-label="Toggle theme">
                 {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </button>
-              <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-lg text-foreground" aria-label="Menu">
+              <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-full text-foreground" aria-label="Menu">
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
@@ -79,25 +95,26 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden overflow-hidden bg-background border-t border-border"
+              transition={{ duration: 0.3 }}
+              className="md:hidden overflow-hidden bg-background/95 backdrop-blur-xl"
             >
-              <div className="px-4 py-4 space-y-2">
+              <div className="px-6 py-6 space-y-1">
                 {navItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
-                    className="block px-4 py-3 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+                    className="block px-4 py-3 rounded-xl text-sm font-body font-medium text-foreground hover:bg-secondary/50 transition-colors"
                   >
                     {item.label}
                   </Link>
                 ))}
-                <div className="border-t border-border pt-3 mt-3 flex flex-col gap-2">
+                <div className="pt-4 flex flex-col gap-2">
                   <Link to="/login" onClick={() => setMobileOpen(false)}>
-                    <Button variant="outline" className="w-full font-body">Sign In</Button>
+                    <Button variant="outline" className="w-full font-body rounded-xl border-0 bg-secondary/50">Sign In</Button>
                   </Link>
                   <Link to="/#donate" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full bg-gold text-navy hover:bg-gold/90 font-body font-semibold gap-1">
+                    <Button className="w-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium gap-1.5 rounded-xl">
                       <Heart className="w-3.5 h-3.5" /> Donate
                     </Button>
                   </Link>
@@ -108,42 +125,46 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
         </AnimatePresence>
       </header>
 
-      <main className="flex-1 pt-16 md:pt-20">{children}</main>
+      <main className="flex-1">{children}</main>
 
-      <footer className="bg-navy text-navy-foreground">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-full bg-gold flex items-center justify-center">
-                  <span className="text-navy font-display font-bold text-sm">NS</span>
+      {/* Footer — minimal, editorial */}
+      <footer className="gradient-navy-deep text-navy-foreground">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-28">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+            <div className="lg:col-span-6">
+              <div className="flex items-center gap-2.5 mb-6">
+                <div className="w-7 h-7 rounded-full bg-terracotta flex items-center justify-center">
+                  <span className="text-terracotta-foreground font-display font-bold text-[11px]">NS</span>
                 </div>
-                <span className="font-display text-lg font-semibold">North Star Sanctuary</span>
+                <span className="font-display text-base font-semibold">North Star Sanctuary</span>
               </div>
-              <p className="text-navy-foreground/70 text-sm leading-relaxed max-w-md">
-                Guiding survivors toward safety, healing, and new beginnings. Every contribution helps
-                us provide shelter, counseling, and a path forward.
+              <p className="text-navy-foreground/50 text-sm font-body leading-relaxed max-w-sm">
+                Guiding survivors toward safety, healing, and new beginnings.
+                Every contribution helps us provide shelter, counseling, and
+                a path forward for those who need it most.
               </p>
             </div>
-            <div>
-              <h4 className="font-body font-semibold text-sm uppercase tracking-wider text-gold mb-4">Quick Links</h4>
-              <div className="space-y-2">
+            <div className="lg:col-span-3">
+              <p className="font-body font-medium text-[11px] uppercase tracking-[0.2em] text-terracotta mb-5">Navigate</p>
+              <div className="space-y-3">
                 {["Our Impact", "Programs", "Volunteer", "Contact"].map((l) => (
-                  <a key={l} href="#" className="block text-sm text-navy-foreground/70 hover:text-gold transition-colors">{l}</a>
+                  <a key={l} href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">{l}</a>
                 ))}
               </div>
             </div>
-            <div>
-              <h4 className="font-body font-semibold text-sm uppercase tracking-wider text-gold mb-4">Legal</h4>
-              <div className="space-y-2">
-                <Link to="/privacy" className="block text-sm text-navy-foreground/70 hover:text-gold transition-colors">Privacy Policy</Link>
-                <a href="#" className="block text-sm text-navy-foreground/70 hover:text-gold transition-colors">Terms of Service</a>
-                <a href="#" className="block text-sm text-navy-foreground/70 hover:text-gold transition-colors">501(c)(3) Status</a>
+            <div className="lg:col-span-3">
+              <p className="font-body font-medium text-[11px] uppercase tracking-[0.2em] text-terracotta mb-5">Legal</p>
+              <div className="space-y-3">
+                <Link to="/privacy" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">Privacy Policy</Link>
+                <a href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">Terms of Service</a>
+                <a href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">501(c)(3) Status</a>
               </div>
             </div>
           </div>
-          <div className="border-t border-navy-foreground/10 mt-12 pt-8 text-center">
-            <p className="text-sm text-navy-foreground/50">© 2024 North Star Sanctuary. All rights reserved. EIN: 84-1234567</p>
+          <div className="mt-20 pt-8 border-t border-navy-foreground/8">
+            <p className="text-[12px] font-body text-navy-foreground/30">
+              © 2024 North Star Sanctuary. All rights reserved. EIN: 84-1234567
+            </p>
           </div>
         </div>
       </footer>

@@ -9,20 +9,13 @@ export const CookieBanner = () => {
   useEffect(() => {
     const accepted = localStorage.getItem("nss-cookies");
     if (!accepted) {
-      const timer = setTimeout(() => setVisible(true), 2000);
+      const timer = setTimeout(() => setVisible(true), 2500);
       return () => clearTimeout(timer);
     }
   }, []);
 
-  const accept = () => {
-    localStorage.setItem("nss-cookies", "accepted");
-    setVisible(false);
-  };
-
-  const dismiss = () => {
-    localStorage.setItem("nss-cookies", "dismissed");
-    setVisible(false);
-  };
+  const accept = () => { localStorage.setItem("nss-cookies", "accepted"); setVisible(false); };
+  const dismiss = () => { localStorage.setItem("nss-cookies", "dismissed"); setVisible(false); };
 
   return (
     <AnimatePresence>
@@ -31,33 +24,29 @@ export const CookieBanner = () => {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          transition={{ type: "spring", damping: 25 }}
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:max-w-md z-50"
+          transition={{ type: "spring", damping: 30 }}
+          className="fixed bottom-6 left-6 right-6 md:left-auto md:right-8 md:max-w-sm z-50"
         >
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-2xl">
+          <div className="rounded-2xl bg-card p-5 shadow-2xl shadow-foreground/5">
             <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-gold/10 p-2 flex-shrink-0">
-                <Shield className="w-4 h-4 text-gold" />
+              <div className="rounded-xl bg-terracotta/10 p-2 flex-shrink-0">
+                <Shield className="w-4 h-4 text-terracotta" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-body font-semibold text-card-foreground mb-1">
-                  We respect your privacy
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                  We use essential cookies to make our site work. With your consent, we may also use
-                  non-essential cookies to improve your experience. You can manage your preferences at any time.
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4 font-body">
+                  We use essential cookies for site functionality. With your consent, we may use analytics cookies to improve your experience.
                 </p>
                 <div className="flex items-center gap-2">
-                  <Button onClick={accept} size="sm" className="bg-gold text-navy hover:bg-gold/90 text-xs font-body h-8">
-                    Accept All
+                  <Button onClick={accept} size="sm" className="rounded-lg bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 text-xs font-body h-7 px-4">
+                    Accept
                   </Button>
-                  <Button onClick={dismiss} variant="outline" size="sm" className="text-xs font-body h-8">
-                    Essential Only
+                  <Button onClick={dismiss} variant="ghost" size="sm" className="text-xs font-body h-7 text-muted-foreground">
+                    Decline
                   </Button>
                 </div>
               </div>
-              <button onClick={dismiss} className="text-muted-foreground hover:text-foreground" aria-label="Close">
-                <X className="w-4 h-4" />
+              <button onClick={dismiss} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

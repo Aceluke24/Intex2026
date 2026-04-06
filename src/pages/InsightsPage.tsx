@@ -4,32 +4,30 @@ import { aiInsights } from "@/lib/mockData";
 import { Brain } from "lucide-react";
 import { motion } from "framer-motion";
 
-const InsightsPage = () => {
-  return (
-    <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
-            <Brain className="w-5 h-5 text-gold" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">AI Insights</h1>
-            <p className="text-sm text-muted-foreground font-body mt-0.5">
-              Machine learning–powered recommendations across all operations.
-            </p>
-          </div>
+const InsightsPage = () => (
+  <AdminLayout>
+    <div className="space-y-8">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center">
+          <Brain className="w-5 h-5 text-terracotta" />
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {aiInsights.map((insight, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-              <AIInsightCard {...insight} />
-            </motion.div>
-          ))}
+        <div>
+          <h1 className="font-display text-2xl lg:text-3xl font-bold text-foreground">AI Insights</h1>
+          <p className="font-body text-sm text-muted-foreground mt-0.5">
+            Machine learning–powered recommendations.
+          </p>
         </div>
       </div>
-    </AdminLayout>
-  );
-};
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {aiInsights.map((insight, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+            <AIInsightCard {...insight} />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  </AdminLayout>
+);
 
 export default InsightsPage;
