@@ -43,7 +43,7 @@ const navGroups = [
   {
     label: "Operations",
     items: [
-      { label: "Donors", path: "/dashboard/donors", icon: Heart },
+      { label: "Donors & contributions", path: "/dashboard/donors", icon: Heart },
       { label: "Reports", path: "/dashboard/reports", icon: BarChart3 },
     ],
   },
