@@ -1,111 +1,181 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800&family=Inter:wght@300;400;500;600;700&display=swap');
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    /* Cream-first palette — warm, human, editorial */
+    --background: 36 33% 94%;
+    --foreground: 213 65% 14%;
+
+    --card: 36 30% 96%;
+    --card-foreground: 213 65% 14%;
+
+    --popover: 36 30% 96%;
+    --popover-foreground: 213 65% 14%;
+
+    --primary: 213 65% 14%;
+    --primary-foreground: 36 33% 94%;
+
+    --secondary: 36 25% 90%;
+    --secondary-foreground: 213 65% 14%;
+
+    --muted: 36 18% 88%;
+    --muted-foreground: 213 15% 45%;
+
+    --accent: 10 55% 65%;
+    --accent-foreground: 36 33% 97%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 36 33% 97%;
+
+    --terracotta: 10 55% 65%;
+    --terracotta-foreground: 36 33% 97%;
+
+    --sage: 150 18% 56%;
+    --sage-foreground: 213 65% 14%;
+
+    --gold: 43 74% 63%;
+    --gold-foreground: 213 65% 14%;
+
+    --navy: 213 65% 14%;
+    --navy-foreground: 36 33% 94%;
+
+    --cream: 36 33% 94%;
+    --cream-foreground: 213 65% 14%;
+
+    --border: 36 15% 85%;
+    --input: 36 15% 85%;
+    --ring: 10 55% 65%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 213 65% 11%;
+    --sidebar-foreground: 36 20% 85%;
+    --sidebar-primary: 10 55% 65%;
+    --sidebar-primary-foreground: 36 33% 97%;
+    --sidebar-accent: 213 45% 18%;
+    --sidebar-accent-foreground: 36 33% 94%;
+    --sidebar-border: 213 40% 18%;
+    --sidebar-ring: 10 55% 65%;
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  .dark {
+    --background: 213 55% 7%;
+    --foreground: 36 25% 90%;
+
+    --card: 213 45% 10%;
+    --card-foreground: 36 25% 90%;
+
+    --popover: 213 45% 10%;
+    --popover-foreground: 36 25% 90%;
+
+    --primary: 10 55% 65%;
+    --primary-foreground: 213 55% 7%;
+
+    --secondary: 213 35% 15%;
+    --secondary-foreground: 36 25% 90%;
+
+    --muted: 213 30% 16%;
+    --muted-foreground: 36 12% 58%;
+
+    --accent: 10 55% 60%;
+    --accent-foreground: 213 55% 7%;
+
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 36 33% 97%;
+
+    --terracotta: 10 55% 58%;
+    --terracotta-foreground: 36 33% 97%;
+
+    --sage: 150 18% 42%;
+    --sage-foreground: 36 33% 97%;
+
+    --gold: 43 70% 55%;
+    --gold-foreground: 213 55% 7%;
+
+    --navy: 213 55% 12%;
+    --navy-foreground: 36 25% 90%;
+
+    --cream: 213 25% 16%;
+    --cream-foreground: 36 25% 90%;
+
+    --border: 213 30% 18%;
+    --input: 213 30% 18%;
+    --ring: 10 55% 60%;
+
+    --sidebar-background: 213 55% 5%;
+    --sidebar-foreground: 36 20% 80%;
+    --sidebar-primary: 10 55% 60%;
+    --sidebar-primary-foreground: 213 55% 5%;
+    --sidebar-accent: 213 40% 12%;
+    --sidebar-accent-foreground: 36 25% 90%;
+    --sidebar-border: 213 35% 14%;
+    --sidebar-ring: 10 55% 60%;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    letter-spacing: -0.02em;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', serif;
+    letter-spacing: -0.02em;
   }
-}
-p {
-  margin: 0;
-}
+  .font-body {
+    font-family: 'Inter', sans-serif;
+  }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  /* Warm editorial gradients */
+  .gradient-hero {
+    background: linear-gradient(
+      175deg,
+      hsl(213 65% 14%) 0%,
+      hsl(213 55% 18%) 40%,
+      hsl(10 30% 25%) 100%
+    );
+  }
+  .gradient-cream-warm {
+    background: linear-gradient(
+      180deg,
+      hsl(36 33% 94%) 0%,
+      hsl(20 30% 93%) 100%
+    );
+  }
+  .gradient-section-blush {
+    background: linear-gradient(
+      180deg,
+      hsl(10 40% 94%) 0%,
+      hsl(36 33% 94%) 100%
+    );
+  }
+  .gradient-navy-deep {
+    background: linear-gradient(
+      180deg,
+      hsl(213 65% 14%) 0%,
+      hsl(213 65% 10%) 100%
+    );
+  }
+  .text-gradient-warm {
+    background: linear-gradient(135deg, hsl(var(--terracotta)), hsl(var(--gold)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
