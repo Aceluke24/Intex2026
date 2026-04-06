@@ -53,7 +53,7 @@ const PrivacyPolicy = () => (
 
         <div className="space-y-16">
           {sections.map((s, i) => (
-            <Reveal key={s.id} id={s.id as any}>
+            <Reveal key={s.id}>
               <div id={s.id}>
                 <h2 className="font-display text-xl font-semibold text-foreground mb-4">
                   {i + 1}. {s.title}
