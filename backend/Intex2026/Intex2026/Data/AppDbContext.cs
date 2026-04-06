@@ -1,0 +1,79 @@
+using Intex2026.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+namespace Intex2026.Data;
+
+public class AppDbContext : IdentityDbContext<ApplicationUser>
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    // Donor & Support Domain
+    public DbSet<Safehouse> Safehouses => Set<Safehouse>();
+    public DbSet<Partner> Partners => Set<Partner>();
+    public DbSet<PartnerAssignment> PartnerAssignments => Set<PartnerAssignment>();
+    public DbSet<Supporter> Supporters => Set<Supporter>();
+    public DbSet<Donation> Donations => Set<Donation>();
+    public DbSet<InKindDonationItem> InKindDonationItems => Set<InKindDonationItem>();
+    public DbSet<DonationAllocation> DonationAllocations => Set<DonationAllocation>();
+
+    // Case Management Domain
+    public DbSet<Resident> Residents => Set<Resident>();
+    public DbSet<ProcessRecording> ProcessRecordings => Set<ProcessRecording>();
+    public DbSet<HomeVisitation> HomeVisitations => Set<HomeVisitation>();
+    public DbSet<EducationRecord> EducationRecords => Set<EducationRecord>();
+    public DbSet<HealthWellbeingRecord> HealthWellbeingRecords => Set<HealthWellbeingRecord>();
+    public DbSet<InterventionPlan> InterventionPlans => Set<InterventionPlan>();
+    public DbSet<IncidentReport> IncidentReports => Set<IncidentReport>();
+
+    // Outreach & Communication Domain
+    public DbSet<SocialMediaPost> SocialMediaPosts => Set<SocialMediaPost>();
+    public DbSet<SafehouseMonthlyMetric> SafehouseMonthlyMetrics => Set<SafehouseMonthlyMetric>();
+    public DbSet<PublicImpactSnapshot> PublicImpactSnapshots => Set<PublicImpactSnapshot>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        // PartnerAssignment: optional FK to Safehouse
+        builder.Entity<PartnerAssignment>()
+            .HasOne(pa => pa.Safehouse)
+            .WithMany()
+            .HasForeignKey(pa => pa.SafehouseId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Donation: no cascade delete from Supporter (avoid cycles)
+        builder.Entity<Donation>()
+            .HasOne(d => d.Supporter)
+            .WithMany()
+            .HasForeignKey(d => d.SupporterId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // IncidentReport: Resident and Safehouse — restrict to avoid cycles
+        builder.Entity<IncidentReport>()
+            .HasOne(ir => ir.Resident)
+            .WithMany()
+            .HasForeignKey(ir => ir.ResidentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<IncidentReport>()
+            .HasOne(ir => ir.Safehouse)
+            .WithMany()
+            .HasForeignKey(ir => ir.SafehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // DonationAllocation: restrict cascades
+        builder.Entity<DonationAllocation>()
+            .HasOne(da => da.Donation)
+            .WithMany()
+            .HasForeignKey(da => da.DonationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<DonationAllocation>()
+            .HasOne(da => da.Safehouse)
+            .WithMany()
+            .HasForeignKey(da => da.SafehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
