@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
-  LayoutDashboard, Users, FileText, Home, BarChart3, Brain,
+  LayoutDashboard, Users, FileText, BarChart3, Brain,
   Moon, Sun, LogOut, ChevronLeft, ChevronRight, Heart, ClipboardList, MapPin,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,8 +19,8 @@ const navGroups = [
     label: "Case Management",
     items: [
       { label: "Caseload", path: "/admin/caseload", icon: ClipboardList },
-      { label: "Process Recordings", path: "/admin/recordings", icon: FileText },
-      { label: "Home Visitations", path: "/admin/visitations", icon: MapPin },
+      { label: "Recordings", path: "/admin/recordings", icon: FileText },
+      { label: "Visitations", path: "/admin/visitations", icon: MapPin },
     ],
   },
   {
@@ -41,33 +41,28 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen flex bg-background">
       <aside
         className={cn(
-          "fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
-          collapsed ? "w-16" : "w-64"
+          "fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-sidebar transition-all duration-300",
+          collapsed ? "w-16" : "w-60"
         )}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
-          {!collapsed && (
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
-                <span className="text-navy font-display font-bold text-xs">NS</span>
-              </div>
+        <div className="flex items-center h-16 px-4">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-terracotta flex items-center justify-center flex-shrink-0">
+              <span className="text-terracotta-foreground font-display font-bold text-[10px]">NS</span>
+            </div>
+            {!collapsed && (
               <span className="font-display text-sm font-semibold text-sidebar-foreground whitespace-nowrap">
                 North Star
               </span>
-            </Link>
-          )}
-          {collapsed && (
-            <div className="w-7 h-7 rounded-full bg-gold flex items-center justify-center mx-auto">
-              <span className="text-navy font-display font-bold text-xs">NS</span>
-            </div>
-          )}
+            )}
+          </Link>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
+        <nav className="flex-1 overflow-y-auto py-6 px-2.5 space-y-7">
           {navGroups.map((group) => (
             <div key={group.label}>
               {!collapsed && (
-                <p className="px-3 mb-2 text-[10px] font-body font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+                <p className="px-3 mb-2.5 text-[10px] font-body font-medium uppercase tracking-[0.2em] text-sidebar-foreground/30">
                   {group.label}
                 </p>
               )}
@@ -80,10 +75,10 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                       to={item.path}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-body transition-colors",
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-body transition-all duration-200",
                         active
                           ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          : "text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
                       )}
                     >
                       <item.icon className="w-4 h-4 flex-shrink-0" />
@@ -96,33 +91,27 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           ))}
         </nav>
 
-        <div className="p-2 border-t border-sidebar-border space-y-1">
-          <button
-            onClick={toggle}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-body text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
-          >
+        <div className="p-2.5 space-y-0.5">
+          <button onClick={toggle}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-            {!collapsed && <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>}
+            {!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}
           </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-body text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
-          >
+          <button onClick={() => setCollapsed(!collapsed)}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!collapsed && <span>Collapse</span>}
           </button>
-          <Link
-            to="/"
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-body text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
-          >
+          <Link to="/"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
             <LogOut className="w-4 h-4" />
             {!collapsed && <span>Sign Out</span>}
           </Link>
         </div>
       </aside>
 
-      <main className={cn("flex-1 transition-all duration-300", collapsed ? "ml-16" : "ml-64")}>
-        <div className="p-6 md:p-8 max-w-7xl">{children}</div>
+      <main className={cn("flex-1 transition-all duration-300 min-h-screen", collapsed ? "ml-16" : "ml-60")}>
+        <div className="p-6 lg:p-10 max-w-6xl">{children}</div>
       </main>
     </div>
   );

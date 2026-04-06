@@ -23,18 +23,18 @@ export const AIInsightCard = ({ type, title, description, urgency, action }: AII
   const Icon = typeIcons[type] || Lightbulb;
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "rounded-xl border p-4 transition-shadow hover:shadow-md",
-        urgency === "high" && "border-terracotta/30 bg-terracotta/5",
-        urgency === "medium" && "border-gold/30 bg-gold/5",
-        urgency === "low" && "border-sage/30 bg-sage/5",
+        "rounded-2xl p-5 transition-all duration-300 hover:shadow-md",
+        urgency === "high" && "bg-terracotta/6",
+        urgency === "medium" && "bg-gold/6",
+        urgency === "low" && "bg-sage/6",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3.5">
         <div className={cn(
-          "rounded-lg p-2 flex-shrink-0",
+          "rounded-xl p-2 flex-shrink-0",
           urgency === "high" && "bg-terracotta/10 text-terracotta",
           urgency === "medium" && "bg-gold/10 text-gold",
           urgency === "low" && "bg-sage/10 text-sage",
@@ -42,20 +42,12 @@ export const AIInsightCard = ({ type, title, description, urgency, action }: AII
           <Icon className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h4 className="text-sm font-body font-semibold text-card-foreground">{title}</h4>
-            <span className={cn(
-              "px-1.5 py-0.5 rounded text-[10px] font-body font-bold uppercase",
-              urgency === "high" && "bg-terracotta/20 text-terracotta",
-              urgency === "medium" && "bg-gold/20 text-gold",
-              urgency === "low" && "bg-sage/20 text-sage",
-            )}>
-              {urgency}
-            </span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <h4 className="text-sm font-body font-semibold text-foreground">{title}</h4>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed mb-3">{description}</p>
-          <Button variant="outline" size="sm" className="h-7 text-xs font-body">
-            {action}
+          <Button variant="ghost" size="sm" className="h-7 text-xs font-body text-terracotta hover:text-terracotta hover:bg-terracotta/10 rounded-lg px-3">
+            {action} →
           </Button>
         </div>
       </div>
