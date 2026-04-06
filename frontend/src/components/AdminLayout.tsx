@@ -1,39 +1,62 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
-  LayoutDashboard, Users, FileText, BarChart3, Brain,
-  Moon, Sun, LogOut, ChevronLeft, ChevronRight, Heart, ClipboardList, MapPin,
+  LayoutDashboard,
+  Users,
+  FileText,
+  BarChart3,
+  Brain,
+  Moon,
+  Sun,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  ClipboardList,
+  MapPin,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/BrandLogo";
 
+function navItemActive(pathname: string, itemPath: string): boolean {
+  if (itemPath === "/dashboard") return pathname === "/dashboard";
+  return pathname === itemPath;
+}
+
 const navGroups = [
   {
     label: "Overview",
     items: [
-      { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
-      { label: "AI Insights", path: "/admin/insights", icon: Brain },
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "AI Insights", path: "/dashboard/insights", icon: Brain },
     ],
   },
   {
     label: "Case Management",
     items: [
-      { label: "Caseload", path: "/admin/caseload", icon: ClipboardList },
-      { label: "Recordings", path: "/admin/recordings", icon: FileText },
-      { label: "Visitations", path: "/admin/visitations", icon: MapPin },
+      { label: "Caseload", path: "/dashboard/caseload", icon: ClipboardList },
+      { label: "Recordings", path: "/dashboard/recordings", icon: FileText },
+      { label: "Visitations", path: "/dashboard/visitations", icon: MapPin },
     ],
   },
   {
     label: "Operations",
     items: [
-      { label: "Donors", path: "/admin/donors", icon: Heart },
-      { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+      { label: "Donors", path: "/dashboard/donors", icon: Heart },
+      { label: "Reports", path: "/dashboard/reports", icon: BarChart3 },
     ],
   },
 ];
 
-export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
+export const AdminLayout = ({
+  children,
+  contentClassName,
+}: {
+  children: React.ReactNode;
+  /** Wider main column (e.g. data-heavy dashboard) */
+  contentClassName?: string;
+}) => {
   const { theme, toggle } = useTheme();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -67,7 +90,7 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
               )}
               <div className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = location.pathname === item.path;
+                  const active = navItemActive(location.pathname, item.path);
                   return (
                     <Link
                       key={item.path}
@@ -91,18 +114,26 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
         </nav>
 
         <div className="p-2.5 space-y-0.5">
-          <button onClick={toggle}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
+          <button
+            onClick={toggle}
+            type="button"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
+          >
             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             {!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}
           </button>
-          <button onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            type="button"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
+          >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!collapsed && <span>Collapse</span>}
           </button>
-          <Link to="/"
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all">
+          <Link
+            to="/"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
+          >
             <LogOut className="w-4 h-4" />
             {!collapsed && <span>Sign Out</span>}
           </Link>
@@ -110,7 +141,7 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       <main className={cn("flex-1 transition-all duration-300 min-h-screen", collapsed ? "ml-16" : "ml-60")}>
-        <div className="p-6 lg:p-10 max-w-6xl">{children}</div>
+        <div className={cn("p-6 lg:p-10 max-w-6xl", contentClassName)}>{children}</div>
       </main>
     </div>
   );

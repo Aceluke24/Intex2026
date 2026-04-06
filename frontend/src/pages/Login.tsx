@@ -20,7 +20,7 @@ const Login = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { setLoading(false); navigate("/admin"); }, 1500);
+    setTimeout(() => { setLoading(false); navigate("/dashboard"); }, 1500);
   };
 
   return (
