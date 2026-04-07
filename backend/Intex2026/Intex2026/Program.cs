@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.Identity;
 using Intex2026.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
 
-
-
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendPolicy";
 const string DefaultFrontendUrl = "http://localhost:8080";

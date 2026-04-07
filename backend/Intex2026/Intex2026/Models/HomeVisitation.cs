@@ -13,6 +13,13 @@ public class HomeVisitation
     public Resident? Resident { get; set; }
 
     public DateOnly VisitDate { get; set; }
+
+    /// <summary>HomeVisit | CaseConference — distinguishes field visits from coordination conferences.</summary>
+    public string CoordinationKind { get; set; } = "HomeVisit";
+
+    /// <summary>Optional time of visit (display string, e.g. 10:00 AM).</summary>
+    public string? VisitTime { get; set; }
+
     public string SocialWorker { get; set; } = string.Empty;
     public string VisitType { get; set; } = string.Empty; // Initial Assessment | Routine Follow-Up | Reintegration Assessment | Post-Placement Monitoring | Emergency
     public string? LocationVisited { get; set; }

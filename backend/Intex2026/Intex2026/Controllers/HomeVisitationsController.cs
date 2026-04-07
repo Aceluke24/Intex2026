@@ -6,6 +6,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Intex2026.Controllers;
 
+public record VisitationListItemDto(
+    int Id,
+    string ResidentName,
+    string CaseId,
+    string VisitType,
+    string Category,
+    string Date,
+    string Time,
+    string Notes,
+    string StaffName,
+    string Status,
+    bool SafetyFlag);
+
 [ApiController]
 [Route("api/visitations")]
 [Authorize(Roles = "Admin")]
@@ -14,14 +27,19 @@ public class HomeVisitationsController : ControllerBase
     private readonly AppDbContext _db;
     public HomeVisitationsController(AppDbContext db) => _db = db;
 
+    /// <summary>GET /api/visitations — all visitations for admin (newest first).</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? residentId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var query = _db.HomeVisitations.AsQueryable();
-        if (residentId.HasValue) query = query.Where(v => v.ResidentId == residentId.Value);
-        var total = await query.CountAsync();
-        var items = await query.OrderByDescending(v => v.VisitDate).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return Ok(new { total, page, pageSize, items });
+        var rows = await _db.HomeVisitations
+            .AsNoTracking()
+            .Include(h => h.Resident)
+            .OrderByDescending(h => h.VisitDate)
+            .ThenByDescending(h => h.VisitationId)
+            .ToListAsync(ct);
+
+        var items = rows.Select(MapToListDto).ToList();
+        return Ok(items);
     }
 
     [HttpGet("{id:int}")]
@@ -58,5 +76,65 @@ public class HomeVisitationsController : ControllerBase
         _db.HomeVisitations.Remove(v);
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private static VisitationListItemDto MapToListDto(HomeVisitation v)
+    {
+        var r = v.Resident;
+        var caseId = r == null
+            ? ""
+            : (string.IsNullOrWhiteSpace(r.CaseControlNo) ? r.InternalCode : r.CaseControlNo);
+        var residentName = r == null
+            ? $"Resident #{v.ResidentId}"
+            : (string.IsNullOrWhiteSpace(r.InternalCode) ? $"Resident #{r.ResidentId}" : $"Resident {r.InternalCode}");
+
+        var kind = (v.CoordinationKind ?? "").Trim();
+        var visitTypeApi = string.Equals(kind, "CaseConference", StringComparison.OrdinalIgnoreCase)
+            ? "CaseConference"
+            : "HomeVisit";
+
+        var notes = string.Join(
+            " ",
+            new[] { v.Purpose, v.Observations }.Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
+        if (string.IsNullOrEmpty(notes))
+            notes = "—";
+
+        var dateStr = v.VisitDate.ToString("yyyy-MM-dd");
+        var timeStr = string.IsNullOrWhiteSpace(v.VisitTime) ? "—" : v.VisitTime!.Trim();
+
+        return new VisitationListItemDto(
+            v.VisitationId,
+            residentName,
+            caseId,
+            visitTypeApi,
+            MapCategory(v.VisitType),
+            dateStr,
+            timeStr,
+            notes,
+            v.SocialWorker,
+            DeriveStatus(v.VisitDate, v.FollowUpNeeded),
+            v.SafetyConcernsNoted);
+    }
+
+    private static string MapCategory(string visitType)
+    {
+        var t = (visitType ?? "").Trim();
+        if (t.Contains("Emergency", StringComparison.OrdinalIgnoreCase))
+            return "Emergency";
+        if (t.Contains("Reintegration", StringComparison.OrdinalIgnoreCase))
+            return "Reintegration";
+        if (t.Contains("Initial", StringComparison.OrdinalIgnoreCase))
+            return "InitialAssessment";
+        return "RoutineFollowUp";
+    }
+
+    private static string DeriveStatus(DateOnly visitDate, bool followUpNeeded)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (visitDate > today)
+            return "Scheduled";
+        if (followUpNeeded)
+            return "Pending";
+        return "Completed";
     }
 }
