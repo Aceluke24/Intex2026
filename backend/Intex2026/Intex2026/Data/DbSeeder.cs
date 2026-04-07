@@ -293,6 +293,8 @@ public static class DbSeeder
                 VisitationId = r.visitation_id,
                 ResidentId = r.resident_id,
                 VisitDate = ParseDate(r.visit_date),
+                CoordinationKind = "HomeVisit",
+                VisitTime = null,
                 SocialWorker = r.social_worker ?? "",
                 VisitType = r.visit_type ?? "",
                 LocationVisited = r.location_visited,

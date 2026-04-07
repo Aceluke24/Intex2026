@@ -19,12 +19,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_BASE ??
-  "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
-).replace(/\/$/, "");
+import { API_BASE } from "@/lib/apiBase";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === "/dashboard") return pathname === "/dashboard";

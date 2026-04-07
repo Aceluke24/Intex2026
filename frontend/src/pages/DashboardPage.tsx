@@ -11,13 +11,12 @@ import type {
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
+import { API_BASE } from "@/lib/apiBase";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-const DEFAULT_API_BASE = "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net";
-
 function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, "");
+  const base = API_BASE;
   const p = path.startsWith("/") ? path : `/${path}`;
   if (!base) return p;
   return `${base}${p}`;

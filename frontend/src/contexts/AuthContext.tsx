@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { API_BASE } from "@/lib/apiBase";
 
 interface User {
   email: string;
@@ -18,12 +19,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_BASE ??
-  "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
-).replace(/\/$/, "");
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

@@ -7,8 +7,6 @@ using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
-
-
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendPolicy";
 const string DefaultFrontendUrl = "http://localhost:8080";
