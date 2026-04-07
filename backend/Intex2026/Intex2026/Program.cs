@@ -97,12 +97,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
     {
-        var allowedOrigins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? ["http://localhost:5173"];
-
         policy
-            .WithOrigins(allowedOrigins)
+            .WithOrigins(
+                "http://localhost:8080",
+                "http://localhost:5173",
+                "http://localhost:5090",
+                "https://red-pond-0cef4041e.6.azurestaticapps.net"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
