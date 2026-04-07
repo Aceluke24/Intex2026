@@ -8,7 +8,7 @@ using Intex2026.Models;
 
 namespace Intex2026.Controllers;
 
-public record LoginRequest(string Email, string Password);
+public record CustomLoginRequest(string Email, string Password);
 public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
 
 [ApiController]
@@ -49,7 +49,7 @@ public class AuthController(
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest req)
+    public async Task<IActionResult> Login([FromBody] CustomLoginRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
             return BadRequest(new { message = "Email and password are required." });
