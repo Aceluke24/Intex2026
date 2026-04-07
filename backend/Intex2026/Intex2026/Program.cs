@@ -4,6 +4,8 @@ using Intex2026.Models;
 using Microsoft.AspNetCore.Identity;
 using Intex2026.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 
 
@@ -132,13 +134,28 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await appDb.Database.MigrateAsync();
-    await CsvDataSeeder.SeedAsync(appDb, app.Environment);
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await appDb.Database.MigrateAsync();
+        await CsvDataSeeder.SeedAsync(appDb, app.Environment);
 
-    var authDb = scope.ServiceProvider.GetRequiredService<AuthIdentityDbContext>();
-    await authDb.Database.MigrateAsync();
-    await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
+        var authDb = scope.ServiceProvider.GetRequiredService<AuthIdentityDbContext>();
+        await authDb.Database.MigrateAsync();
+        await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Startup migration/seeding failed");
+
+        // In production, fail fast so deployment health checks surface the root cause immediately
+        // instead of returning opaque runtime 500s from auth/data endpoints.
+        if (!app.Environment.IsDevelopment())
+        {
+            throw;
+        }
+    }
 }
 
 if (app.Environment.IsDevelopment())
