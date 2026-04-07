@@ -42,7 +42,7 @@ const Login = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login?useCookies=true`, {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -54,10 +54,6 @@ const Login = () => {
         return;
       }
       const data = await res.json();
-      if (data.requiresMfa) {
-        navigate("/mfa");
-        return;
-      }
       await refetch();
       redirectByRole(data.roles ?? []);
     } catch {
@@ -68,7 +64,7 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/api/auth/google-login`;
+    window.location.href = `${API_BASE}/api/auth/external-login?provider=Google`;
   };
 
   return (

@@ -8,6 +8,9 @@ using Intex2026.Models;
 
 namespace Intex2026.Controllers;
 
+public record LoginRequest(string Email, string Password);
+public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
+
 [ApiController]
 [Route("api/auth")]
 public class AuthController(
@@ -22,31 +25,68 @@ public class AuthController(
     public async Task<IActionResult> GetCurrentSession()
     {
         if (User.Identity?.IsAuthenticated != true)
-        {
-            return Ok(new
-            {
-                isAuthenticated = false,
-                userName = (string?)null,
-                email = (string?)null,
-                roles = Array.Empty<string>()
-            });
-        }
+            return Unauthorized();
 
         var user = await userManager.GetUserAsync(User);
+        if (user == null)
+            return Unauthorized();
+
         var roles = User.Claims
-            .Where(claim => claim.Type == ClaimTypes.Role)
-            .Select(claim => claim.Value)
+            .Where(c => c.Type == ClaimTypes.Role)
+            .Select(c => c.Value)
             .Distinct()
-            .OrderBy(role => role)
+            .OrderBy(r => r)
             .ToArray();
 
         return Ok(new
         {
-            isAuthenticated = true,
-            userName = user?.UserName ?? User.Identity?.Name,
-            email = user?.Email,
-            roles
+            email = user.Email,
+            userName = user.UserName,
+            supporterId = user.SupporterId,
+            roles,
+            mfaEnabled = user.TwoFactorEnabled
         });
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
+            return BadRequest(new { message = "Email and password are required." });
+
+        var result = await signInManager.PasswordSignInAsync(req.Email, req.Password, isPersistent: true, lockoutOnFailure: false);
+
+        if (result.IsLockedOut)
+            return Unauthorized(new { message = "Account is locked out." });
+        if (!result.Succeeded)
+            return Unauthorized(new { message = "Invalid credentials." });
+
+        var user = await userManager.FindByEmailAsync(req.Email);
+        var roles = (await userManager.GetRolesAsync(user!)).ToArray();
+
+        return Ok(new { roles });
+    }
+
+    [HttpPost("register-donor")]
+    public async Task<IActionResult> RegisterDonor([FromBody] RegisterDonorRequest req)
+    {
+        if (req.Password != req.ConfirmPassword)
+            return BadRequest(new { message = "Passwords do not match." });
+
+        var user = new ApplicationUser
+        {
+            UserName = req.Email,
+            Email = req.Email,
+            EmailConfirmed = true,
+            DisplayName = req.DisplayName
+        };
+
+        var result = await userManager.CreateAsync(user, req.Password);
+        if (!result.Succeeded)
+            return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        await userManager.AddToRoleAsync(user, AuthRoles.Donor);
+        return Ok(new { message = "Account created successfully." });
     }
 
     [HttpGet("providers")]
