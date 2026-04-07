@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import { SkeletonCard, SkeletonChart } from "@/components/SkeletonLoaders";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { API_BASE } from "@/lib/apiBase";
 
 const Reveal = ({ children, className = "", delay: d = 0 }: { children: React.ReactNode; className?: string; delay?: number }) => (
   <motion.div
@@ -73,11 +74,11 @@ const ImpactDashboard = () => {
     const load = async () => {
       try {
         const [sRes, tRes, oRes, cRes, aRes] = await Promise.all([
-          fetch("/api/public/impact/summary"),
-          fetch("/api/public/impact/donations-trend"),
-          fetch("/api/public/impact/program-outcomes"),
-          fetch("/api/public/impact/campaigns"),
-          fetch("/api/public/impact/allocation"),
+          fetch(`${API_BASE}/api/public/impact/summary`),
+          fetch(`${API_BASE}/api/public/impact/donations-trend`),
+          fetch(`${API_BASE}/api/public/impact/program-outcomes`),
+          fetch(`${API_BASE}/api/public/impact/campaigns`),
+          fetch(`${API_BASE}/api/public/impact/allocation`),
         ]);
 
         const sJson = await sRes.json().catch(() => ({}));

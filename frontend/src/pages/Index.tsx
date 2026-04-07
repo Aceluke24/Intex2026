@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { stories } from "@/lib/mockData";
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
+import { API_BASE } from "@/lib/apiBase";
 
 /* Animated number that counts up on mount */
 const Counter = ({ end, suffix = "", prefix = "" }: { end: number; suffix?: string; prefix?: string }) => {
@@ -80,14 +81,14 @@ const Index = () => {
   });
 
   useEffect(() => {
-    fetch("/api/public/residents/count")
+    fetch(`${API_BASE}/api/public/residents/count`)
       .then((res) => res.json())
       .then((data: { count?: number }) => setResidentCount(typeof data.count === "number" ? data.count : 0))
       .catch(() => setResidentCount(0));
   }, []);
 
   useEffect(() => {
-    fetch("/api/public/impact/summary")
+    fetch(`${API_BASE}/api/public/impact/summary`)
       .then((res) => res.json())
       .then((data: Partial<ImpactSummary>) =>
         setSummary({
@@ -103,7 +104,7 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    fetch("/api/public/impact/allocation")
+    fetch(`${API_BASE}/api/public/impact/allocation`)
       .then((res) => res.json())
       .then((data: Partial<AllocationBreakdown>) =>
         setAllocation({
