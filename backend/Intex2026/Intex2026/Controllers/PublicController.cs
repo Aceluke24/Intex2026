@@ -11,6 +11,213 @@ public class PublicController : ControllerBase
     private readonly AppDbContext _db;
     public PublicController(AppDbContext db) => _db = db;
 
+    // GET /api/public/residents/count — public survivor count (landing)
+    [HttpGet("residents/count")]
+    public async Task<IActionResult> ResidentsCount()
+    {
+        try
+        {
+            var count = await _db.Residents
+                .Select(r => r.ResidentId)
+                .Distinct()
+                .CountAsync();
+            return Ok(new { count });
+        }
+        catch
+        {
+            return Ok(new { count = 0 });
+        }
+    }
+
+    // GET /api/public/impact/summary — headline impact stats
+    [HttpGet("impact/summary")]
+    public async Task<IActionResult> ImpactSummary()
+    {
+        try
+        {
+            var survivors = await _db.Residents.CountAsync();
+
+            var totalDonations = await _db.Donations
+                .Where(d => d.Amount != null)
+                .SumAsync(d => d.Amount ?? 0);
+
+            var activePrograms = await _db.PartnerAssignments
+                .Select(p => p.ProgramArea)
+                .Distinct()
+                .CountAsync();
+
+            var totalEdu = await _db.EducationRecords.CountAsync();
+            var completed = await _db.EducationRecords
+                .CountAsync(e => e.CompletionStatus == "Completed");
+
+            var completionRate = totalEdu == 0 ? 0 : (int)(completed * 100.0 / totalEdu);
+
+            return Ok(new
+            {
+                survivors,
+                totalDonations,
+                activePrograms,
+                completionRate
+            });
+        }
+        catch
+        {
+            return Ok(new
+            {
+                survivors = 0,
+                totalDonations = 0m,
+                activePrograms = 0,
+                completionRate = 0
+            });
+        }
+    }
+
+    // GET /api/public/impact/donations-trend — monthly donation totals for charts
+    [HttpGet("impact/donations-trend")]
+    public async Task<IActionResult> DonationsTrend()
+    {
+        try
+        {
+            var data = await _db.Donations
+                .Where(d => d.Amount != null)
+                .GroupBy(d => new { d.DonationDate.Year, d.DonationDate.Month })
+                .Select(g => new
+                {
+                    year = g.Key.Year,
+                    month = g.Key.Month,
+                    total = g.Sum(x => x.Amount ?? 0)
+                })
+                .OrderBy(x => x.year)
+                .ThenBy(x => x.month)
+                .ToListAsync();
+
+            return Ok(data);
+        }
+        catch
+        {
+            return Ok(Array.Empty<object>());
+        }
+    }
+
+    // GET /api/public/impact/program-outcomes — rates for outcome bars
+    [HttpGet("impact/program-outcomes")]
+    public async Task<IActionResult> ProgramOutcomes()
+    {
+        try
+        {
+            var safehouseRows = await _db.Safehouses
+                .Where(s => s.CapacityGirls > 0)
+                .Select(s => new { s.CurrentOccupancy, s.CapacityGirls })
+                .ToListAsync();
+
+            double safeHousing = 0;
+            if (safehouseRows.Count > 0)
+            {
+                safeHousing = safehouseRows.Average(s => (double)s.CurrentOccupancy / s.CapacityGirls) * 100.0;
+            }
+
+            var totalEdu = await _db.EducationRecords.CountAsync();
+            var completedEdu = await _db.EducationRecords
+                .CountAsync(e => e.CompletionStatus == "Completed");
+
+            var educationRate = totalEdu == 0 ? 0 : completedEdu * 100.0 / totalEdu;
+
+            var totalSessions = await _db.ProcessRecordings.CountAsync();
+            var progress = await _db.ProcessRecordings
+                .CountAsync(p => p.ProgressNoted);
+
+            var counselingRate = totalSessions == 0 ? 0 : progress * 100.0 / totalSessions;
+
+            var totalPlans = await _db.InterventionPlans.CountAsync();
+            var achieved = await _db.InterventionPlans
+                .CountAsync(p => p.Status == "Achieved");
+
+            var planRate = totalPlans == 0 ? 0 : achieved * 100.0 / totalPlans;
+
+            return Ok(new
+            {
+                safeHousing = Math.Round(safeHousing, 1),
+                education = Math.Round(educationRate, 1),
+                counseling = Math.Round(counselingRate, 1),
+                interventionPlans = Math.Round(planRate, 1)
+            });
+        }
+        catch
+        {
+            return Ok(new
+            {
+                safeHousing = 0d,
+                education = 0d,
+                counseling = 0d,
+                interventionPlans = 0d
+            });
+        }
+    }
+
+    // GET /api/public/impact/campaigns — grouped campaign totals
+    [HttpGet("impact/campaigns")]
+    public async Task<IActionResult> ImpactCampaigns()
+    {
+        try
+        {
+            var campaigns = await _db.Donations
+                .Where(d => d.CampaignName != null && d.CampaignName != "")
+                .GroupBy(d => d.CampaignName)
+                .Select(g => new
+                {
+                    name = g.Key,
+                    raised = g.Sum(x => x.Amount ?? 0),
+                    goal = (g.Sum(x => x.Amount ?? 0)) * 1.25m,
+                    daysLeft = 30
+                })
+                .ToListAsync();
+
+            return Ok(campaigns);
+        }
+        catch
+        {
+            return Ok(Array.Empty<object>());
+        }
+    }
+
+    // GET /api/public/impact/allocation — percentage breakdown by program area
+    [HttpGet("impact/allocation")]
+    public async Task<IActionResult> ImpactAllocation()
+    {
+        try
+        {
+            var total = await _db.DonationAllocations.SumAsync(x => x.AmountAllocated);
+
+            if (total == 0)
+            {
+                return Ok(new { direct = 0, outreach = 0, operations = 0 });
+            }
+
+            var direct = await _db.DonationAllocations
+                .Where(x => x.ProgramArea == "Education" || x.ProgramArea == "Wellbeing")
+                .SumAsync(x => x.AmountAllocated);
+
+            var outreach = await _db.DonationAllocations
+                .Where(x => x.ProgramArea == "Outreach")
+                .SumAsync(x => x.AmountAllocated);
+
+            var ops = await _db.DonationAllocations
+                .Where(x => x.ProgramArea == "Operations")
+                .SumAsync(x => x.AmountAllocated);
+
+            return Ok(new
+            {
+                direct = (int)(direct * 100 / total),
+                outreach = (int)(outreach * 100 / total),
+                operations = (int)(ops * 100 / total)
+            });
+        }
+        catch
+        {
+            return Ok(new { direct = 0, outreach = 0, operations = 0 });
+        }
+    }
+
     // GET /api/public/impact — latest published impact snapshots (donor-facing)
     [HttpGet("impact")]
     public async Task<IActionResult> Impact([FromQuery] int limit = 12)

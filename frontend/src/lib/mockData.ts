@@ -1,41 +1,6 @@
 // Simulated API delay
 export const delay = (ms = 800) => new Promise((r) => setTimeout(r, ms));
 
-export const impactStats = {
-  survivorsHelped: 1247,
-  donationsTotal: 3_842_500,
-  programsActive: 12,
-  successRate: 94,
-  volunteersActive: 328,
-  communitiesServed: 47,
-};
-
-export const campaigns = [
-  { name: "Winter Shelter Expansion", goal: 150000, raised: 127500, daysLeft: 18 },
-  { name: "Trauma Counseling Fund", goal: 80000, raised: 72000, daysLeft: 7 },
-  { name: "Children's Education Program", goal: 200000, raised: 145000, daysLeft: 34 },
-];
-
-export const monthlyDonations = [
-  { month: "Jul", amount: 42000 },
-  { month: "Aug", amount: 38000 },
-  { month: "Sep", amount: 51000 },
-  { month: "Oct", amount: 47000 },
-  { month: "Nov", amount: 63000 },
-  { month: "Dec", amount: 89000 },
-  { month: "Jan", amount: 72000 },
-  { month: "Feb", amount: 58000 },
-  { month: "Mar", amount: 61000 },
-];
-
-export const programOutcomes = [
-  { program: "Safe Housing", enrolled: 89, completed: 78, rate: 88 },
-  { program: "Job Training", enrolled: 124, completed: 108, rate: 87 },
-  { program: "Counseling", enrolled: 203, completed: 187, rate: 92 },
-  { program: "Legal Aid", enrolled: 67, completed: 61, rate: 91 },
-  { program: "Child Care", enrolled: 156, completed: 149, rate: 96 },
-];
-
 export const stories = [
   {
     id: 1,

@@ -3,7 +3,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Heart, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { impactStats, stories } from "@/lib/mockData";
+import { stories } from "@/lib/mockData";
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
@@ -47,11 +47,75 @@ const Reveal = ({ children, className = "", delay = 0 }: { children: React.React
   </motion.div>
 );
 
+type ImpactSummary = {
+  survivors: number;
+  totalDonations: number;
+  activePrograms: number;
+  completionRate: number;
+};
+
+type AllocationBreakdown = {
+  direct: number;
+  outreach: number;
+  operations: number;
+};
+
 const Index = () => {
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.8], [1, 0.96]);
+
+  const [residentCount, setResidentCount] = useState(0);
+  const [summary, setSummary] = useState<ImpactSummary>({
+    survivors: 0,
+    totalDonations: 0,
+    activePrograms: 0,
+    completionRate: 0,
+  });
+  const [allocation, setAllocation] = useState<AllocationBreakdown>({
+    direct: 0,
+    outreach: 0,
+    operations: 0,
+  });
+
+  useEffect(() => {
+    fetch("/api/public/residents/count")
+      .then((res) => res.json())
+      .then((data: { count?: number }) => setResidentCount(typeof data.count === "number" ? data.count : 0))
+      .catch(() => setResidentCount(0));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/public/impact/summary")
+      .then((res) => res.json())
+      .then((data: Partial<ImpactSummary>) =>
+        setSummary({
+          survivors: typeof data.survivors === "number" ? data.survivors : 0,
+          totalDonations: typeof data.totalDonations === "number" ? data.totalDonations : 0,
+          activePrograms: typeof data.activePrograms === "number" ? data.activePrograms : 0,
+          completionRate: typeof data.completionRate === "number" ? data.completionRate : 0,
+        })
+      )
+      .catch(() =>
+        setSummary({ survivors: 0, totalDonations: 0, activePrograms: 0, completionRate: 0 })
+      );
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/public/impact/allocation")
+      .then((res) => res.json())
+      .then((data: Partial<AllocationBreakdown>) =>
+        setAllocation({
+          direct: typeof data.direct === "number" ? data.direct : 0,
+          outreach: typeof data.outreach === "number" ? data.outreach : 0,
+          operations: typeof data.operations === "number" ? data.operations : 0,
+        })
+      )
+      .catch(() => setAllocation({ direct: 0, outreach: 0, operations: 0 }));
+  }, []);
+
+  const donationTotal = Math.max(0, Math.floor(Number(summary.totalDonations)));
 
   return (
     <PublicLayout>
@@ -151,7 +215,7 @@ const Index = () => {
               <span className="text-terracotta">no one should face</span>{" "}
               their darkest moments alone. North Star Sanctuary has supported{" "}
               <span className="text-terracotta italic">
-                <Counter end={impactStats.survivorsHelped} suffix="+" />
+                <Counter end={residentCount} suffix="+" />
               </span>{" "}
               survivors in building new lives — with shelter, counseling, and
               unwavering hope.
@@ -173,10 +237,10 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-20 gap-x-16 lg:gap-x-24">
             {[
-              { val: impactStats.donationsTotal, label: "Raised for survivors and families", prefix: "$", suffix: "", sub: "Since our founding in 2018" },
-              { val: impactStats.successRate, label: "Program completion rate across all services", suffix: "%", sub: "Industry average: 67%" },
-              { val: impactStats.communitiesServed, label: "Communities served across the region", suffix: "", sub: "Expanding to 12 new areas in 2025" },
-              { val: impactStats.volunteersActive, label: "Active volunteers supporting our mission", suffix: "+", sub: "Join our volunteer network" },
+              { val: donationTotal, label: "Raised for survivors and families", prefix: "$", suffix: "", sub: "Monetary gifts recorded in our system" },
+              { val: summary.completionRate, label: "Program completion rate across education services", suffix: "%", sub: "Share of education records marked completed" },
+              { val: summary.activePrograms, label: "Active program partnership areas", suffix: "", sub: "Distinct program areas from partner assignments" },
+              { val: summary.survivors, label: "Residents in our case management records", suffix: "+", sub: "Total residents on file" },
             ].map((stat, i) => (
               <Reveal key={stat.label} delay={i * 0.1}>
                 <div className="group">
@@ -321,16 +385,16 @@ const Index = () => {
                 </h2>
               </div>
               <p className="font-body text-sm text-muted-foreground max-w-xs mt-6 lg:mt-0 leading-relaxed">
-                82 cents of every dollar directly fund programs that change lives. We keep overhead low so impact stays high.
+                Allocation below reflects how recorded donations are directed across program areas in our database.
               </p>
             </div>
           </Reveal>
 
           <div className="grid grid-cols-3 gap-8 lg:gap-16">
             {[
-              { pct: "82%", label: "Program Services", color: "text-terracotta" },
-              { pct: "11%", label: "Fundraising", color: "text-foreground" },
-              { pct: "7%", label: "Administration", color: "text-muted-foreground" },
+              { pct: `${allocation.direct}%`, label: "Direct services (education & wellbeing)", color: "text-terracotta" },
+              { pct: `${allocation.outreach}%`, label: "Outreach", color: "text-foreground" },
+              { pct: `${allocation.operations}%`, label: "Operations", color: "text-muted-foreground" },
             ].map((item, i) => (
               <Reveal key={item.label} delay={i * 0.1}>
                 <div>
