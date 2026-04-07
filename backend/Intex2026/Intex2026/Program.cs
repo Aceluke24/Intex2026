@@ -110,7 +110,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SameSite = builder.Environment.IsDevelopment()
         ? SameSiteMode.Lax
         : SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(7);
     options.SlidingExpiration = true;
 });
