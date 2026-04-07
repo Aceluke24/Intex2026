@@ -157,5 +157,5 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapGroup("/api/auth").MapIdentityApi<ApplicationUser>();
+app.MapGroup("/api/auth").MapIdentityApi<ApplicationUser>().RequireCors(FrontendCorsPolicy);
 app.Run();

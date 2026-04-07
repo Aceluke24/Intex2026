@@ -42,7 +42,7 @@ const Login = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/auth/login?useCookies=true`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
