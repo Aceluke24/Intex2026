@@ -1,21 +1,52 @@
+using Microsoft.EntityFrameworkCore;
 using Intex2026.Data;
 using Intex2026.Models;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Intex2026.Infrastructure;
+using Microsoft.AspNetCore.Authentication.Google;
+
+
 
 var builder = WebApplication.CreateBuilder(args);
-
 const string FrontendCorsPolicy = "FrontendPolicy";
-const string DefaultFrontendUrl = "http://localhost:5173";
-var frontendUrl = builder.Configuration["FrontendUrl"] ?? DefaultFrontendUrl;
+const string DefaultFrontendUrl = "http://localhost:8080";
+var frontendUrl =
+    builder.Configuration["Frontend:BaseUrl"] ??
+    builder.Configuration["FrontendUrl"] ??
+    DefaultFrontendUrl;
+
+var configAllowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? Array.Empty<string>();
+
+var allowedOrigins = new List<string>();
+
+if (!string.IsNullOrWhiteSpace(frontendUrl))
+{
+    allowedOrigins.Add(frontendUrl);
+}
+
+allowedOrigins.AddRange(configAllowedOrigins);
+
+if (builder.Environment.IsDevelopment())
+{
+    // Common local dev ports for Vite and alternate frontend hosts.
+    allowedOrigins.Add("http://localhost:5173");
+    allowedOrigins.Add("http://localhost:8080");
+}
+
+var dedupedOrigins = allowedOrigins
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
 var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
 var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
 
 // ── Controllers & OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // ── Database ──────────────────────────────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -24,20 +55,28 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlite(connectionString));
+        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? connectionString));
+    builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+        options.UseSqlite(builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString));
 }
 else
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ?? connectionString));
+    builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString));
 }
 
-// ── Identity ──────────────────────────────────────────────────────────────────
 builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
     .AddRoles<IdentityRole>()
-    .AddEntityFrameworkStores<AppDbContext>();
+    .AddEntityFrameworkStores<AuthIdentityDbContext>();
 
-// ── Identity options ──────────────────────────────────────────────────────────
+// ── Authentication & Authorization ───────────────────────────────────────────
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthPolicies.ManageCatalog, policy => policy.RequireRole(AuthRoles.Admin));
+});
+
 builder.Services.Configure<IdentityOptions>(options =>
 {
     options.Password.RequireDigit = false;
@@ -46,111 +85,49 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.Password.RequireUppercase = false;
     options.Password.RequiredLength = 14;
     options.Password.RequiredUniqueChars = 1;
-
-    options.User.RequireUniqueEmail = true;
-    options.SignIn.RequireConfirmedAccount = false;
 });
 
-// ── Cookie authentication ─────────────────────────────────────────────────────
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SameSite = builder.Environment.IsDevelopment()
+        ? SameSiteMode.Lax
+        : SameSiteMode.None;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(7);
     options.SlidingExpiration = true;
 });
 
-// ── Google OAuth ──────────────────────────────────────────────────────────────
-if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
-{
-    builder.Services.AddAuthentication()
-        .AddGoogle(options =>
-        {
-            options.ClientId = googleClientId;
-            options.ClientSecret = googleClientSecret;
-            options.SignInScheme = IdentityConstants.ExternalScheme;
-            options.CallbackPath = "/signin-google";
-        });
-}
-
-// ── Authorization ─────────────────────────────────────────────────────────────
-builder.Services.AddAuthorization();
-
-// ── CORS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
-        policy.WithOrigins(
-                frontendUrl,
-                "http://localhost:8080",
-                "http://localhost:5090",
-                "https://red-pond-0cef4041e.6.azurestaticapps.net"
-            )
-            .AllowAnyHeader()
+        policy.WithOrigins(dedupedOrigins)
+            .AllowCredentials()
             .AllowAnyMethod()
-            .AllowCredentials();
+            .AllowAnyHeader();
     });
 });
 
-// ── Data protection key persistence (required for multi-instance Azure) ──────
-builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/home/site/data-protection-keys"))
-    .SetApplicationName("Intex2026");
-
 var app = builder.Build();
 
-// ── Seed database on startup ──────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<AppDbContext>();
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-        await context.Database.MigrateAsync();
-        await DbSeeder.SeedAsync(context, userManager, roleManager, app.Environment, app.Configuration);
+    await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
     }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database seeding.");
-    }
-}
 
-// ── Forwarded headers (required behind Azure App Service reverse proxy) ───────
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
-
-// ── Security headers middleware ───────────────────────────────────────────────
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["X-Frame-Options"] = "DENY";
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    context.Response.Headers["Content-Security-Policy"] =
-        "default-src 'self'; " +
-        "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com; " +
-        "img-src 'self' data: https:; " +
-        "connect-src 'self' http://localhost:5173 http://localhost:5174;";
-    await next();
-});
-
-// ── Pipeline ──────────────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
-else
+
+if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
+
+app.UseSecurityHeaders();
 
 app.UseCors(FrontendCorsPolicy);
 app.UseHttpsRedirection();
@@ -158,5 +135,4 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGroup("/api/auth").MapIdentityApi<ApplicationUser>();
-
 app.Run();
