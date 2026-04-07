@@ -52,19 +52,36 @@ builder.Services.AddSwaggerGen();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
+if (connectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "Connection string 'DefaultConnection' is still set to the placeholder value. " +
+        "Configure a real connection string in Azure App Service.");
+}
+
+var authIdentityConnectionString =
+    builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString;
+
+if (authIdentityConnectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "Connection string 'AuthIdentityConnection' is still set to the placeholder value. " +
+        "Configure a real connection string in Azure App Service or omit it to fallback to DefaultConnection.");
+}
+
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? connectionString));
+        options.UseSqlite(connectionString));
     builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString));
+        options.UseSqlite(authIdentityConnectionString));
 }
 else
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") ?? connectionString));
+        options.UseSqlServer(connectionString));
     builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString));
+        options.UseSqlServer(authIdentityConnectionString));
 }
 
 builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
@@ -113,8 +130,14 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await appDb.Database.MigrateAsync();
+    await CsvDataSeeder.SeedAsync(appDb, app.Environment);
+
+    var authDb = scope.ServiceProvider.GetRequiredService<AuthIdentityDbContext>();
+    await authDb.Database.MigrateAsync();
     await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
-    }
+}
 
 if (app.Environment.IsDevelopment())
 {

@@ -1,6 +1,7 @@
 using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,12 @@ namespace Intex2026.Controllers;
 public class DonationsController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public DonationsController(AppDbContext db) => _db = db;
+    private readonly UserManager<ApplicationUser> _userManager;
+    public DonationsController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    {
+        _db = db;
+        _userManager = userManager;
+    }
 
     [HttpGet]
     [Authorize(Roles = "Admin")]
@@ -48,7 +54,7 @@ public class DonationsController : ControllerBase
         if (userIdClaim == null) return Unauthorized();
 
         // Look up SupporterId from ApplicationUser
-        var user = await _db.Users.FindAsync(userIdClaim) as Models.ApplicationUser;
+        var user = await _userManager.FindByIdAsync(userIdClaim);
         if (user?.SupporterId == null) return Ok(Array.Empty<object>());
 
         var donations = await _db.Donations
