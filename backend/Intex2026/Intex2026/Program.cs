@@ -7,6 +7,16 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string FrontendCorsPolicy = "FrontendPolicy";
+const string DefaultFrontendUrl = "http://localhost:5173";
+var frontendUrl = builder.Configuration["FrontendUrl"] ?? DefaultFrontendUrl;
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+
+// ── Controllers & OpenAPI ─────────────────────────────────────────────────────
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
 // ── Database ──────────────────────────────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -23,84 +33,58 @@ else
 }
 
 // ── Identity ──────────────────────────────────────────────────────────────────
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
+// ── Identity options ──────────────────────────────────────────────────────────
+builder.Services.Configure<IdentityOptions>(options =>
 {
-    // Only length is required per instructor guidance
-    options.Password.RequiredLength = 14;
     options.Password.RequireDigit = false;
-    options.Password.RequireUppercase = false;
     options.Password.RequireLowercase = false;
     options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequiredLength = 14;
     options.Password.RequiredUniqueChars = 1;
 
     options.User.RequireUniqueEmail = true;
     options.SignIn.RequireConfirmedAccount = false;
-})
-.AddEntityFrameworkStores<AppDbContext>()
-.AddDefaultTokenProviders();
+});
 
 // ── Cookie authentication ─────────────────────────────────────────────────────
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath = "/login";
-    options.AccessDeniedPath = "/access-denied";
-    options.SlidingExpiration = true;
-    options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.None;  // Required for cross-origin (separate App Services)
+    options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Events.OnRedirectToLogin = ctx =>
-    {
-        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return Task.CompletedTask;
-    };
-    options.Events.OnRedirectToAccessDenied = ctx =>
-    {
-        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
-        return Task.CompletedTask;
-    };
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.SlidingExpiration = true;
 });
 
-// ── Data protection key persistence (required for multi-instance Azure) ──────
-builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/home/site/data-protection-keys"))
-    .SetApplicationName("Intex2026");
-
 // ── Google OAuth ──────────────────────────────────────────────────────────────
-// Only register Google auth in production — credentials are not set locally
-if (!builder.Environment.IsDevelopment())
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
 {
     builder.Services.AddAuthentication()
         .AddGoogle(options =>
         {
-            options.ClientId = builder.Configuration["Authentication:Google:ClientId"]
-                ?? throw new InvalidOperationException("Google ClientId not configured.");
-            options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
-                ?? throw new InvalidOperationException("Google ClientSecret not configured.");
-            options.CallbackPath = "/api/auth/google-callback";
-            options.CorrelationCookie.SameSite = SameSiteMode.None;
-            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-            options.Events.OnRemoteFailure = ctx =>
-            {
-                var frontendBase = ctx.HttpContext.RequestServices
-                    .GetRequiredService<IConfiguration>()["Frontend:BaseUrl"] ?? "http://localhost:8080";
-                var msg = Uri.EscapeDataString(ctx.Failure?.Message ?? "unknown");
-                ctx.Response.Redirect($"{frontendBase.TrimEnd('/')}/login?error={msg}");
-                ctx.HandleResponse();
-                return Task.CompletedTask;
-            };
+            options.ClientId = googleClientId;
+            options.ClientSecret = googleClientSecret;
+            options.SignInScheme = IdentityConstants.ExternalScheme;
+            options.CallbackPath = "/signin-google";
         });
 }
+
+// ── Authorization ─────────────────────────────────────────────────────────────
+builder.Services.AddAuthorization();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("FrontendPolicy", policy =>
+    options.AddPolicy(FrontendCorsPolicy, policy =>
     {
-        policy
-            .WithOrigins(
+        policy.WithOrigins(
+                frontendUrl,
                 "http://localhost:8080",
-                "http://localhost:5173",
                 "http://localhost:5090",
                 "https://red-pond-0cef4041e.6.azurestaticapps.net"
             )
@@ -110,9 +94,10 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ── Controllers & OpenAPI ─────────────────────────────────────────────────────
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+// ── Data protection key persistence (required for multi-instance Azure) ──────
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/home/site/data-protection-keys"))
+    .SetApplicationName("Intex2026");
 
 var app = builder.Build();
 
@@ -167,16 +152,11 @@ else
     app.UseHsts();
 }
 
-// CORS must come before HTTPS redirection so preflight responses include
-// the Access-Control-Allow-Origin header even when a redirect is involved.
-app.UseCors("FrontendPolicy");
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+app.UseCors(FrontendCorsPolicy);
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGroup("/api/auth").MapIdentityApi<ApplicationUser>();
 
 app.Run();
