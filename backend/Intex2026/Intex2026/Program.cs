@@ -1,5 +1,6 @@
 using Intex2026.Data;
 using Intex2026.Models;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -66,26 +67,30 @@ builder.Services.AddDataProtection()
     .SetApplicationName("Intex2026");
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
-builder.Services.AddAuthentication()
-    .AddGoogle(options =>
-    {
-        options.ClientId = builder.Configuration["Authentication:Google:ClientId"]
-            ?? throw new InvalidOperationException("Google ClientId not configured.");
-        options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
-            ?? throw new InvalidOperationException("Google ClientSecret not configured.");
-        options.CallbackPath = "/api/auth/google-callback";
-        options.CorrelationCookie.SameSite = SameSiteMode.None;
-        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Events.OnRemoteFailure = ctx =>
+// Only register Google auth in production — credentials are not set locally
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(options =>
         {
-            var frontendBase = ctx.HttpContext.RequestServices
-                .GetRequiredService<IConfiguration>()["Frontend:BaseUrl"] ?? "http://localhost:8080";
-            var msg = Uri.EscapeDataString(ctx.Failure?.Message ?? "unknown");
-            ctx.Response.Redirect($"{frontendBase.TrimEnd('/')}/login?error={msg}");
-            ctx.HandleResponse();
-            return Task.CompletedTask;
-        };
-    });
+            options.ClientId = builder.Configuration["Authentication:Google:ClientId"]
+                ?? throw new InvalidOperationException("Google ClientId not configured.");
+            options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
+                ?? throw new InvalidOperationException("Google ClientSecret not configured.");
+            options.CallbackPath = "/api/auth/google-callback";
+            options.CorrelationCookie.SameSite = SameSiteMode.None;
+            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Events.OnRemoteFailure = ctx =>
+            {
+                var frontendBase = ctx.HttpContext.RequestServices
+                    .GetRequiredService<IConfiguration>()["Frontend:BaseUrl"] ?? "http://localhost:8080";
+                var msg = Uri.EscapeDataString(ctx.Failure?.Message ?? "unknown");
+                ctx.Response.Redirect($"{frontendBase.TrimEnd('/')}/login?error={msg}");
+                ctx.HandleResponse();
+                return Task.CompletedTask;
+            };
+        });
+}
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
