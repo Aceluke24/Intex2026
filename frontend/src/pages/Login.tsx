@@ -10,6 +10,7 @@ import { Moon, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
+import { API_BASE } from "@/lib/apiBase";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -24,12 +25,6 @@ const Login = () => {
   const [error, setError] = useState<string | null>(
     searchParams.get("error") ? decodeURIComponent(searchParams.get("error")!) : null
   );
-
-  const API_BASE = (
-    import.meta.env.VITE_API_BASE_URL ??
-    import.meta.env.VITE_API_BASE ??
-    "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
-  ).replace(/\/$/, "");
 
   const redirectByRole = (roles: string[]) => {
     if (roles.includes("Admin")) navigate("/dashboard");

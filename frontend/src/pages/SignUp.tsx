@@ -8,12 +8,7 @@ import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { Moon, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_BASE ??
-  "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
-).replace(/\/$/, "");
+import { API_BASE } from "@/lib/apiBase";
 
 const SignUp = () => {
   const [displayName, setDisplayName] = useState("");

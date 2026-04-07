@@ -6,12 +6,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { Moon, Sun, LogOut, ExternalLink, Heart, Calendar, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ??
-  import.meta.env.VITE_API_BASE ??
-  "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
-).replace(/\/$/, "");
+import { API_BASE } from "@/lib/apiBase";
 
 interface Donation {
   donationId: number;
