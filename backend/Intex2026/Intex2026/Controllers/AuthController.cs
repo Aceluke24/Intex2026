@@ -105,6 +105,31 @@ public class AuthController : ControllerBase
         return Ok(new { message = "User created.", email = user.Email });
     }
 
+    // POST /api/auth/register-donor  (public — anyone can self-register as a donor)
+    [HttpPost("register-donor")]
+    public async Task<IActionResult> RegisterDonor([FromBody] RegisterDonorRequest req)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        if (req.Password != req.ConfirmPassword)
+            return BadRequest(new { message = "Passwords do not match." });
+
+        var user = new ApplicationUser
+        {
+            UserName = req.Email,
+            Email = req.Email,
+            DisplayName = req.DisplayName
+        };
+
+        var result = await _userManager.CreateAsync(user, req.Password);
+        if (!result.Succeeded)
+            return BadRequest(new { message = result.Errors.First().Description });
+
+        await _userManager.AddToRoleAsync(user, "Donor");
+
+        return Ok(new { message = "Account created. Please sign in." });
+    }
+
     // ── Google OAuth ──────────────────────────────────────────────────────────
 
     // GET /api/auth/google-login
@@ -143,11 +168,16 @@ public class AuthController : ControllerBase
             var createResult = await _userManager.CreateAsync(user);
             if (!createResult.Succeeded)
                 return Redirect($"http://localhost:5173/login?error=create_failed");
+            // Auto-provisioned Google users get the Donor role by default
+            await _userManager.AddToRoleAsync(user, "Donor");
         }
 
         await _userManager.AddLoginAsync(user, info);
         await _signInManager.SignInAsync(user, isPersistent: false);
-        return Redirect($"http://localhost:5173{returnUrl}");
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var redirectTarget = roles.Contains("Admin") ? "/dashboard" : "/donor";
+        return Redirect($"http://localhost:5173{redirectTarget}");
     }
 
     // ── MFA (TOTP) ────────────────────────────────────────────────────────────
@@ -239,3 +269,14 @@ public record RegisterRequest(
 
 public record MfaVerifyRequest(string Code);
 public record MfaLoginRequest(string Code);
+
+public record RegisterDonorRequest(
+    [property: System.ComponentModel.DataAnnotations.Required]
+    [property: System.ComponentModel.DataAnnotations.EmailAddress]
+    string Email,
+    [property: System.ComponentModel.DataAnnotations.Required]
+    [property: System.ComponentModel.DataAnnotations.MinLength(14)]
+    string Password,
+    [property: System.ComponentModel.DataAnnotations.Required]
+    string ConfirmPassword,
+    string? DisplayName);

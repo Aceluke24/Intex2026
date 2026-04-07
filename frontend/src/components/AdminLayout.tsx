@@ -1,9 +1,8 @@
 import { StickyStaffBar } from "@/components/admin/StickyStaffBar";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
   LayoutDashboard,
-  Users,
   FileText,
   BarChart3,
   Brain,
@@ -19,6 +18,13 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useAuth } from "@/contexts/AuthContext";
+
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_BASE ??
+  "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
+).replace(/\/$/, "");
 
 function navItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === "/dashboard") return pathname === "/dashboard";
@@ -60,7 +66,15 @@ export const AdminLayout = ({
 }) => {
   const { theme, toggle } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { refetch } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = async () => {
+    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+    await refetch();
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -131,13 +145,14 @@ export const AdminLayout = ({
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!collapsed && <span>Collapse</span>}
           </button>
-          <Link
-            to="/"
+          <button
+            onClick={handleLogout}
+            type="button"
             className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
           >
             <LogOut className="w-4 h-4" />
             {!collapsed && <span>Sign Out</span>}
-          </Link>
+          </button>
         </div>
       </aside>
 

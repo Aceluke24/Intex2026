@@ -8,6 +8,7 @@ import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { Moon, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -16,10 +17,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
+  const { refetch } = useAuth();
 
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = (import.meta.env.VITE_API_BASE ?? "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net").replace(/\/$/, "");
+  const API_BASE = (
+    import.meta.env.VITE_API_BASE_URL ??
+    import.meta.env.VITE_API_BASE ??
+    "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net"
+  ).replace(/\/$/, "");
+
+  const redirectByRole = (roles: string[]) => {
+    if (roles.includes("Admin")) navigate("/dashboard");
+    else if (roles.includes("Donor")) navigate("/donor");
+    else navigate("/");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +49,22 @@ const Login = () => {
         setError(data.message ?? "Invalid credentials.");
         return;
       }
-      navigate("/dashboard");
+      const data = await res.json();
+      if (data.requiresMfa) {
+        navigate("/mfa");
+        return;
+      }
+      await refetch();
+      redirectByRole(data.roles ?? []);
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = `${API_BASE}/api/auth/google-login`;
   };
 
   return (
@@ -125,13 +147,23 @@ const Login = () => {
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
               <div className="relative flex justify-center text-[11px]"><span className="bg-background px-4 text-muted-foreground font-body uppercase tracking-wider">or</span></div>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Button variant="ghost" className="h-12 rounded-xl bg-secondary font-body text-sm" type="button">Google</Button>
-              <Button variant="ghost" className="h-12 rounded-xl bg-secondary font-body text-sm" type="button">Microsoft</Button>
+            <div className="mt-5 grid grid-cols-1 gap-3">
+              <Button
+                variant="ghost"
+                className="h-12 rounded-xl bg-secondary font-body text-sm"
+                type="button"
+                onClick={handleGoogleLogin}
+              >
+                Continue with Google
+              </Button>
             </div>
           </div>
 
-          <p className="mt-10 text-center text-xs text-muted-foreground font-body">
+          <p className="mt-8 text-center text-xs text-muted-foreground font-body">
+            New donor?{" "}
+            <Link to="/signup" className="text-terracotta hover:underline">Create an account</Link>
+          </p>
+          <p className="mt-3 text-center text-xs text-muted-foreground font-body">
             <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>
           </p>
         </motion.div>

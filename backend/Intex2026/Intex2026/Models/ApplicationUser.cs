@@ -6,4 +6,7 @@ public class ApplicationUser : IdentityUser
 {
     // Links a donor-role user to their supporters record
     public int? SupporterId { get; set; }
+
+    // Optional display name for donor-registered users
+    public string? DisplayName { get; set; }
 }
