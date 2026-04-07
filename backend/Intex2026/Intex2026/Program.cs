@@ -60,6 +60,11 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
+// ── Data protection key persistence (required for multi-instance Azure) ──────
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/home/site/data-protection-keys"))
+    .SetApplicationName("Intex2026");
+
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 builder.Services.AddAuthentication()
     .AddGoogle(options =>
@@ -68,8 +73,7 @@ builder.Services.AddAuthentication()
             ?? throw new InvalidOperationException("Google ClientId not configured.");
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
             ?? throw new InvalidOperationException("Google ClientSecret not configured.");
-        options.CallbackPath = "/signin-google";
-        // Allow correlation cookie to work over HTTP in development
+        options.CallbackPath = "/api/auth/google-callback";
         options.CorrelationCookie.SameSite = SameSiteMode.None;
         options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Events.OnRemoteFailure = ctx =>

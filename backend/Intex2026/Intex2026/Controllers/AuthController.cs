@@ -14,17 +14,20 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly ILogger<AuthController> _logger;
     private readonly string _frontendBaseUrl;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         RoleManager<IdentityRole> roleManager,
+        ILogger<AuthController> logger,
         IConfiguration configuration)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _roleManager = roleManager;
+        _logger = logger;
         _frontendBaseUrl = (configuration["Frontend:BaseUrl"] ?? "http://localhost:8080").TrimEnd('/');
     }
 
@@ -186,8 +189,8 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            var msg = Uri.EscapeDataString(ex.Message);
-            return Redirect($"{_frontendBaseUrl}/login?error={msg}");
+            _logger.LogError(ex, "Google OAuth callback failed");
+            return Redirect($"{_frontendBaseUrl}/login?error=google_callback_failed");
         }
     }
 
