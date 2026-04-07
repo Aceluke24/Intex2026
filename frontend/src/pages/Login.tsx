@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/theme";
 import { Moon, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "react-router-dom";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -18,8 +19,11 @@ const Login = () => {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const { refetch } = useAuth();
+  const [searchParams] = useSearchParams();
 
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") ? decodeURIComponent(searchParams.get("error")!) : null
+  );
 
   const API_BASE = (
     import.meta.env.VITE_API_BASE_URL ??

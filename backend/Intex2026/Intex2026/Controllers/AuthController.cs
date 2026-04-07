@@ -14,15 +14,18 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly string _frontendBaseUrl;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        RoleManager<IdentityRole> roleManager)
+        RoleManager<IdentityRole> roleManager,
+        IConfiguration configuration)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _roleManager = roleManager;
+        _frontendBaseUrl = (configuration["Frontend:BaseUrl"] ?? "http://localhost:8080").TrimEnd('/');
     }
 
     // POST /api/auth/login
@@ -146,20 +149,22 @@ public class AuthController : ControllerBase
     [HttpGet("google-callback")]
     public async Task<IActionResult> GoogleCallback([FromQuery] string? returnUrl = "/")
     {
+        try
+        {
         var info = await _signInManager.GetExternalLoginInfoAsync();
         if (info == null)
-            return Redirect($"http://localhost:5173/login?error=google_failed");
+            return Redirect($"{_frontendBaseUrl}/login?error=google_failed");
 
         var result = await _signInManager.ExternalLoginSignInAsync(
             info.LoginProvider, info.ProviderKey, isPersistent: false);
 
         if (result.Succeeded)
-            return Redirect($"http://localhost:5173{returnUrl}");
+            return Redirect($"{_frontendBaseUrl}{returnUrl}");
 
         // Auto-provision account on first Google sign-in
         var email = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
         if (email == null)
-            return Redirect($"http://localhost:5173/login?error=no_email");
+            return Redirect($"{_frontendBaseUrl}/login?error=no_email");
 
         var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
@@ -167,7 +172,7 @@ public class AuthController : ControllerBase
             user = new ApplicationUser { UserName = email, Email = email };
             var createResult = await _userManager.CreateAsync(user);
             if (!createResult.Succeeded)
-                return Redirect($"http://localhost:5173/login?error=create_failed");
+                return Redirect($"{_frontendBaseUrl}/login?error=create_failed");
             // Auto-provisioned Google users get the Donor role by default
             await _userManager.AddToRoleAsync(user, "Donor");
         }
@@ -177,7 +182,13 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var redirectTarget = roles.Contains("Admin") ? "/dashboard" : "/donor";
-        return Redirect($"http://localhost:5173{redirectTarget}");
+        return Redirect($"{_frontendBaseUrl}{redirectTarget}");
+        }
+        catch (Exception ex)
+        {
+            var msg = Uri.EscapeDataString(ex.Message);
+            return Redirect($"{_frontendBaseUrl}/login?error={msg}");
+        }
     }
 
     // ── MFA (TOTP) ────────────────────────────────────────────────────────────

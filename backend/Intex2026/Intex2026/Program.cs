@@ -67,7 +67,19 @@ builder.Services.AddAuthentication()
             ?? throw new InvalidOperationException("Google ClientId not configured.");
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
             ?? throw new InvalidOperationException("Google ClientSecret not configured.");
-        options.CallbackPath = "/api/auth/google-callback";
+        options.CallbackPath = "/signin-google";
+        // Allow correlation cookie to work over HTTP in development
+        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Events.OnRemoteFailure = ctx =>
+        {
+            var frontendBase = ctx.HttpContext.RequestServices
+                .GetRequiredService<IConfiguration>()["Frontend:BaseUrl"] ?? "http://localhost:8080";
+            var msg = Uri.EscapeDataString(ctx.Failure?.Message ?? "unknown");
+            ctx.Response.Redirect($"{frontendBase.TrimEnd('/')}/login?error={msg}");
+            ctx.HandleResponse();
+            return Task.CompletedTask;
+        };
     });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
@@ -138,7 +150,10 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors("FrontendPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
