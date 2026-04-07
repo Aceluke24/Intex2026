@@ -17,10 +17,32 @@ const Login = () => {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const API_BASE = (import.meta.env.VITE_API_BASE ?? "https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net").replace(/\/$/, "");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { setLoading(false); navigate("/dashboard"); }, 1500);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.message ?? "Invalid credentials.");
+        return;
+      }
+      navigate("/dashboard");
+    } catch {
+      setError("Unable to reach the server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,6 +113,7 @@ const Login = () => {
                 </button>
               </div>
             </div>
+            {error && <p className="text-sm text-red-500 font-body">{error}</p>}
             <Button type="submit" disabled={loading}
               className="w-full h-12 rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium gap-2 transition-all hover:shadow-lg hover:shadow-terracotta/15">
               {loading ? "Signing in..." : <><span>Sign In</span><ArrowRight className="w-4 h-4" /></>}
