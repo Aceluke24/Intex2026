@@ -1,5 +1,6 @@
 using Intex2026.Data;
 using Intex2026.Models;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -69,8 +70,8 @@ builder.Services.AddAuthentication()
             ?? throw new InvalidOperationException("Google ClientSecret not configured.");
         options.CallbackPath = "/signin-google";
         // Allow correlation cookie to work over HTTP in development
-        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.CorrelationCookie.SameSite = SameSiteMode.None;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Events.OnRemoteFailure = ctx =>
         {
             var frontendBase = ctx.HttpContext.RequestServices
@@ -123,6 +124,12 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "An error occurred during database seeding.");
     }
 }
+
+// ── Forwarded headers (required behind Azure App Service reverse proxy) ───────
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 // ── Security headers middleware ───────────────────────────────────────────────
 app.Use(async (context, next) =>
