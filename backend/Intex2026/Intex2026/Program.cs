@@ -166,11 +166,14 @@ else
     app.UseHsts();
 }
 
+// CORS must come before HTTPS redirection so preflight responses include
+// the Access-Control-Allow-Origin header even when a redirect is involved.
+app.UseCors("FrontendPolicy");
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
-app.UseCors("FrontendPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
