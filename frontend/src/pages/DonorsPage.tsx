@@ -583,6 +583,7 @@ const DonorsPage = () => {
                         supporter={s}
                         onOpen={() => openProfile(s.id)}
                         onEdit={() => void handleEditSupporter(s)}
+                        onDelete={() => void handleDeleteSupporter(s)}
                       />
                     ))}
                   </AnimatePresence>
@@ -598,6 +599,7 @@ const DonorsPage = () => {
                       supporter={s}
                       onOpen={() => openProfile(s.id)}
                       onEdit={() => void handleEditSupporter(s)}
+                      onDelete={() => void handleDeleteSupporter(s)}
                     />
                   ))}
                   {filtered.length === 0 && (

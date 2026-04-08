@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -401,6 +402,70 @@ function DetailSheet({ v }: { v: VisitationRow }) {
   );
 }
 
+function VisitationRecordCard({
+  v,
+  i,
+  kindLabel,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  v: VisitationRow;
+  i: number;
+  kindLabel: string;
+  onView: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.04 * i, duration: 0.4 }}
+      role="button"
+      tabIndex={0}
+      className={cn(
+        "group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/70 p-5 text-left shadow-sm outline-none",
+        "transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-md",
+        "dark:border-white/10 dark:bg-white/[0.07]",
+        "focus-visible:ring-2 focus-visible:ring-[hsl(340_32%_65%)]/35"
+      )}
+      onClick={onView}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onView();
+        }
+      }}
+    >
+      <RecordCrudActions className="absolute right-3 top-3 z-10" onView={onView} onEdit={onEdit} onDelete={onDelete} />
+      <div className="pr-2">
+        <div className="flex justify-between gap-3 pr-12">
+          <div className="min-w-0">
+            <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">{kindLabel}</div>
+            <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
+            <div className="font-body text-sm text-muted-foreground">
+              {v.caseId} • {v.date}
+            </div>
+          </div>
+          <div className="shrink-0 text-right font-body text-xs text-muted-foreground">{v.staffName}</div>
+        </div>
+        <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes || "—"}</div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(v.interventions ?? []).map((tag) => (
+            <span
+              key={`${v.id}-${tag.value}`}
+              className="rounded bg-blue-50 px-2 py-1 font-body text-xs text-blue-600 dark:bg-blue-900/25 dark:text-blue-200"
+            >
+              {tag.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 const VisitationsPage = () => {
   usePageHeader("Visitations & Conferences", "Field & coordination");
 
@@ -618,51 +683,15 @@ const VisitationsPage = () => {
             ) : (
               <div className="grid gap-5 md:grid-cols-2">
                 {homeVisits.map((v, i) => (
-                  <motion.div
+                  <VisitationRecordCard
                     key={v.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.04 * i, duration: 0.4 }}
-                    whileHover={{ y: -4, transition: { duration: 0.22 } }}
-                    className={cn(
-                      "relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/70 p-5 text-left shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-white/[0.07]"
-                    )}
-                  >
-                    <div className="flex justify-between gap-3">
-                      <div>
-                        <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
-                        </div>
-                        <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
-                        <div className="font-body text-sm text-muted-foreground">
-                          {v.caseId} • {v.date}
-                        </div>
-                      </div>
-                      <div className="font-body text-xs text-muted-foreground">{v.staffName}</div>
-                    </div>
-                    <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes}</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(v.interventions ?? []).map((tag) => (
-                        <span
-                          key={`${v.id}-${tag.value}`}
-                          className="rounded bg-blue-50 px-2 py-1 font-body text-xs text-blue-600 dark:bg-blue-900/25 dark:text-blue-200"
-                        >
-                          {tag.label}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex justify-end gap-3">
-                      <button type="button" onClick={() => void handleEditVisitation(v)} className="font-body text-sm text-blue-600">
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => void handleDeleteVisitation(v.id)} className="font-body text-sm text-red-500">
-                        Delete
-                      </button>
-                      <button type="button" onClick={() => openRow(v)} className="font-body text-sm text-muted-foreground">
-                        View
-                      </button>
-                    </div>
-                  </motion.div>
+                    v={v}
+                    i={i}
+                    kindLabel={v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
+                    onView={() => openRow(v)}
+                    onEdit={() => void handleEditVisitation(v)}
+                    onDelete={() => void handleDeleteVisitation(v.id)}
+                  />
                 ))}
                 {homeVisits.length === 0 && (
                   <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
@@ -683,47 +712,15 @@ const VisitationsPage = () => {
             ) : (
               <div className="grid gap-5 md:grid-cols-2">
                 {conferences.map((v, i) => (
-                  <motion.div
+                  <VisitationRecordCard
                     key={v.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.04 * i }}
-                    whileHover={{ y: -3 }}
-                    className="rounded-2xl border border-white/50 bg-white/70 p-5 text-left shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-white/[0.07]"
-                  >
-                    <div className="flex justify-between gap-3">
-                      <div>
-                        <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">Case Conference</div>
-                        <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
-                        <div className="font-body text-sm text-muted-foreground">
-                          {v.caseId} • {v.date}
-                        </div>
-                      </div>
-                      <div className="font-body text-xs text-muted-foreground">{v.staffName}</div>
-                    </div>
-                    <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes}</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(v.interventions ?? []).map((tag) => (
-                        <span
-                          key={`${v.id}-${tag.value}`}
-                          className="rounded bg-blue-50 px-2 py-1 font-body text-xs text-blue-600 dark:bg-blue-900/25 dark:text-blue-200"
-                        >
-                          {tag.label}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex justify-end gap-3">
-                      <button type="button" onClick={() => void handleEditVisitation(v)} className="font-body text-sm text-blue-600">
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => void handleDeleteVisitation(v.id)} className="font-body text-sm text-red-500">
-                        Delete
-                      </button>
-                      <button type="button" onClick={() => openRow(v)} className="font-body text-sm text-muted-foreground">
-                        View
-                      </button>
-                    </div>
-                  </motion.div>
+                    v={v}
+                    i={i}
+                    kindLabel="Case Conference"
+                    onView={() => openRow(v)}
+                    onEdit={() => void handleEditVisitation(v)}
+                    onDelete={() => void handleDeleteVisitation(v.id)}
+                  />
                 ))}
                 {conferences.length === 0 && (
                   <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">

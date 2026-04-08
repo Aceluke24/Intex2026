@@ -1,8 +1,10 @@
+import { Button } from "@/components/ui/button";
+import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingTypes";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Pencil, Timer, Trash2, User } from "lucide-react";
+import { ChevronDown, Timer, User } from "lucide-react";
 import { useState } from "react";
 
 const emotionalStyles: Record<EmotionalTag, string> = {
@@ -70,7 +72,6 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.04 * index, duration: 0.4 }}
-              whileHover={{ y: -3, transition: { duration: 0.22 } }}
               onClick={() => onSelect(entry.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -79,12 +80,18 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
                 }
               }}
               className={cn(
-                "group min-w-0 flex-1 cursor-pointer rounded-[1.1rem] border border-white/50 bg-white/55 p-4 text-left shadow-[0_4px_28px_rgba(45,35,48,0.05)] backdrop-blur-md",
-                "transition-shadow duration-300 hover:border-white/80 hover:shadow-[0_14px_48px_rgba(45,35,48,0.1)]",
+                "group relative min-w-0 flex-1 cursor-pointer rounded-2xl border border-white/50 bg-white/55 p-4 text-left shadow-sm backdrop-blur-md",
+                "transition-all duration-200 ease-out hover:scale-[1.01] hover:border-white/80 hover:shadow-md",
                 "dark:border-white/10 dark:bg-white/[0.07] dark:hover:shadow-[0_14px_48px_rgba(0,0,0,0.35)]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(340_32%_65%)]/35"
               )}
             >
+              <RecordCrudActions
+                className="absolute right-3 top-3 z-10"
+                onView={() => onSelect(entry.id)}
+                onEdit={onEdit ? () => onEdit(entry.id) : undefined}
+                onDelete={onDelete ? () => onDelete(entry.id) : undefined}
+              />
               <div
                 className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                 style={{
@@ -93,8 +100,8 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
                 }}
               />
 
-              <div className="relative flex flex-wrap items-start justify-between gap-3">
-                <div>
+              <div className="relative flex flex-wrap items-start justify-between gap-3 pr-14">
+                <div className="min-w-0 flex-1">
                   <p className="font-body text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
                     {format(new Date(entry.date), "MMMM d, yyyy")}
                   </p>
@@ -104,6 +111,7 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
                   <p className="mt-0.5 font-body text-xs text-muted-foreground">
                     {entry.caseId ?? `Resident ID: ${entry.residentId}`}
                   </p>
+                  <p className="mt-1 font-mono text-[10px] text-muted-foreground/90">{entry.id}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-0.5 font-body text-[11px] font-medium text-foreground/85 shadow-sm dark:bg-white/10">
                       <User className="h-3 w-3 opacity-60" strokeWidth={1.5} />
@@ -126,45 +134,20 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {onEdit && (
-                    <button
-                      type="button"
-                      aria-label="Edit entry"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(entry.id);
-                      }}
-                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/80 hover:text-foreground dark:hover:bg-white/10"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      type="button"
-                      aria-label="Delete entry"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(entry.id);
-                      }}
-                      className="rounded-lg p-1.5 text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                  <span className="font-mono text-[10px] text-muted-foreground/90">{entry.id}</span>
-                  <button
+                <div className="absolute right-3 top-12 z-[11] sm:top-14">
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     aria-expanded={!!expanded[entry.id]}
                     aria-label={expanded[entry.id] ? "Collapse preview" : "Expand preview"}
                     onClick={(e) => toggle(entry.id, e)}
-                    className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/80 hover:text-foreground dark:hover:bg-white/10"
+                    className="h-8 w-8 rounded-lg text-muted-foreground transition-colors duration-200 hover:bg-muted/50 hover:text-foreground dark:hover:bg-white/10"
                   >
                     <ChevronDown
                       className={cn("h-4 w-4 transition-transform duration-200", expanded[entry.id] && "rotate-180")}
                     />
-                  </button>
+                  </Button>
                 </div>
               </div>
 

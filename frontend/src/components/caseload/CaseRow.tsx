@@ -1,9 +1,8 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import type { ResidentCase } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
-import { Eye, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -56,16 +55,21 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
           onView();
         }
       }}
-      whileHover={{ y: -3 }}
       className={cn(
-        "group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-[1.15rem] pl-1 pr-4 py-4 text-left outline-none sm:flex-row sm:items-stretch sm:gap-0 sm:py-3.5",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_18px_rgba(45,35,48,0.045)]",
+        "group relative flex w-full cursor-pointer flex-col gap-4 overflow-hidden rounded-2xl pl-1 pr-4 py-4 text-left outline-none sm:flex-row sm:items-stretch sm:gap-0 sm:py-3.5",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_18px_rgba(45,35,48,0.045)] shadow-sm",
         "bg-gradient-to-r from-white/75 via-[hsl(36_28%_99%)]/92 to-white/60 backdrop-blur-md",
-        "transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(45,35,48,0.09)]",
+        "transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-md",
         "dark:from-white/[0.07] dark:via-white/[0.05] dark:to-white/[0.06] dark:hover:shadow-[0_14px_44px_rgba(0,0,0,0.38)]",
         "focus-visible:ring-2 focus-visible:ring-[hsl(340_32%_65%)]/35"
       )}
     >
+      <RecordCrudActions
+        className="absolute right-3 top-3 z-[3]"
+        onView={onView}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
       <div
         className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-0 transition-all duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100 dark:via-white/[0.035]"
         aria-hidden
@@ -82,7 +86,7 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
       />
 
       {/* Left */}
-      <div className="relative z-[1] flex min-w-0 flex-[1.1] items-start gap-3 pl-3 sm:pl-0">
+      <div className="relative z-[1] flex min-w-0 flex-[1.1] items-start gap-3 pl-3 pr-14 sm:pr-0 sm:pl-0">
         <div className="relative shrink-0">
           {isHigh ? (
             <span
@@ -138,7 +142,7 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
 
       {/* Right */}
       <div className="relative z-[1] flex min-w-0 flex-[0.95] flex-col justify-center gap-2 border-t border-white/35 pt-3 pl-3 sm:border-t-0 sm:border-l sm:border-white/35 sm:pt-0 sm:pl-5 dark:border-white/10">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:pr-16">
           <div className="flex items-center gap-2">
             {isHigh ? (
               <span className="relative flex h-2 w-2">
@@ -158,46 +162,6 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
               <span className="rounded-md bg-[hsl(0_28%_94%)] px-1.5 py-0.5 font-body text-[10px] font-semibold uppercase tracking-wide text-[hsl(0_30%_38%)] dark:bg-[hsl(0_22%_18%)] dark:text-[hsl(0_25%_78%)]">
                 High risk
               </span>
-            )}
-          </div>
-          <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-white/85 hover:text-foreground dark:hover:bg-white/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                onView();
-              }}
-            >
-              <Eye className="h-3.5 w-3.5" strokeWidth={1.5} />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-white/85 hover:text-foreground dark:hover:bg-white/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-            </Button>
-            {onDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg text-destructive/80 hover:bg-destructive/10 hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-              </Button>
             )}
           </div>
         </div>

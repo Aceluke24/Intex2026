@@ -1,15 +1,15 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import type { Supporter } from "@/lib/donorsTypes";
 import { formatDateSafe } from "@/lib/formatDate";
-import { Eye, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
 
 type SupporterCardProps = {
   supporter: Supporter;
   onOpen: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
 };
 
 function initials(name: string) {
@@ -32,24 +32,40 @@ const kindPill: Record<string, string> = {
     "border border-[hsl(280_30%_90%)]/90 bg-gradient-to-br from-[hsl(280_35%_97%)] to-white/50 text-[hsl(280_32%_30%)] backdrop-blur-sm dark:border-white/10 dark:from-[hsl(280_22%_16%)] dark:to-transparent dark:text-[hsl(280_35%_88%)]",
 };
 
-export function SupporterCard({ supporter, onOpen, onEdit }: SupporterCardProps) {
+export function SupporterCard({ supporter, onOpen, onEdit, onDelete }: SupporterCardProps) {
   const last = formatDateSafe(supporter.lastActivity, "MMM d, yyyy");
   const isActive = supporter.status === "Active";
 
   return (
     <motion.article
       layout
+      role="button"
+      tabIndex={0}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -3 }}
       transition={{ duration: 0.28 }}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       className={cn(
-        "flex flex-col overflow-hidden rounded-[1.25rem] border border-white/50 p-5",
-        "bg-gradient-to-br from-white/75 via-[hsl(36_32%_99%)]/95 to-white/50 shadow-[0_8px_40px_rgba(45,35,48,0.06)] backdrop-blur-md",
-        "dark:border-white/10 dark:from-white/[0.07] dark:via-transparent dark:to-transparent dark:shadow-[0_8px_40px_rgba(0,0,0,0.35)]"
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/50 p-5 outline-none",
+        "bg-gradient-to-br from-white/75 via-[hsl(36_32%_99%)]/95 to-white/50 shadow-sm backdrop-blur-md",
+        "transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-md",
+        "dark:border-white/10 dark:from-white/[0.07] dark:via-transparent dark:to-transparent dark:shadow-[0_8px_40px_rgba(0,0,0,0.35)]",
+        "focus-visible:ring-2 focus-visible:ring-[hsl(340_32%_65%)]/35"
       )}
     >
-      <div className="flex items-start gap-3">
+      <RecordCrudActions
+        className="absolute right-3 top-3 z-10"
+        onView={onOpen}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+      <div className="flex items-start gap-3 pr-12">
         <div className="relative shrink-0">
           {isActive && (
             <span className="absolute inset-[-3px] rounded-full bg-[hsl(150_40%_45%)]/20 blur-sm" aria-hidden />
@@ -95,25 +111,6 @@ export function SupporterCard({ supporter, onOpen, onEdit }: SupporterCardProps)
           <p className="font-body text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">Last activity</p>
           <p className="font-body text-sm text-muted-foreground">{last}</p>
         </div>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            type="button"
-            onClick={onOpen}
-            className="relative h-10 w-full overflow-hidden rounded-xl border border-white/20 bg-gradient-to-r from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] font-body text-sm font-semibold text-white shadow-md"
-          >
-            <span className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent" aria-hidden />
-            <span className="relative flex items-center justify-center">
-              <Eye className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
-              View
-            </span>
-          </Button>
-        </motion.div>
-        <Button type="button" variant="ghost" onClick={onEdit} className="h-10 rounded-xl px-4 font-body">
-          <Pencil className="h-4 w-4" strokeWidth={1.5} />
-        </Button>
       </div>
     </motion.article>
   );
