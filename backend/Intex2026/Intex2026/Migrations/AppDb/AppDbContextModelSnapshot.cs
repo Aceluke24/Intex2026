@@ -255,6 +255,8 @@ namespace Intex2026.Migrations.AppDb
 
                     b.HasIndex("ResidentId");
 
+                    b.HasIndex("VisitDate");
+
                     b.ToTable("HomeVisitations");
                 });
 

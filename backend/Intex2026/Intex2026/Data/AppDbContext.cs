@@ -89,5 +89,8 @@ public class AppDbContext : DbContext
         builder.Entity<SocialAnalytics>()
             .HasIndex(x => x.Platform)
             .IsUnique();
+
+        builder.Entity<HomeVisitation>()
+            .HasIndex(h => h.VisitDate);
     }
 }

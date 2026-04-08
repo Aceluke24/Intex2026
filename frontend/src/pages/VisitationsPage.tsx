@@ -17,8 +17,8 @@ import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, Users, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, X } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type ResidentOption = { residentId: number; internalCode: string; caseControlNo: string };
@@ -40,6 +40,33 @@ type VisitationRow = {
   observations?: string;
   interventions?: SelectOption[];
   followUps?: SelectOption[];
+};
+
+type VisitationListItemApi = {
+  id: number;
+  residentId: number;
+  residentName: string;
+  caseId: string;
+  visitType: string;
+  category: string;
+  date: string;
+  time: string;
+  notes: string;
+  observations: string | null;
+  purpose: string | null;
+  followUpNotes: string | null;
+  staffName: string;
+  status: string;
+  safetyFlag: boolean;
+};
+
+type VisitationsPageResponse = {
+  total: number;
+  page: number;
+  pageSize: number;
+  homeVisitTotal: number;
+  conferenceTotal: number;
+  items: VisitationListItemApi[];
 };
 
 type VisitationDetail = {
@@ -93,6 +120,28 @@ const parseTokenString = (raw: string | null | undefined): SelectOption[] =>
     .map((label) => ({ value: tokenId(label), label }));
 
 const toTokenString = (items: SelectOption[]) => items.map((i) => i.label.trim()).filter(Boolean).join("; ");
+
+function mapVisitationItemToRow(item: VisitationListItemApi): VisitationRow {
+  return {
+    id: item.id,
+    residentId: item.residentId,
+    residentName: item.residentName,
+    caseId: item.caseId,
+    visitType: item.visitType,
+    category: item.category,
+    date: item.date,
+    time: item.time,
+    notes: item.notes,
+    observations: item.observations ?? "",
+    interventions: parseTokenString(item.purpose),
+    followUps: parseTokenString(item.followUpNotes),
+    staffName: item.staffName,
+    status: item.status,
+    safetyFlag: item.safetyFlag,
+  };
+}
+
+const PAGE_SIZE = 25;
 
 function MultiCreatableField({
   label,
@@ -402,7 +451,7 @@ function DetailSheet({ v }: { v: VisitationRow }) {
   );
 }
 
-function VisitationRecordCard({
+const VisitationRecordCard = memo(function VisitationRecordCard({
   v,
   i,
   kindLabel,
@@ -421,7 +470,7 @@ function VisitationRecordCard({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.04 * i, duration: 0.4 }}
+      transition={{ delay: 0.04 * Math.min(i, 10), duration: 0.4 }}
       role="button"
       tabIndex={0}
       className={cn(
@@ -464,7 +513,7 @@ function VisitationRecordCard({
       </div>
     </motion.div>
   );
-}
+});
 
 const VisitationsPage = () => {
   usePageHeader("Visitations & Conferences", "Field & coordination");
@@ -473,6 +522,13 @@ const VisitationsPage = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rows, setRows] = useState<VisitationRow[]>([]);
   const [tab, setTab] = useState("visits");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [homeVisitTotal, setHomeVisitTotal] = useState(0);
+  const [conferenceTotal, setConferenceTotal] = useState(0);
+  const [residentFilter, setResidentFilter] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selected, setSelected] = useState<VisitationRow | null>(null);
 
@@ -488,51 +544,73 @@ const VisitationsPage = () => {
     setResidents(data.items);
   }, [residents.length]);
 
+  useEffect(() => {
+    void apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`)
+      .then((data) => setResidents(data.items))
+      .catch(() => {
+        /* filter dropdown optional */
+      });
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await apiFetchJson<{ interventionOptions: SelectOption[]; followUpOptions: SelectOption[] }>(
+          `${API_PREFIX}/visitations/field-options`
+        );
+        setInterventionOptions(data.interventionOptions);
+        setFollowUpOptions(data.followUpOptions);
+      } catch (e) {
+        console.warn("visitations field-options:", e);
+      }
+    })();
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetchJson<VisitationRow[]>(`${API_PREFIX}/visitations`);
-      const details = await Promise.all(
-        data.map(async (row) => {
-          try {
-            const d = await apiFetchJson<VisitationDetail>(`${API_PREFIX}/visitations/${row.id}`);
-            return {
-              ...row,
-              residentId: d.residentId,
-              observations: d.observations ?? "",
-              interventions: parseTokenString(d.purpose),
-              followUps: parseTokenString(d.followUpNotes),
-            };
-          } catch {
-            return row;
-          }
-        })
-      );
-      const allInterventions = new Map<string, SelectOption>();
-      const allFollowUps = new Map<string, SelectOption>();
-      details.forEach((d) => {
-        (d.interventions ?? []).forEach((i) => allInterventions.set(i.value, i));
-        (d.followUps ?? []).forEach((f) => allFollowUps.set(f.value, f));
-      });
-      setInterventionOptions(Array.from(allInterventions.values()).sort((a, b) => a.label.localeCompare(b.label)));
-      setFollowUpOptions(Array.from(allFollowUps.values()).sort((a, b) => a.label.localeCompare(b.label)));
-      setRows(details);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
+      params.set("coordinationKind", tab === "visits" ? "HomeVisit" : "CaseConference");
+      if (residentFilter) params.set("residentId", residentFilter);
+      if (dateFrom) params.set("visitDateFrom", dateFrom);
+      if (dateTo) params.set("visitDateTo", dateTo);
+
+      const path = `${API_PREFIX}/visitations?${params.toString()}`;
+      const t0 = performance.now();
+      const res = await apiFetch(path);
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`${res.status} ${res.statusText}${text ? `: ${text.slice(0, 200)}` : ""}`);
+      }
+      const data = JSON.parse(text) as VisitationsPageResponse;
+      if (import.meta.env.DEV) {
+        const ms = performance.now() - t0;
+        console.info(
+          `[visitations] ${ms.toFixed(0)}ms ~${text.length} bytes page=${data.page} items=${data.items.length} total=${data.total}`
+        );
+      }
+      setTotal(data.total);
+      setHomeVisitTotal(data.homeVisitTotal);
+      setConferenceTotal(data.conferenceTotal);
+      setRows(data.items.map(mapVisitationItemToRow));
     } catch (e) {
       console.error(e);
       setLoadError(e instanceof Error ? e.message : "Failed to load visitations.");
       setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, tab, residentFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const homeVisits = useMemo(() => rows.filter((r) => r.visitType === "HomeVisit"), [rows]);
-  const conferences = useMemo(() => rows.filter((r) => r.visitType === "CaseConference"), [rows]);
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
   const openRow = (v: VisitationRow) => {
     setSelected(v);
@@ -657,21 +735,90 @@ const VisitationsPage = () => {
           </p>
         )}
 
-        <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-10 grid h-12 w-full max-w-md grid-cols-2 rounded-2xl border border-white/50 bg-white/45 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.08]">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          className="w-full"
+        >
+          <TabsList className="mb-6 grid h-12 w-full max-w-md grid-cols-2 rounded-2xl border border-white/50 bg-white/45 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.08]">
             <TabsTrigger
               value="visits"
               className="rounded-xl font-body text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-white/15"
             >
-              Home Visits ({homeVisits.length})
+              Home Visits ({homeVisitTotal})
             </TabsTrigger>
             <TabsTrigger
               value="conferences"
               className="rounded-xl font-body text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-white/15"
             >
-              Conferences ({conferences.length})
+              Conferences ({conferenceTotal})
             </TabsTrigger>
           </TabsList>
+
+          <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-white/50 bg-white/35 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06] sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="space-y-2 sm:min-w-[12rem]">
+              <Label className="font-body text-xs">Resident</Label>
+              <Select
+                value={residentFilter || "__all"}
+                onValueChange={(v) => {
+                  setResidentFilter(v === "__all" ? "" : v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                  <SelectValue placeholder="All residents" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All residents</SelectItem>
+                  {residents.map((r) => (
+                    <SelectItem key={r.residentId} value={String(r.residentId)}>
+                      {r.internalCode || `Resident #${r.residentId}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-xs">From</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-xs">To</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl font-body"
+              onClick={() => {
+                setResidentFilter("");
+                setDateFrom("");
+                setDateTo("");
+                setPage(1);
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
 
           <TabsContent value="visits" className="mt-0 outline-none">
             {loading ? (
@@ -681,24 +828,53 @@ const VisitationsPage = () => {
                 ))}
               </div>
             ) : (
-              <div className="grid gap-5 md:grid-cols-2">
-                {homeVisits.map((v, i) => (
-                  <VisitationRecordCard
-                    key={v.id}
-                    v={v}
-                    i={i}
-                    kindLabel={v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
-                    onView={() => openRow(v)}
-                    onEdit={() => void handleEditVisitation(v)}
-                    onDelete={() => void handleDeleteVisitation(v.id)}
-                  />
-                ))}
-                {homeVisits.length === 0 && (
-                  <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
-                    No home visits on record.
-                  </p>
+              <>
+                <div className="grid gap-5 md:grid-cols-2">
+                  {rows.map((v, i) => (
+                    <VisitationRecordCard
+                      key={v.id}
+                      v={v}
+                      i={i}
+                      kindLabel={v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
+                      onView={() => openRow(v)}
+                      onEdit={() => void handleEditVisitation(v)}
+                      onDelete={() => void handleDeleteVisitation(v.id)}
+                    />
+                  ))}
+                  {rows.length === 0 && (
+                    <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
+                      No home visits on record.
+                    </p>
+                  )}
+                </div>
+                {total > 0 && (
+                  <div className="mt-8 flex flex-wrap items-center justify-center gap-4 font-body text-sm text-muted-foreground">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span>
+                      Page {page} of {totalPages} ({total} total)
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </TabsContent>
 
@@ -710,24 +886,53 @@ const VisitationsPage = () => {
                 ))}
               </div>
             ) : (
-              <div className="grid gap-5 md:grid-cols-2">
-                {conferences.map((v, i) => (
-                  <VisitationRecordCard
-                    key={v.id}
-                    v={v}
-                    i={i}
-                    kindLabel="Case Conference"
-                    onView={() => openRow(v)}
-                    onEdit={() => void handleEditVisitation(v)}
-                    onDelete={() => void handleDeleteVisitation(v.id)}
-                  />
-                ))}
-                {conferences.length === 0 && (
-                  <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
-                    No case conferences on record.
-                  </p>
+              <>
+                <div className="grid gap-5 md:grid-cols-2">
+                  {rows.map((v, i) => (
+                    <VisitationRecordCard
+                      key={v.id}
+                      v={v}
+                      i={i}
+                      kindLabel="Case Conference"
+                      onView={() => openRow(v)}
+                      onEdit={() => void handleEditVisitation(v)}
+                      onDelete={() => void handleDeleteVisitation(v.id)}
+                    />
+                  ))}
+                  {rows.length === 0 && (
+                    <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
+                      No case conferences on record.
+                    </p>
+                  )}
+                </div>
+                {total > 0 && (
+                  <div className="mt-8 flex flex-wrap items-center justify-center gap-4 font-body text-sm text-muted-foreground">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span>
+                      Page {page} of {totalPages} ({total} total)
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </TabsContent>
         </Tabs>
