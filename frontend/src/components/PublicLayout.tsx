@@ -61,36 +61,41 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   /** Transparent-until-scroll only on home hero; inner public pages use the bar so white nav stays readable. */
   const headerScrolledStyle = scrolled || !isHome;
 
-  const textColor = headerScrolledStyle ? "text-white" : "text-white dark:text-white";
+  const iconBtnClass =
+    "rounded-full p-2 text-white/85 hover:text-white transition-colors duration-200";
 
   return (
     <div className="min-h-screen flex flex-col">
       <>
         <header
           className={`
-            fixed top-0 left-0 w-full z-50
+            fixed top-0 left-0 w-full z-50 overflow-hidden
+            border-b border-white/10
             transition-all duration-300 ease-in-out
-
             ${
               headerScrolledStyle
-                ? "bg-gradient-to-r from-[#0B1D2A] via-[#12324A] to-[#1A4A6A] shadow-md border-b border-white/10 backdrop-blur-md"
+                ? `bg-[linear-gradient(90deg,#0B1D2A_0%,#11293B_35%,#163D57_70%,#1A4A6A_100%)] shadow-md before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_20%_50%,rgba(255,255,255,0.06),transparent_40%)] before:pointer-events-none before:content-[''] ${
+                    scrolled ? "backdrop-blur-md bg-[#0B1D2A]/90" : ""
+                  }`
                 : "bg-transparent"
             }
           `}
         >
-          <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between gap-4">
+          <div className="relative z-10 max-w-7xl mx-auto w-full flex items-center justify-between px-8 py-3 gap-4">
             <Link to="/" className="flex items-center gap-3 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" aria-label="North Star Sanctuary — Home">
               <img src="/logo.png" alt="" className="h-10 w-10 object-contain" decoding="async" />
-              <span className={`text-lg font-semibold tracking-tight ${textColor}`}>North Star Sanctuary</span>
+              <span className="text-[17px] font-semibold tracking-tight text-white">North Star Sanctuary</span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-8 text-sm flex-1 justify-center min-w-0">
+            <nav className="hidden md:flex items-center gap-10 flex-1 justify-center min-w-0">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`${textColor} opacity-90 hover:opacity-70 transition shrink-0 ${
-                    location.pathname === item.path ? "opacity-100 font-medium" : ""
+                  className={`text-[14px] font-medium shrink-0 transition-colors duration-200 ${
+                    location.pathname === item.path
+                      ? "text-white"
+                      : "text-white/85 hover:text-white"
                   }`}
                 >
                   {item.label}
@@ -104,12 +109,15 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
-                    className={`${textColor} text-sm opacity-80 hover:opacity-100 transition`}
+                    className="text-[14px] font-medium text-white/70 hover:text-white transition-colors duration-200"
                   >
                     Sign Out
                   </button>
                 ) : (
-                  <Link to="/login" className={`${textColor} text-sm opacity-90 hover:opacity-70 transition`}>
+                  <Link
+                    to="/login"
+                    className="text-[14px] font-medium text-white/70 hover:text-white transition-colors duration-200"
+                  >
                     Sign In
                   </Link>
                 )}
@@ -118,40 +126,33 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     className="
-                    flex items-center gap-2
-                    px-4 py-2 rounded-full text-sm font-medium
-                    bg-[#E07A5F] text-white
-                    hover:bg-[#d96d51]
-                    transition
-                  "
+                      px-5 py-2.5 rounded-full text-[14px] font-semibold
+                      bg-[#E07A5F]/90 text-white backdrop-blur-sm
+                      border border-white/10
+                      shadow-[0_4px_14px_rgba(224,122,95,0.35)]
+                      hover:bg-[#E07A5F]
+                      hover:shadow-[0_6px_18px_rgba(224,122,95,0.45)]
+                      hover:scale-[1.02]
+                      transition-all duration-200
+                    "
                   >
-                    ❤️ Donate
+                    Donate
                   </button>
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={toggle}
-                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
-                  aria-label="Toggle theme"
-                >
+                <button type="button" onClick={toggle} className={iconBtnClass} aria-label="Toggle theme">
                   {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </button>
               </div>
 
               <div className="flex items-center gap-1 md:hidden">
-                <button
-                  type="button"
-                  onClick={toggle}
-                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
-                  aria-label="Toggle theme"
-                >
+                <button type="button" onClick={toggle} className={iconBtnClass} aria-label="Toggle theme">
                   {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMobileOpen(!mobileOpen)}
-                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
+                  className={iconBtnClass}
                   aria-label="Menu"
                 >
                   {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -168,7 +169,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed left-0 right-0 top-[4.5rem] z-40 max-h-[min(70vh,calc(100dvh-4.5rem))] overflow-y-auto border-b border-white/10 bg-gradient-to-r from-[#0B1D2A] via-[#12324A] to-[#1A4A6A] backdrop-blur-md md:hidden"
+              className="fixed left-0 right-0 top-[4.5rem] z-40 max-h-[min(70vh,calc(100dvh-4.5rem))] overflow-y-auto border-b border-white/10 bg-[linear-gradient(90deg,#0B1D2A_0%,#11293B_35%,#163D57_70%,#1A4A6A_100%)] backdrop-blur-md md:hidden"
             >
               <div className="space-y-1 px-6 py-6">
                 {navItems.map((item) => (
@@ -176,7 +177,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
-                    className="block rounded-xl px-4 py-3 text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
+                    className="block rounded-xl px-4 py-3 text-[14px] font-medium text-white/85 transition-colors duration-200 hover:text-white hover:bg-white/10"
                   >
                     {item.label}
                   </Link>
@@ -189,7 +190,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                         setMobileOpen(false);
                         void handleLogout();
                       }}
-                      className="w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
+                      className="w-full rounded-xl px-4 py-3 text-left text-[14px] font-medium text-white/85 transition-colors duration-200 hover:text-white hover:bg-white/10"
                     >
                       Sign Out
                     </button>
@@ -197,7 +198,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     <Link
                       to="/login"
                       onClick={() => setMobileOpen(false)}
-                      className="block rounded-xl px-4 py-3 text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
+                      className="block rounded-xl px-4 py-3 text-[14px] font-medium text-white/85 transition-colors duration-200 hover:text-white hover:bg-white/10"
                     >
                       Sign In
                     </Link>
@@ -206,14 +207,18 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     <button
                       type="button"
                       className="
-                        w-full flex items-center justify-center gap-2
-                        px-4 py-3 rounded-full text-sm font-medium
-                        bg-[#E07A5F] text-white
-                        hover:bg-[#d96d51]
-                        transition
+                        w-full flex items-center justify-center
+                        px-5 py-2.5 rounded-full text-[14px] font-semibold
+                        bg-[#E07A5F]/90 text-white backdrop-blur-sm
+                        border border-white/10
+                        shadow-[0_4px_14px_rgba(224,122,95,0.35)]
+                        hover:bg-[#E07A5F]
+                        hover:shadow-[0_6px_18px_rgba(224,122,95,0.45)]
+                        hover:scale-[1.02]
+                        transition-all duration-200
                       "
                     >
-                      ❤️ Donate
+                      Donate
                     </button>
                   </Link>
                 </div>
@@ -223,7 +228,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
         </AnimatePresence>
       </>
 
-      <main className="flex-1 pt-20">{children}</main>
+      <main className="flex-1 pt-24">{children}</main>
 
       {/* Footer — minimal, editorial */}
       <footer className="gradient-navy-deep text-navy-foreground">
