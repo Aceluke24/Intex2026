@@ -234,9 +234,9 @@ export default function DonorPortal() {
                       {formType === "Monetary" ? "Amount (₱)" : "Estimated Value / Hours"}
                     </label>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.]?[0-9]*"
                       value={formAmount}
                       onChange={(e) => setFormAmount(e.target.value)}
                       placeholder={formType === "Monetary" ? "e.g. 500" : "e.g. 4"}

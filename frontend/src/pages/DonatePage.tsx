@@ -193,9 +193,9 @@ export default function DonatePage() {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-body text-sm text-muted-foreground">$</span>
                   )}
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    pattern="[0-9]*[.]?[0-9]*"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     required={donationType === "Monetary"}

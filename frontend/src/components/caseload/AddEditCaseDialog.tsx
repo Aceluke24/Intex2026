@@ -44,7 +44,7 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
     return {
       displayName: "",
       anonymized: true,
-      age: 25,
+      age: "25",
       gender: "Female",
       category: "Domestic violence" as CaseCategory,
       subcategory: "",
@@ -61,7 +61,7 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
   return {
     displayName: c.displayName,
     anonymized: c.anonymized,
-    age: c.age,
+    age: String(c.age),
     gender: c.gender,
     category: c.category,
     subcategory: c.subcategory,
@@ -84,7 +84,7 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
 type FormState = {
   displayName: string;
   anonymized: boolean;
-  age: number;
+  age: string;
   gender: string;
   category: CaseCategory;
   subcategory: string;
@@ -126,6 +126,8 @@ export function AddEditCaseDialog({
   const buildCase = (): ResidentCase => {
     const base = editing;
     const id = base?.id ?? `CS-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const parsedAge = Number.parseInt(form.age, 10);
+    const normalizedAge = Number.isNaN(parsedAge) ? 0 : parsedAge;
     const socio: SocioDemoProfile = {
       fourPsBeneficiary: form.socio.fourPsBeneficiary,
       soloParentHousehold: form.socio.soloParentHousehold,
@@ -136,7 +138,7 @@ export function AddEditCaseDialog({
       id,
       displayName: form.displayName.trim() || "Resident (unnamed)",
       anonymized: form.anonymized,
-      age: form.age,
+      age: normalizedAge,
       gender: form.gender,
       category: form.category,
       subcategory: form.subcategory.trim() || "—",
@@ -248,11 +250,16 @@ export function AddEditCaseDialog({
                     </Label>
                     <Input
                       id="age"
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       min={1}
                       max={120}
-                      value={form.age}
-                      onChange={(e) => setField("age", Number(e.target.value) || 0)}
+                      value={form.age ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setField("age", val === "" ? "" : val);
+                      }}
                       className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     />
                   </div>
