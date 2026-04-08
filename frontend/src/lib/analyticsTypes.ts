@@ -24,6 +24,8 @@ export interface ResidentInsightRow {
   progressScore: number;
   concernsCount: number;
   unresolvedIncidents: number;
+  interventionCount: number;
+  lastActivityDate: string;
 }
 
 export interface ResidentAnalyticsResponse {

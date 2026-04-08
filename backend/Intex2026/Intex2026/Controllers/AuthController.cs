@@ -20,7 +20,8 @@ public class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
     AuthIdentityDbContext authDb,
-    IConfiguration configuration) : ControllerBase
+    IConfiguration configuration,
+    ILogger<AuthController> logger) : ControllerBase
 {
     private const string DefaultFrontendUrl = "http://localhost:3000";
     private const string DefaultExternalReturnPath = "/catalog";
@@ -29,15 +30,24 @@ public class AuthController(
     public async Task<IActionResult> GetCurrentSession()
     {
         if (User.Identity?.IsAuthenticated != true)
+        {
+            logger.LogWarning("Unauthorized /api/auth/me request. Authenticated={IsAuthenticated}", User.Identity?.IsAuthenticated ?? false);
             return Unauthorized();
+        }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
+        {
+            logger.LogWarning("Unauthorized /api/auth/me request. Missing user identifier claim.");
             return Unauthorized();
+        }
 
         var user = await FindUserByIdAsync(userId);
         if (user is null)
+        {
+            logger.LogWarning("Unauthorized /api/auth/me request. User not found for claim id.");
             return Unauthorized();
+        }
 
         var roles = User.Claims
             .Where(c => c.Type == ClaimTypes.Role)

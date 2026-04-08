@@ -68,11 +68,44 @@ const DashboardPage = () => {
     setLoadError(null);
     try {
       const data = await apiFetchJson<DashboardApiResponse>(`${API_PREFIX}/dashboard`);
-      const [donors, residents, social] = await Promise.all([
+      const [donorsRes, residentsRes, socialRes] = await Promise.allSettled([
         apiFetchJson<DonorAnalyticsResponse>(`${API_PREFIX}/analytics/donors`),
         apiFetchJson<ResidentAnalyticsResponse>(`${API_PREFIX}/analytics/residents`),
         apiFetchJson<SocialAnalyticsResponse>(`${API_PREFIX}/analytics/social`),
       ]);
+      const donors =
+        donorsRes.status === "fulfilled"
+          ? donorsRes.value
+          : ({
+              donors: [],
+              retentionTrend: [],
+              donationFrequency: [],
+              impactSummary: "No analytics yet. Donor pipeline data is unavailable.",
+            } satisfies DonorAnalyticsResponse);
+      const residents =
+        residentsRes.status === "fulfilled"
+          ? residentsRes.value
+          : ({
+              residents: [],
+              alerts: [],
+              timeline: [],
+              caseLifecycle: {
+                activeIntake: 0,
+                processRecordings: 0,
+                homeVisits: 0,
+                reintegrationCompleted: 0,
+              },
+            } satisfies ResidentAnalyticsResponse);
+      const social =
+        socialRes.status === "fulfilled"
+          ? socialRes.value
+          : ({
+              bestPostingTimes: [],
+              bestContentTypes: [],
+              platformPerformance: [],
+              suggestedNextPosts: ["No analytics yet. Social pipeline data is unavailable."],
+              engagementDonationCorrelation: 0,
+            } satisfies SocialAnalyticsResponse);
       setPrimaryMetric(data.primaryMetric);
       setSupportingMetrics(data.supportingMetrics);
       setReintegrationMetric(data.reintegrationMetric);
@@ -220,6 +253,13 @@ const DashboardPage = () => {
                           <td className="px-2 py-2">{d.suggestedAction}</td>
                         </tr>
                       ))}
+                      {!(donorAnalytics?.donors?.length ?? 0) && (
+                        <tr>
+                          <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={6}>
+                            No analytics yet.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -249,6 +289,7 @@ const DashboardPage = () => {
                         {a.caseCode} - {a.status} ({a.progressScore.toFixed(1)}), unresolved incidents: {a.unresolvedIncidents}
                       </li>
                     ))}
+                  {!(residentAnalytics?.alerts?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
                 </div>
                 <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
@@ -269,6 +310,7 @@ const DashboardPage = () => {
                       {t.dateLabel} - {t.caseCode} - {t.eventType}: {t.summary}
                     </li>
                   ))}
+                  {!(residentAnalytics?.timeline?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                 </ul>
               </div>
             </motion.section>
@@ -296,6 +338,7 @@ const DashboardPage = () => {
                         {w.dayOfWeek} {String(w.hour).padStart(2, "0")}:00 - score {w.engagementScore.toFixed(1)}
                       </li>
                     ))}
+                    {!(socialAnalytics?.bestPostingTimes?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
                 </div>
                 <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
@@ -306,6 +349,7 @@ const DashboardPage = () => {
                         {c.postType}: {c.avgEngagementScore.toFixed(1)} avg engagement
                       </li>
                     ))}
+                    {!(socialAnalytics?.bestContentTypes?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
                 </div>
                 <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
@@ -316,6 +360,7 @@ const DashboardPage = () => {
                         {p.platform}: ${p.estimatedDonationValue.toLocaleString()} est. donation value
                       </li>
                     ))}
+                    {!(socialAnalytics?.platformPerformance?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
                 </div>
               </div>

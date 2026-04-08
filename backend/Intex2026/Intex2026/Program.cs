@@ -3,6 +3,7 @@ using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Identity;
 using Intex2026.Infrastructure;
+using Intex2026.Services.Analytics;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -99,6 +100,9 @@ var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecr
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IDonorAnalyticsService, DonorAnalyticsService>();
+builder.Services.AddScoped<IResidentAnalyticsService, ResidentAnalyticsService>();
+builder.Services.AddScoped<ISocialAnalyticsService, SocialAnalyticsService>();
 
 // ── Database ──────────────────────────────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -253,6 +257,13 @@ using (var scope = app.Services.CreateScope())
         {
             await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
         }
+
+        var donorAnalytics = scope.ServiceProvider.GetRequiredService<IDonorAnalyticsService>();
+        var residentAnalytics = scope.ServiceProvider.GetRequiredService<IResidentAnalyticsService>();
+        var socialAnalytics = scope.ServiceProvider.GetRequiredService<ISocialAnalyticsService>();
+        await donorAnalytics.RecalculateAsync(CancellationToken.None);
+        await residentAnalytics.RecalculateAsync(CancellationToken.None);
+        await socialAnalytics.RecalculateAsync(CancellationToken.None);
     }
     catch (Exception ex)
     {
@@ -281,8 +292,50 @@ if (!app.Environment.IsDevelopment())
 app.UseSecurityHeaders();
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
+
+app.Use(async (context, next) =>
+{
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    var path = context.Request.Path.ToString();
+    var method = context.Request.Method;
+    var started = DateTime.UtcNow;
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        var elapsedMs = (DateTime.UtcNow - started).TotalMilliseconds;
+        var user = context.User?.Identity?.IsAuthenticated == true
+            ? context.User.Identity?.Name ?? "authenticated"
+            : "anonymous";
+        logger.LogInformation(
+            "HTTP {Method} {Path} -> {StatusCode} in {ElapsedMs}ms user={User}",
+            method,
+            path,
+            context.Response.StatusCode,
+            Math.Round(elapsedMs, 1),
+            user);
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.Use(async (context, next) =>
+{
+    await next();
+    if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(
+            "401 Unauthorized for {Method} {Path}. Origin={Origin}",
+            context.Request.Method,
+            context.Request.Path.ToString(),
+            context.Request.Headers.Origin.ToString());
+    }
+});
+
 app.MapControllers();
 app.MapGroup("/api/identity").MapIdentityApi<ApplicationUser>().RequireCors(FrontendCorsPolicy);
 app.Run();

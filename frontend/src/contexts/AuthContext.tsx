@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { API_BASE } from "@/lib/apiBase";
+import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
 interface User {
   email: string;
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMe = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+      const res = await fetch(apiUrl(`${API_PREFIX}/auth/me`), { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setUser(data);

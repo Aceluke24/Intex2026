@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Donation> Donations => Set<Donation>();
     public DbSet<InKindDonationItem> InKindDonationItems => Set<InKindDonationItem>();
     public DbSet<DonationAllocation> DonationAllocations => Set<DonationAllocation>();
+    public DbSet<DonorAnalytics> DonorAnalytics => Set<DonorAnalytics>();
 
     // Case Management Domain
     public DbSet<Resident> Residents => Set<Resident>();
@@ -24,11 +25,13 @@ public class AppDbContext : DbContext
     public DbSet<HealthWellbeingRecord> HealthWellbeingRecords => Set<HealthWellbeingRecord>();
     public DbSet<InterventionPlan> InterventionPlans => Set<InterventionPlan>();
     public DbSet<IncidentReport> IncidentReports => Set<IncidentReport>();
+    public DbSet<ResidentAnalytics> ResidentAnalytics => Set<ResidentAnalytics>();
 
     // Outreach & Communication Domain
     public DbSet<SocialMediaPost> SocialMediaPosts => Set<SocialMediaPost>();
     public DbSet<SafehouseMonthlyMetric> SafehouseMonthlyMetrics => Set<SafehouseMonthlyMetric>();
     public DbSet<PublicImpactSnapshot> PublicImpactSnapshots => Set<PublicImpactSnapshot>();
+    public DbSet<SocialAnalytics> SocialAnalytics => Set<SocialAnalytics>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -74,5 +77,17 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(da => da.SafehouseId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<DonorAnalytics>()
+            .HasIndex(x => x.DonorId)
+            .IsUnique();
+
+        builder.Entity<ResidentAnalytics>()
+            .HasIndex(x => x.ResidentId)
+            .IsUnique();
+
+        builder.Entity<SocialAnalytics>()
+            .HasIndex(x => x.Platform)
+            .IsUnique();
     }
 }
