@@ -248,25 +248,35 @@ public class PublicController : ControllerBase
         return Ok(snapshots);
     }
 
-    // GET /api/public/stats — aggregate stats for landing page
+    // GET /api/public/stats — aggregate stats for landing page (DB-sourced; no PII)
     [HttpGet("stats")]
     public async Task<IActionResult> Stats()
     {
         var activeResidents = await _db.Residents.CountAsync(r => r.CaseStatus == "Active");
         var totalResidents = await _db.Residents.CountAsync();
+        var totalSafehouses = await _db.Safehouses.CountAsync();
         var activeSafehouses = await _db.Safehouses.CountAsync(s => s.Status == "Active");
+        var counselingSessionsCount = await _db.ProcessRecordings.CountAsync();
+        // Reintegration completed per data model (ReintegrationStatus), not raw "status" string
         var completedReintegrations = await _db.Residents.CountAsync(r => r.ReintegrationStatus == "Completed");
         var totalDonors = await _db.Supporters.CountAsync(s => s.Status == "Active");
         var totalMonetaryDonations = await _db.Donations
             .Where(d => d.DonationType == "Monetary" && d.Amount.HasValue)
             .SumAsync(d => d.Amount ?? 0);
 
+        var reintegrationRatePercent = totalResidents == 0
+            ? 0
+            : (int)Math.Round(completedReintegrations * 100.0 / totalResidents);
+
         return Ok(new
         {
             activeResidents,
             totalResidents,
+            totalSafehouses,
             activeSafehouses,
+            counselingSessionsCount,
             completedReintegrations,
+            reintegrationRatePercent,
             totalDonors,
             totalMonetaryDonations
         });

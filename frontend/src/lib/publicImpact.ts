@@ -1,5 +1,13 @@
 import { API_BASE } from "@/lib/apiBase";
 
+/** GET /api/public/stats — aggregate DB metrics for homepage / impact (no PII). */
+export type PublicHomeStats = {
+  totalResidents: number | null;
+  totalSafehouses: number | null;
+  counselingSessionsCount: number | null;
+  reintegrationRatePercent: number | null;
+};
+
 type ImpactSummary = {
   survivors: number | null;
   totalDonations: number | null;
@@ -46,6 +54,23 @@ export type PublicImpactBundle = {
 
 const toNumberOrNull = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
+
+export async function fetchPublicHomeStats(): Promise<PublicHomeStats | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/public/stats`);
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => ({}));
+    return {
+      totalResidents: toNumberOrNull(json.totalResidents),
+      totalSafehouses: toNumberOrNull(json.totalSafehouses),
+      counselingSessionsCount: toNumberOrNull(json.counselingSessionsCount),
+      reintegrationRatePercent: toNumberOrNull(json.reintegrationRatePercent),
+    };
+  } catch (error) {
+    console.error("[fetchPublicHomeStats]", error);
+    return null;
+  }
+}
 
 const defaultBundle: PublicImpactBundle = {
   residentsCount: null,

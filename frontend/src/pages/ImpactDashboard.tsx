@@ -4,19 +4,26 @@ import { SkeletonCard, SkeletonChart } from "@/components/SkeletonLoaders";
 import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 import { AnimatedCount } from "@/components/AnimatedCount";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
-import { fetchPublicImpactBundle, type PublicImpactBundle } from "@/lib/publicImpact";
+import {
+  fetchPublicImpactBundle,
+  fetchPublicHomeStats,
+  type PublicImpactBundle,
+  type PublicHomeStats,
+} from "@/lib/publicImpact";
 
 const ImpactDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [data, setData] = useState<PublicImpactBundle | null>(null);
+  const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
 
   useEffect(() => {
     const load = async () => {
       setLoadError(null);
-      const bundle = await fetchPublicImpactBundle();
+      const [bundle, stats] = await Promise.all([fetchPublicImpactBundle(), fetchPublicHomeStats()]);
       setData(bundle);
-      if (!bundle.summary.survivors && !bundle.summary.totalDonations) {
+      setHomeStats(stats);
+      if (!bundle.summary.survivors && !bundle.summary.totalDonations && !stats) {
         setLoadError("Live impact data is unavailable right now. Showing placeholders.");
       }
       setLoading(false);
@@ -106,7 +113,7 @@ const ImpactDashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-3">
               <p className="font-display text-4xl font-semibold tracking-tight text-foreground">
-                <AnimatedCount value={null} fallback="--" />
+                <AnimatedCount value={homeStats?.counselingSessionsCount ?? null} fallback="--" />
               </p>
               <p className="text-sm text-muted-foreground">Counseling sessions delivered</p>
             </div>
@@ -118,12 +125,14 @@ const ImpactDashboard = () => {
             </div>
             <div className="p-3">
               <p className="font-display text-4xl font-semibold tracking-tight text-foreground">
-                <AnimatedCount value={data?.summary.reintegrationRate ?? null} suffix="%" fallback="--" />
+                <AnimatedCount value={homeStats?.reintegrationRatePercent ?? null} suffix="%" fallback="--" />
               </p>
               <p className="text-sm text-muted-foreground">Reintegration rate</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">Counseling sessions are pending a dedicated public endpoint.</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Counseling session total is the count of process recordings in the database. Reintegration rate is completed reintegrations divided by total residents.
+          </p>
         </div>
       </section>
 

@@ -4,9 +4,10 @@ import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 import { AnimatedCount } from "@/components/AnimatedCount";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { Home, HeartPulse, HandHeart, Heart } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchPublicImpactBundle, type PublicImpactBundle } from "@/lib/publicImpact";
+import { fetchPublicHomeStats, type PublicHomeStats } from "@/lib/publicImpact";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const fromFieldFallback = [
   {
@@ -33,30 +34,36 @@ const fromFieldFallback = [
 ] as const;
 
 const Index = () => {
-  const [impactData, setImpactData] = useState<PublicImpactBundle | null>(null);
+  const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       setDataError(null);
-      const bundle = await fetchPublicImpactBundle();
-      setImpactData(bundle);
-      if (!bundle.residentsCount && !bundle.summary.survivors && !bundle.summary.totalDonations) {
+      setStatsLoading(true);
+      const stats = await fetchPublicHomeStats();
+      if (cancelled) return;
+      setHomeStats(stats);
+      setStatsLoading(false);
+      if (!stats) {
         setDataError("Live impact data is temporarily unavailable. Showing placeholders.");
+      } else if (import.meta.env.DEV) {
+        // TEMP: remove after verifying DB-backed homepage stats
+        console.log({
+          residents: stats.totalResidents,
+          safehouses: stats.totalSafehouses,
+          counselingSessions: stats.counselingSessionsCount,
+          reintegrationRate: stats.reintegrationRatePercent,
+        });
       }
     };
     load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const stats = useMemo(
-    () => ({
-      residentsServed: impactData?.residentsCount ?? impactData?.summary.survivors ?? null,
-      safehouses: impactData?.summary.safehouses ?? null,
-      reintegratedPct: impactData?.summary.reintegrationRate ?? null,
-      counselingSessions: null as number | null,
-    }),
-    [impactData]
-  );
 
   return (
     <PublicLayout>
@@ -169,38 +176,45 @@ const Index = () => {
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="font-display text-3xl lg:text-4xl font-semibold tracking-tight text-foreground mb-8">Impact Stats</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7">
-            {[
-              {
-                label: "Residents Served",
-                value: stats.residentsServed,
-                suffix: "",
-              },
-              {
-                label: "Safehouses",
-                value: stats.safehouses,
-                suffix: "",
-              },
-              {
-                label: "% Reintegrated",
-                value: stats.reintegratedPct,
-                suffix: "%",
-              },
-              {
-                label: "Counseling Sessions",
-                value: stats.counselingSessions,
-                suffix: "",
-              },
-            ].map((item) => (
-              <div key={item.label}>
-                <p className="font-display text-4xl font-semibold tracking-tight text-foreground">
-                  <AnimatedCount value={item.value} suffix={item.suffix} fallback="--" />
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">{item.label}</p>
-              </div>
-            ))}
+            {statsLoading
+              ? [1, 2, 3, 4].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-10 w-24 rounded-md" />
+                    <Skeleton className="h-4 w-32 rounded-md" />
+                  </div>
+                ))
+              : [
+                  {
+                    label: "Residents Served",
+                    value: homeStats?.totalResidents ?? null,
+                    suffix: "",
+                  },
+                  {
+                    label: "Safehouses",
+                    value: homeStats?.totalSafehouses ?? null,
+                    suffix: "",
+                  },
+                  {
+                    label: "% Reintegrated",
+                    value: homeStats?.reintegrationRatePercent ?? null,
+                    suffix: "%",
+                  },
+                  {
+                    label: "Counseling Sessions",
+                    value: homeStats?.counselingSessionsCount ?? null,
+                    suffix: "",
+                  },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <p className="font-display text-4xl font-semibold tracking-tight text-foreground">
+                      <AnimatedCount value={item.value} suffix={item.suffix} fallback="--" />
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">{item.label}</p>
+                  </div>
+                ))}
           </div>
           <p className="text-xs text-muted-foreground mt-4">
-            Metrics use public database endpoints where available. Unavailable metrics are shown as "--".
+            All figures come from the live database (public stats API). If the request fails, values show as &quot;--&quot;.
           </p>
         </div>
       </section>
