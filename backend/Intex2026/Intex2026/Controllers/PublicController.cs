@@ -39,6 +39,67 @@ public class PublicController : ControllerBase
         }
     }
 
+    // GET /api/public/safehouses/count — total safehouses (aggregate; no PII)
+    [HttpGet("safehouses/count")]
+    public async Task<IActionResult> SafehousesCountPublic()
+    {
+        try
+        {
+            var count = await _db.Safehouses.CountAsync();
+            return Ok(new { count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching safehouse count");
+            return Problem(
+                title: "Safehouse count unavailable",
+                detail: "Safehouse count could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    // GET /api/public/recordings/count — process recordings (counseling sessions) count
+    [HttpGet("recordings/count")]
+    public async Task<IActionResult> RecordingsCountPublic()
+    {
+        try
+        {
+            var count = await _db.ProcessRecordings.CountAsync();
+            return Ok(new { count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching recordings count");
+            return Problem(
+                title: "Recordings count unavailable",
+                detail: "Process recordings count could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    // GET /api/public/residents/reintegration-rate — derived % (ReintegrationStatus == Completed)
+    [HttpGet("residents/reintegration-rate")]
+    public async Task<IActionResult> ReintegrationRatePublic()
+    {
+        try
+        {
+            var totalResidents = await _db.Residents.CountAsync();
+            var completedReintegrations = await _db.Residents.CountAsync(r => r.ReintegrationStatus == "Completed");
+            var reintegrationRatePercent = totalResidents == 0
+                ? 0
+                : (int)Math.Round(completedReintegrations * 100.0 / totalResidents);
+            return Ok(new { totalResidents, completedReintegrations, reintegrationRatePercent });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching reintegration rate");
+            return Problem(
+                title: "Reintegration rate unavailable",
+                detail: "Reintegration metrics could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
     // GET /api/public/impact/summary — headline impact stats
     [HttpGet("impact/summary")]
     public async Task<IActionResult> ImpactSummary()

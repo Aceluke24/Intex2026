@@ -23,7 +23,12 @@ const ImpactDashboard = () => {
       const [bundle, stats] = await Promise.all([fetchPublicImpactBundle(), fetchPublicHomeStats()]);
       setData(bundle);
       setHomeStats(stats);
-      if (!bundle.summary.survivors && !bundle.summary.totalDonations && !stats) {
+      const homeEmpty =
+        stats.totalResidents == null &&
+        stats.totalSafehouses == null &&
+        stats.counselingSessionsCount == null &&
+        stats.reintegrationRatePercent == null;
+      if (!bundle.summary.survivors && !bundle.summary.totalDonations && homeEmpty) {
         setLoadError("Live impact data is unavailable right now. Showing placeholders.");
       }
       setLoading(false);

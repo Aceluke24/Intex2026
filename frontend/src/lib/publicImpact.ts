@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/apiBase";
+import { API_BASE, apiUrl } from "@/lib/apiBase";
 
 /** GET /api/public/stats — aggregate DB metrics for homepage / impact (no PII). */
 export type PublicHomeStats = {
@@ -52,25 +52,122 @@ export type PublicImpactBundle = {
   trend: TrendRow[];
 };
 
-const toNumberOrNull = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
+/** Accepts number, numeric string, camelCase or PascalCase keys. */
+function readNum(obj: unknown, ...keys: string[]): number | null {
+  if (obj === null || obj === undefined || typeof obj !== "object") return null;
+  const record = obj as Record<string, unknown>;
+  for (const k of keys) {
+    const v = record[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
+  }
+  return null;
+}
 
-export async function fetchPublicHomeStats(): Promise<PublicHomeStats | null> {
+function arrayLength(data: unknown): number | null {
+  if (Array.isArray(data)) return data.length;
+  if (data && typeof data === "object" && "data" in data) {
+    const inner = (data as { data: unknown }).data;
+    if (Array.isArray(inner)) return inner.length;
+  }
+  return null;
+}
+
+async function parseJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text.trim()) return {};
   try {
-    const res = await fetch(`${API_BASE}/api/public/stats`);
-    if (!res.ok) return null;
-    const json = await res.json().catch(() => ({}));
-    return {
-      totalResidents: toNumberOrNull(json.totalResidents),
-      totalSafehouses: toNumberOrNull(json.totalSafehouses),
-      counselingSessionsCount: toNumberOrNull(json.counselingSessionsCount),
-      reintegrationRatePercent: toNumberOrNull(json.reintegrationRatePercent),
-    };
-  } catch (error) {
-    console.error("[fetchPublicHomeStats]", error);
-    return null;
+    return JSON.parse(text) as unknown;
+  } catch {
+    return {};
   }
 }
+
+/**
+ * Loads homepage impact metrics from public APIs in parallel.
+ * Merges `/api/public/stats` with dedicated count endpoints so values populate
+ * even if one response shape differs or a single call fails.
+ */
+export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
+  const empty: PublicHomeStats = {
+    totalResidents: null,
+    totalSafehouses: null,
+    counselingSessionsCount: null,
+    reintegrationRatePercent: null,
+  };
+
+  try {
+    const [
+      statsRes,
+      residentsRes,
+      safehousesCountRes,
+      recordingsRes,
+      reintRes,
+      safehousesListRes,
+    ] = await Promise.all([
+      fetch(apiUrl("/api/public/stats")),
+      fetch(apiUrl("/api/public/residents/count")),
+      fetch(apiUrl("/api/public/safehouses/count")),
+      fetch(apiUrl("/api/public/recordings/count")),
+      fetch(apiUrl("/api/public/residents/reintegration-rate")),
+      fetch(apiUrl("/api/public/safehouses")),
+    ]);
+
+    const [statsJson, residentsJson, shCountJson, recJson, reintJson, safehousesListJson] = await Promise.all([
+      parseJson(statsRes),
+      parseJson(residentsRes),
+      parseJson(safehousesCountRes),
+      parseJson(recordingsRes),
+      parseJson(reintRes),
+      parseJson(safehousesListRes),
+    ]);
+
+    if (import.meta.env.DEV) {
+      console.log("API BASE:", API_BASE || "(same-origin)");
+      console.log("SAFEHOUSES (list /api/public/safehouses):", safehousesListJson);
+      console.log("PROCESS RECORDINGS (count payload):", recJson);
+    }
+
+    const fromStats = {
+      totalResidents: readNum(statsJson, "totalResidents", "TotalResidents"),
+      totalSafehouses: readNum(statsJson, "totalSafehouses", "TotalSafehouses"),
+      counselingSessionsCount: readNum(statsJson, "counselingSessionsCount", "CounselingSessionsCount"),
+      reintegrationRatePercent: readNum(statsJson, "reintegrationRatePercent", "ReintegrationRatePercent"),
+    };
+
+    const residentsFromCount = readNum(residentsJson, "count", "Count");
+    const safehousesFromCount = readNum(shCountJson, "count", "Count");
+    const recordingsFromCount = readNum(recJson, "count", "Count");
+    const reintFromDedicated = readNum(reintJson, "reintegrationRatePercent", "ReintegrationRatePercent");
+    const residentsFromReint = readNum(reintJson, "totalResidents", "TotalResidents");
+    const safehousesFromList = arrayLength(safehousesListJson);
+
+    // ?? preserves 0; only falls through on null/undefined
+    const merged: PublicHomeStats = {
+      totalResidents: fromStats.totalResidents ?? residentsFromCount ?? residentsFromReint ?? null,
+      totalSafehouses: fromStats.totalSafehouses ?? safehousesFromCount ?? safehousesFromList ?? null,
+      counselingSessionsCount: fromStats.counselingSessionsCount ?? recordingsFromCount ?? null,
+      reintegrationRatePercent: fromStats.reintegrationRatePercent ?? reintFromDedicated ?? null,
+    };
+
+    if (import.meta.env.DEV) {
+      console.log({
+        residents: merged.totalResidents,
+        safehouses: merged.totalSafehouses,
+        counselingSessions: merged.counselingSessionsCount,
+        reintegrationRate: merged.reintegrationRatePercent,
+      });
+    }
+
+    return merged;
+  } catch (error) {
+    console.error("[fetchPublicHomeStats]", error);
+    return empty;
+  }
+}
+
+const toNumberOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 const defaultBundle: PublicImpactBundle = {
   residentsCount: null,
@@ -100,12 +197,12 @@ const defaultBundle: PublicImpactBundle = {
 export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
   try {
     const [residentsRes, summaryRes, outcomesRes, campaignsRes, allocationRes, trendRes] = await Promise.all([
-      fetch(`${API_BASE}/api/public/residents/count`),
-      fetch(`${API_BASE}/api/public/impact/summary`),
-      fetch(`${API_BASE}/api/public/impact/program-outcomes`),
-      fetch(`${API_BASE}/api/public/impact/campaigns`),
-      fetch(`${API_BASE}/api/public/impact/allocation`),
-      fetch(`${API_BASE}/api/public/impact/donations-trend`),
+      fetch(apiUrl("/api/public/residents/count")),
+      fetch(apiUrl("/api/public/impact/summary")),
+      fetch(apiUrl("/api/public/impact/program-outcomes")),
+      fetch(apiUrl("/api/public/impact/campaigns")),
+      fetch(apiUrl("/api/public/impact/allocation")),
+      fetch(apiUrl("/api/public/impact/donations-trend")),
     ]);
 
     const residentsJson = residentsRes.ok ? await residentsRes.json().catch(() => ({})) : {};

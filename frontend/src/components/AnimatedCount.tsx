@@ -1,58 +1,31 @@
-import { useEffect, useRef, useState } from "react";
-
 type Props = {
-  value: number | null;
+  value: number | null | undefined;
   suffix?: string;
   prefix?: string;
   fallback?: string;
+  /** Kept for API compatibility; count-up can be re-added without breaking callers */
   durationMs?: number;
 };
 
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-
+/**
+ * Renders a database-backed number. `0` is valid and shown.
+ * Only `null` / `undefined` / non-finite → fallback (e.g. "--"), never treat 0 as missing.
+ */
 export function AnimatedCount({
   value,
   suffix = "",
   prefix = "",
   fallback = "--",
-  durationMs = 1400,
 }: Props) {
-  const containerRef = useRef<HTMLSpanElement>(null);
-  const [display, setDisplay] = useState(0);
-  const [started, setStarted] = useState(false);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setStarted(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.35 }
-    );
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!started || value === null) return;
-    let frame = 0;
-    const begin = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - begin) / durationMs);
-      const eased = easeOutCubic(progress);
-      setDisplay(Math.round(value * eased));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [durationMs, started, value]);
-
+  if (value === null || value === undefined) {
+    return <span>{fallback}</span>;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return <span>{fallback}</span>;
+  }
   return (
-    <span ref={containerRef}>
-      {value === null ? fallback : `${prefix}${display.toLocaleString()}${suffix}`}
+    <span className="tabular-nums transition-opacity duration-300 ease-out">
+      {`${prefix}${Math.round(value).toLocaleString()}${suffix}`}
     </span>
   );
 }

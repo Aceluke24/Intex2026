@@ -47,16 +47,13 @@ const Index = () => {
       if (cancelled) return;
       setHomeStats(stats);
       setStatsLoading(false);
-      if (!stats) {
+      const allMissing =
+        stats.totalResidents == null &&
+        stats.totalSafehouses == null &&
+        stats.counselingSessionsCount == null &&
+        stats.reintegrationRatePercent == null;
+      if (allMissing) {
         setDataError("Live impact data is temporarily unavailable. Showing placeholders.");
-      } else if (import.meta.env.DEV) {
-        // TEMP: remove after verifying DB-backed homepage stats
-        console.log({
-          residents: stats.totalResidents,
-          safehouses: stats.totalSafehouses,
-          counselingSessions: stats.counselingSessionsCount,
-          reintegrationRate: stats.reintegrationRatePercent,
-        });
       }
     };
     load();
