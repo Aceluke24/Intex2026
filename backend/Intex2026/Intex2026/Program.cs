@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Intex2026.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -101,16 +102,24 @@ if (authIdentityConnectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", String
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlite(connectionString));
+        options
+            .UseSqlite(connectionString)
+            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
     builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
-        options.UseSqlite(authIdentityConnectionString));
+        options
+            .UseSqlite(authIdentityConnectionString)
+            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
 }
 else
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options
+            .UseSqlServer(connectionString)
+            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
     builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
-        options.UseSqlServer(authIdentityConnectionString));
+        options
+            .UseSqlServer(authIdentityConnectionString)
+            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
 }
 
 builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
