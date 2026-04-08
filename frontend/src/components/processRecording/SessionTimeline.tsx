@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingTypes";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Pencil, Trash2, User } from "lucide-react";
+import { ChevronDown, Pencil, Timer, Trash2, User } from "lucide-react";
 import { useState } from "react";
 
 const emotionalStyles: Record<EmotionalTag, string> = {
@@ -98,10 +98,20 @@ export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: Session
                   <p className="font-body text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
                     {format(new Date(entry.date), "MMMM d, yyyy")}
                   </p>
+                  <p className="mt-1 font-display text-base font-semibold text-foreground">
+                    {entry.residentDisplayName ?? "Resident"}
+                  </p>
+                  <p className="mt-0.5 font-body text-xs text-muted-foreground">
+                    {entry.caseId ?? `Resident ID: ${entry.residentId}`}
+                  </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-0.5 font-body text-[11px] font-medium text-foreground/85 shadow-sm dark:bg-white/10">
                       <User className="h-3 w-3 opacity-60" strokeWidth={1.5} />
                       {entry.worker}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-0.5 font-body text-[11px] font-medium text-foreground/85 shadow-sm dark:bg-white/10">
+                      <Timer className="h-3 w-3 opacity-60" strokeWidth={1.5} />
+                      {entry.durationMinutes ?? 0} min
                     </span>
                     <span className="rounded-full border border-white/60 bg-[hsl(210_20%_96%)] px-2.5 py-0.5 font-body text-[10px] font-semibold uppercase tracking-wide text-muted-foreground dark:border-white/10 dark:bg-white/[0.08]">
                       {entry.sessionType}

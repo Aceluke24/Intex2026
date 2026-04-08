@@ -32,6 +32,9 @@ public class ProcessRecordingsController : ControllerBase
         {
             var dateStr = r.SessionDate.ToString("yyyy-MM-dd");
             var residentName = ResidentDisplayName(r.Resident, r.ResidentId);
+            var caseId = r.Resident == null
+                ? $"R-{r.ResidentId}"
+                : (string.IsNullOrWhiteSpace(r.Resident.CaseControlNo) ? r.Resident.InternalCode : r.Resident.CaseControlNo);
             return new
             {
                 id = r.RecordingId,
@@ -45,7 +48,8 @@ public class ProcessRecordingsController : ControllerBase
                 emotionalState = r.EmotionalStateObserved,
                 note = NotePreview(r.SessionNarrative),
                 date = dateStr,
-                caseId = $"PR-{r.RecordingId:D4}",
+                caseId,
+                durationMinutes = r.SessionDurationMinutes,
             };
         }).ToList();
 

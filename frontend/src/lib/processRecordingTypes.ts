@@ -12,9 +12,12 @@ export type EmotionalTag = "Stable" | "Anxious" | "Hopeful" | "Distressed" | "Re
 export interface ProcessSessionEntry {
   id: string;
   residentId: string;
+  residentDisplayName?: string;
+  caseId?: string;
   date: string;
   worker: string;
   sessionType: SessionType;
+  durationMinutes?: number | null;
   emotionalState: EmotionalTag;
   narrativePreview: string;
   emotionalObserved: string;

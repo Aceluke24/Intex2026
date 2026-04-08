@@ -1,13 +1,19 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { AddSessionDialog, ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
+import { ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import {
+  type EmotionalTag,
   mapApiEmotionalState,
   type ProcessResidentOption,
   type ProcessSessionEntry,
@@ -29,6 +35,8 @@ type RecordingListItem = {
   emotionalState: string;
   note: string | null;
   date: string;
+  caseId?: string;
+  durationMinutes?: number | null;
 };
 
 type RecordingListResponse = {
@@ -58,6 +66,9 @@ function mapListItemToEntry(item: RecordingListItem): ProcessSessionEntry {
     date: item.date || item.sessionDate,
     worker: item.clinicianName?.trim() || "—",
     sessionType,
+    residentDisplayName: item.residentName,
+    caseId: item.caseId || `R-${item.residentId}`,
+    durationMinutes: item.durationMinutes ?? null,
     emotionalState: mapApiEmotionalState(item.emotionalState || ""),
     narrativePreview: note,
     emotionalObserved: item.emotionalState?.trim() || "—",
@@ -66,6 +77,21 @@ function mapListItemToEntry(item: RecordingListItem): ProcessSessionEntry {
     followUp: "—",
   };
 }
+
+type RecordingEditorState = {
+  open: boolean;
+  mode: "create" | "edit";
+  recordingId: string | null;
+  residentId: string;
+  date: string;
+  worker: string;
+  sessionType: SessionType;
+  durationMinutes: string;
+  emotionalState: EmotionalTag;
+  narrative: string;
+  interventions: string;
+  followUp: string;
+};
 
 function mapResident(r: ResidentApi): ProcessResidentOption {
   const display = r.internalCode?.trim()
@@ -90,7 +116,20 @@ const RecordingsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<ProcessSessionEntry | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [editor, setEditor] = useState<RecordingEditorState>({
+    open: false,
+    mode: "create",
+    recordingId: null,
+    residentId: "",
+    date: new Date().toISOString().slice(0, 10),
+    worker: "",
+    sessionType: "Individual",
+    durationMinutes: "",
+    emotionalState: "Hopeful",
+    narrative: "",
+    interventions: "",
+    followUp: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,20 +215,45 @@ const RecordingsPage = () => {
     setSheetOpen(true);
   };
 
+  const openCreateEditor = () => {
+    setEditor({
+      open: true,
+      mode: "create",
+      recordingId: null,
+      residentId: residentFilter !== "all" ? residentFilter : residents[0]?.id ?? "",
+      date: new Date().toISOString().slice(0, 10),
+      worker: workersForDialog[0] ?? "",
+      sessionType: "Individual",
+      durationMinutes: "",
+      emotionalState: "Hopeful",
+      narrative: "",
+      interventions: "",
+      followUp: "",
+    });
+  };
+
   const handleEditEntry = async (id: string) => {
     try {
       const existing = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/recordings/${id}`);
-      const currentNarrative = String(existing.sessionNarrative ?? "");
-      const nextNarrative = window.prompt("Update session narrative", currentNarrative);
-      if (nextNarrative == null) return;
-      const body = { ...existing, recordingId: Number(id), sessionNarrative: nextNarrative.trim() || null };
-      const res = await apiFetch(`${API_PREFIX}/recordings/${id}`, { method: "PUT", body: JSON.stringify(body) });
-      if (!res.ok) throw new Error(await res.text());
-      toast.success("Recording updated.");
-      await load();
+      setEditor({
+        open: true,
+        mode: "edit",
+        recordingId: id,
+        residentId: String(existing.residentId ?? ""),
+        date: String(existing.sessionDate ?? new Date().toISOString().slice(0, 10)),
+        worker: String(existing.socialWorker ?? ""),
+        sessionType:
+          String(existing.sessionType ?? "").toLowerCase() === "group" ? "Group" : "Individual",
+        durationMinutes:
+          existing.sessionDurationMinutes == null ? "" : String(existing.sessionDurationMinutes),
+        emotionalState: mapApiEmotionalState(String(existing.emotionalStateObserved ?? "")),
+        narrative: String(existing.sessionNarrative ?? ""),
+        interventions: String(existing.interventionsApplied ?? ""),
+        followUp: String(existing.followUpActions ?? ""),
+      });
     } catch (e) {
       console.error(e);
-      toast.error("Failed to update recording.");
+      toast.error("Failed to open recording editor.");
     }
   };
 
@@ -207,6 +271,84 @@ const RecordingsPage = () => {
     }
   };
 
+  const handleSaveEditor = async () => {
+    const emotionalMap: Record<EmotionalTag, string> = {
+      Stable: "Calm",
+      Anxious: "Anxious",
+      Hopeful: "Hopeful",
+      Distressed: "Distressed",
+      Resilient: "Happy",
+      Withdrawn: "Withdrawn",
+    };
+    const durationParsed = editor.durationMinutes.trim() === "" ? null : Number(editor.durationMinutes);
+    if (!editor.residentId || !editor.date || !editor.worker.trim() || !editor.narrative.trim()) {
+      toast.error("Resident, date, worker, and narrative are required.");
+      return;
+    }
+    if (durationParsed != null && Number.isNaN(durationParsed)) {
+      toast.error("Duration must be numeric.");
+      return;
+    }
+    const body = {
+      recordingId: editor.recordingId ? Number(editor.recordingId) : 0,
+      residentId: parseInt(editor.residentId, 10),
+      sessionDate: editor.date,
+      socialWorker: editor.worker.trim(),
+      sessionType: editor.sessionType,
+      sessionDurationMinutes: durationParsed,
+      emotionalStateObserved: emotionalMap[editor.emotionalState] ?? "Calm",
+      sessionNarrative: editor.narrative.trim(),
+      interventionsApplied: editor.interventions.trim() || null,
+      followUpActions: editor.followUp.trim() || null,
+      progressNoted: false,
+      concernsFlagged: false,
+      referralMade: false,
+    };
+    try {
+      const res = editor.mode === "edit" && editor.recordingId
+        ? await apiFetch(`${API_PREFIX}/recordings/${editor.recordingId}`, { method: "PUT", body: JSON.stringify(body) })
+        : await apiFetch(`${API_PREFIX}/recordings`, { method: "POST", body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(await res.text());
+
+      const resident = residents.find((r) => r.id === editor.residentId);
+      const nextEntry: ProcessSessionEntry = {
+        id: editor.recordingId ?? String(Date.now()),
+        residentId: editor.residentId,
+        residentDisplayName: resident?.displayName ?? `Resident #${editor.residentId}`,
+        caseId: resident?.caseId ?? `R-${editor.residentId}`,
+        date: editor.date,
+        worker: editor.worker.trim(),
+        sessionType: editor.sessionType,
+        durationMinutes: durationParsed,
+        emotionalState: editor.emotionalState,
+        narrativePreview: editor.narrative.trim(),
+        emotionalObserved: emotionalMap[editor.emotionalState] ?? "Calm",
+        narrativeFull: editor.narrative.trim(),
+        interventions: editor.interventions.trim() || "—",
+        followUp: editor.followUp.trim() || "—",
+      };
+
+      if (editor.mode === "edit" && editor.recordingId) {
+        setSessions((prev) => prev.map((s) => (s.id === editor.recordingId ? { ...s, ...nextEntry } : s)));
+        if (selectedEntryId === editor.recordingId) setDetailEntry((d) => (d ? { ...d, ...nextEntry } : nextEntry));
+        toast.success("Recording updated.");
+      } else {
+        let createdId = nextEntry.id;
+        try {
+          const created = await res.json();
+          if (created?.recordingId != null) createdId = String(created.recordingId);
+        } catch {
+          // no-op
+        }
+        setSessions((prev) => [{ ...nextEntry, id: createdId }, ...prev]);
+        toast.success("Session entry saved.");
+      }
+      setEditor((e) => ({ ...e, open: false }));
+    } catch (e) {
+      toast.error("Failed to save session: " + (e instanceof Error ? e.message : "Unknown error"));
+    }
+  };
+
   return (
     <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
       <StaffPageShell
@@ -220,7 +362,7 @@ const RecordingsPage = () => {
             <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Button
                 type="button"
-                onClick={() => setAddOpen(true)}
+                onClick={openCreateEditor}
                 className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.3)]"
               >
                 <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
@@ -298,55 +440,117 @@ const RecordingsPage = () => {
         transition={{ delay: 0.4 }}
         whileHover={{ scale: 1.04, y: -2 }}
         whileTap={{ scale: 0.97 }}
-        onClick={() => setAddOpen(true)}
+        onClick={openCreateEditor}
         className="fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] text-white shadow-[0_14px_44px_rgba(190,100,130,0.4)] lg:bottom-10 lg:right-10"
         aria-label="New session entry"
       >
         <Plus className="h-6 w-6" strokeWidth={2} />
       </motion.button>
 
-      <AddSessionDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        defaultResidentId={residentFilter}
-        residents={residents}
-        workerOptions={workersForDialog}
-        onSave={async (entry) => {
-          // Map UI emotional state back to API values
-          const emotionalMap: Record<string, string> = {
-            Stable: "Calm",
-            Anxious: "Anxious",
-            Hopeful: "Hopeful",
-            Distressed: "Distressed",
-            Resilient: "Happy",
-            Withdrawn: "Withdrawn",
-          };
-          const body = {
-            residentId: parseInt(entry.residentId, 10),
-            sessionDate: entry.date,
-            socialWorker: entry.worker,
-            sessionType: entry.sessionType,
-            emotionalStateObserved: emotionalMap[entry.emotionalState] ?? "Calm",
-            sessionNarrative: entry.narrativeFull !== "—" ? entry.narrativeFull : null,
-            interventionsApplied: entry.interventions !== "—" ? entry.interventions : null,
-            followUpActions: entry.followUp !== "—" ? entry.followUp : null,
-            progressNoted: false,
-            concernsFlagged: false,
-            referralMade: false,
-          };
-          try {
-            const res = await apiFetch(`${API_PREFIX}/recordings`, {
-              method: "POST",
-              body: JSON.stringify(body),
-            });
-            if (!res.ok) throw new Error(await res.text());
-            toast.success("Session entry saved.");
-            void load();
-          } catch (e) {
-            toast.error("Failed to save session: " + (e instanceof Error ? e.message : "Unknown error"));
-          }
-        }}
-      />
+      <Dialog open={editor.open} onOpenChange={(open) => setEditor((e) => ({ ...e, open }))}>
+        <DialogContent className="max-h-[90vh] max-w-[min(100%,34rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-semibold">
+              {editor.mode === "edit" ? "Edit recording" : "New recording"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2 sm:grid-cols-2">
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="font-body text-xs">Resident</Label>
+              <Select value={editor.residentId} onValueChange={(v) => setEditor((e) => ({ ...e, residentId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger>
+                <SelectContent>
+                  {residents.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.displayName} ({r.caseId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-body text-xs">Session Type</Label>
+              <Select value={editor.sessionType} onValueChange={(v) => setEditor((e) => ({ ...e, sessionType: v as SessionType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Individual">Individual</SelectItem>
+                  <SelectItem value="Group">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-body text-xs">Duration (minutes)</Label>
+              <Input
+                type="number"
+                value={editor.durationMinutes}
+                onChange={(e) => setEditor((ed) => ({ ...ed, durationMinutes: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-body text-xs">Date</Label>
+              <Input
+                type="date"
+                value={editor.date}
+                onChange={(e) => setEditor((ed) => ({ ...ed, date: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-body text-xs">Status / Emotional tag</Label>
+              <Select value={editor.emotionalState} onValueChange={(v) => setEditor((e) => ({ ...e, emotionalState: v as EmotionalTag }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Stable">Stable</SelectItem>
+                  <SelectItem value="Anxious">Anxious</SelectItem>
+                  <SelectItem value="Hopeful">Hopeful</SelectItem>
+                  <SelectItem value="Distressed">Distressed</SelectItem>
+                  <SelectItem value="Resilient">Resilient</SelectItem>
+                  <SelectItem value="Withdrawn">Withdrawn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="font-body text-xs">Social worker</Label>
+              <Input
+                value={editor.worker}
+                onChange={(e) => setEditor((ed) => ({ ...ed, worker: e.target.value }))}
+                placeholder="SW-01"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="font-body text-xs">Narrative</Label>
+              <Textarea
+                className="min-h-[120px]"
+                value={editor.narrative}
+                onChange={(e) => setEditor((ed) => ({ ...ed, narrative: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="font-body text-xs">Interventions</Label>
+              <Textarea
+                className="min-h-[72px]"
+                value={editor.interventions}
+                onChange={(e) => setEditor((ed) => ({ ...ed, interventions: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="font-body text-xs">Follow-up actions</Label>
+              <Textarea
+                className="min-h-[72px]"
+                value={editor.followUp}
+                onChange={(e) => setEditor((ed) => ({ ...ed, followUp: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setEditor((e) => ({ ...e, open: false }))}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleSaveEditor()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
