@@ -1,7 +1,7 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { StatCard } from "@/components/StatCard";
+import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
   FilterBar,
@@ -418,7 +418,7 @@ const DonorsPage = () => {
           ) : (
             <section className="mb-24 xl:mb-32">
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
-                <StatCard
+                <KpiStatCard
                   variant="glass"
                   tone="rose"
                   motionDelay={0}
@@ -429,7 +429,7 @@ const DonorsPage = () => {
                   icon={Users}
                   className="xl:col-span-1"
                 />
-                <StatCard
+                <KpiStatCard
                   variant="glass"
                   tone="blush"
                   motionDelay={0.06}
@@ -440,7 +440,7 @@ const DonorsPage = () => {
                   icon={HeartHandshake}
                   className="xl:col-span-1"
                 />
-                <StatCard
+                <KpiStatCard
                   variant="glass"
                   tone="featured"
                   featured
@@ -452,7 +452,7 @@ const DonorsPage = () => {
                   icon={TrendingUp}
                   className="sm:col-span-2 xl:col-span-2"
                 />
-                <StatCard
+                <KpiStatCard
                   variant="glass"
                   tone="sage"
                   motionDelay={0.16}
@@ -463,7 +463,7 @@ const DonorsPage = () => {
                   icon={Clock}
                   className="xl:col-span-1"
                 />
-                <StatCard
+                <KpiStatCard
                   variant="glass"
                   tone="gold"
                   motionDelay={0.21}
