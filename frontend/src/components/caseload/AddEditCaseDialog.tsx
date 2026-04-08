@@ -28,7 +28,22 @@ type AddEditCaseDialogProps = {
   onSave: (c: ResidentCase) => void;
   safehouseOptions: string[];
   workerOptions: string[];
+  existingCases: ResidentCase[];
 };
+
+function generateNextDisplayName(cases: ResidentCase[]): string {
+  if (!cases.length) return "LS-0001";
+
+  const numbers = cases
+    .map((c) => c.displayName)
+    .filter((name) => /^LS-\d+$/.test(name))
+    .map((name) => Number.parseInt(name.split("-")[1], 10))
+    .filter((n) => Number.isFinite(n));
+
+  const max = Math.max(...numbers, 0);
+  const next = max + 1;
+  return `LS-${String(next).padStart(4, "0")}`;
+}
 
 const emptySocio: SocioDemoProfile = {
   fourPsBeneficiary: false,
@@ -105,6 +120,7 @@ export function AddEditCaseDialog({
   onSave,
   safehouseOptions,
   workerOptions,
+  existingCases,
 }: AddEditCaseDialogProps) {
   const shOpts = useMemo(
     () => (safehouseOptions.length ? safehouseOptions : ["—"]),
@@ -120,6 +136,12 @@ export function AddEditCaseDialog({
       setForm(toFormState(editing, shOpts, wOpts));
     }
   }, [open, editing, shOpts, wOpts]);
+
+  useEffect(() => {
+    if (open && !editing) {
+      setForm((f) => ({ ...f, displayName: generateNextDisplayName(existingCases) }));
+    }
+  }, [open, editing, existingCases]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -229,6 +251,7 @@ export function AddEditCaseDialog({
                     id="displayName"
                     value={form.displayName}
                     onChange={(e) => setField("displayName", e.target.value)}
+                    readOnly={!editing}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     placeholder="e.g. Resident A."
                   />
@@ -258,7 +281,9 @@ export function AddEditCaseDialog({
                       value={form.age ?? ""}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setField("age", val === "" ? "" : val);
+                        if (/^\d*$/.test(val)) {
+                          setField("age", val);
+                        }
                       }}
                       className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     />

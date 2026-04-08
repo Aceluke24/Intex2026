@@ -595,6 +595,7 @@ const CaseloadPage = () => {
         onSave={handleSaveCase}
         safehouseOptions={shForUi.length ? shForUi : ["—"]}
         workerOptions={workersForUi}
+        existingCases={cases}
       />
     </AdminLayout>
   );
