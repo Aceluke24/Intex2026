@@ -1,8 +1,11 @@
 using System.Security.Claims;
+using System.Data;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Intex2026.Data;
 using Intex2026.Models;
 
@@ -16,6 +19,7 @@ public record RegisterDonorRequest(string Email, string Password, string Confirm
 public class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
+    AuthIdentityDbContext authDb,
     IConfiguration configuration) : ControllerBase
 {
     private const string DefaultFrontendUrl = "http://localhost:3000";
@@ -27,8 +31,12 @@ public class AuthController(
         if (User.Identity?.IsAuthenticated != true)
             return Unauthorized();
 
-        var user = await userManager.GetUserAsync(User);
-        if (user == null)
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized();
+
+        var user = await FindUserByIdAsync(userId);
+        if (user is null)
             return Unauthorized();
 
         var roles = User.Claims
@@ -54,15 +62,42 @@ public class AuthController(
         if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
             return BadRequest(new { message = "Email and password are required." });
 
-        var result = await signInManager.PasswordSignInAsync(req.Email, req.Password, isPersistent: true, lockoutOnFailure: false);
-
-        if (result.IsLockedOut)
-            return Unauthorized(new { message = "Account is locked out." });
-        if (!result.Succeeded)
+        var user = await FindUserByEmailAsync(req.Email);
+        if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
             return Unauthorized(new { message = "Invalid credentials." });
 
-        var user = await userManager.FindByEmailAsync(req.Email);
-        var roles = (await userManager.GetRolesAsync(user!)).ToArray();
+        var hasher = new PasswordHasher<ApplicationUser>();
+        var passwordResult = hasher.VerifyHashedPassword(user, user.PasswordHash, req.Password);
+
+        if (passwordResult == PasswordVerificationResult.Failed)
+            return Unauthorized(new { message = "Invalid credentials." });
+
+        var roles = await GetRolesForUserAsync(user.Id);
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id),
+            new(ClaimTypes.Name, user.UserName ?? user.Email ?? req.Email),
+            new(ClaimTypes.Email, user.Email ?? req.Email)
+        };
+
+        foreach (var role in roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        var identity = new ClaimsIdentity(claims, IdentityConstants.ApplicationScheme);
+        var principal = new ClaimsPrincipal(identity);
+
+        await HttpContext.SignInAsync(
+            IdentityConstants.ApplicationScheme,
+            principal,
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                AllowRefresh = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
+            });
 
         return Ok(new { roles });
     }
@@ -245,5 +280,117 @@ public class AuthController(
             DefaultFrontendUrl;
         var loginUrl = $"{frontendUrl.TrimEnd('/')}/login";
         return QueryHelpers.AddQueryString(loginUrl, "externalError", errorMessage);
+    }
+
+    private async Task<ApplicationUser?> FindUserByEmailAsync(string email)
+    {
+        var conn = authDb.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync();
+        }
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT TOP 1 Id, UserName, Email, PasswordHash, SupporterId, DisplayName
+FROM AspNetUsers
+WHERE CAST(Email AS nvarchar(256)) = @email";
+
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@email";
+        p.Value = email;
+        cmd.Parameters.Add(p);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return null;
+        }
+
+        return MapUser(reader);
+    }
+
+    private async Task<ApplicationUser?> FindUserByIdAsync(string userId)
+    {
+        var conn = authDb.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync();
+        }
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT TOP 1 Id, UserName, Email, PasswordHash, SupporterId, DisplayName
+FROM AspNetUsers
+WHERE CAST(Id AS nvarchar(450)) = @userId";
+
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@userId";
+        p.Value = userId;
+        cmd.Parameters.Add(p);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return null;
+        }
+
+        return MapUser(reader);
+    }
+
+    private async Task<string[]> GetRolesForUserAsync(string userId)
+    {
+        var conn = authDb.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync();
+        }
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT CAST(r.Name AS nvarchar(256))
+FROM AspNetUserRoles ur
+INNER JOIN AspNetRoles r ON CAST(r.Id AS nvarchar(450)) = CAST(ur.RoleId AS nvarchar(450))
+WHERE CAST(ur.UserId AS nvarchar(450)) = @userId";
+
+        var p = cmd.CreateParameter();
+        p.ParameterName = "@userId";
+        p.Value = userId;
+        cmd.Parameters.Add(p);
+
+        var roles = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (!reader.IsDBNull(0))
+            {
+                var role = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(role))
+                {
+                    roles.Add(role);
+                }
+            }
+        }
+
+        return roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static ApplicationUser MapUser(IDataRecord reader)
+    {
+        var user = new ApplicationUser
+        {
+            Id = reader["Id"]?.ToString() ?? string.Empty,
+            UserName = reader["UserName"] == DBNull.Value ? null : reader["UserName"]?.ToString(),
+            Email = reader["Email"] == DBNull.Value ? null : reader["Email"]?.ToString(),
+            PasswordHash = reader["PasswordHash"] == DBNull.Value ? null : reader["PasswordHash"]?.ToString(),
+            DisplayName = reader["DisplayName"] == DBNull.Value ? null : reader["DisplayName"]?.ToString()
+        };
+
+        if (reader["SupporterId"] != DBNull.Value && int.TryParse(reader["SupporterId"]?.ToString(), out var supporterId))
+        {
+            user.SupporterId = supporterId;
+        }
+
+        return user;
     }
 }
