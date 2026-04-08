@@ -39,7 +39,7 @@ const ImpactDashboard = () => {
   if (loading) {
     return (
       <PublicLayout>
-        <div className="pt-28 pb-20 max-w-6xl mx-auto px-6 space-y-12">
+        <div className="pt-8 pb-20 max-w-6xl mx-auto px-6 space-y-12">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             {[1, 2, 3, 4].map((i) => (
               <SkeletonCard key={i} className="border-0 bg-transparent" />
@@ -53,7 +53,7 @@ const ImpactDashboard = () => {
 
   return (
     <PublicLayout>
-      <section className="pt-28 pb-16 sm:pt-32 lg:pt-36 gradient-cream-warm">
+      <section className="pt-8 pb-16 sm:pt-10 lg:pt-12 gradient-cream-warm">
         <div className="max-w-5xl mx-auto px-6">
           {loadError && (
             <div className="mb-6 rounded-xl border border-terracotta/35 bg-terracotta/10 px-4 py-3 text-sm font-body text-foreground" role="alert">

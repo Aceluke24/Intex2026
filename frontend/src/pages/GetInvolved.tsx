@@ -4,7 +4,7 @@ import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 export default function GetInvolved() {
   return (
     <PublicLayout>
-      <section className="pt-28 pb-16 sm:pt-32 lg:pt-36 gradient-cream-warm">
+      <section className="pt-8 pb-16 sm:pt-10 lg:pt-12 gradient-cream-warm">
         <div className="max-w-5xl mx-auto px-6">
           <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-terracotta mb-4">Get Involved</p>
           <h1 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold tracking-tight text-foreground leading-[1.12] mb-5">

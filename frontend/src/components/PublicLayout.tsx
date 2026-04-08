@@ -1,14 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
-import { Moon, Sun, Menu, X, Heart, LogOut } from "lucide-react";
-import { useState } from "react";
+import { Moon, Sun, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { BrandLockup } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE } from "@/lib/apiBase";
-import Header from "@/components/layout/Header";
-import { primaryButtonClasses } from "@/lib/primaryButton";
 
 const baseNavItems = [
   { label: "Home", path: "/" },
@@ -34,9 +31,19 @@ const footerLegalLinks = [{ label: "Privacy Policy", path: "/privacy" }].filter(
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, isDonor, refetch } = useAuth();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 40);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleLogout = async () => {
     await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
@@ -50,67 +57,93 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
     ...(isDonor && !isAdmin ? [{ label: "My Donations", path: "/donor" }] : []),
   ];
 
+  const isHome = location.pathname === "/";
+  /** Transparent-until-scroll only on home hero; inner public pages use the bar so white nav stays readable. */
+  const headerScrolledStyle = scrolled || !isHome;
+
+  const textColor = headerScrolledStyle ? "text-white" : "text-white dark:text-white";
+
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="fixed top-0 left-0 right-0 z-50 flex flex-col">
-        <Header
-          title="Safety, Healing, and Empowerment"
-          subtitle={null}
-          rightContent={
-            <>
-              <nav className="hidden md:flex max-w-[min(100%,28rem)] flex-wrap items-center justify-end gap-0.5">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`rounded-full px-3 py-1.5 font-body text-[13px] font-medium transition-colors ${
-                      location.pathname === item.path
-                        ? "text-gray-900 dark:text-gray-100"
-                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-                <div className="mx-2 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-white/15 sm:block" aria-hidden />
+      <>
+        <header
+          className={`
+            fixed top-0 left-0 w-full z-50
+            transition-all duration-300 ease-in-out
+
+            ${
+              headerScrolledStyle
+                ? "bg-gradient-to-r from-[#0B1D2A] via-[#12324A] to-[#1A4A6A] shadow-md border-b border-white/10 backdrop-blur-md"
+                : "bg-transparent"
+            }
+          `}
+        >
+          <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between gap-4">
+            <Link to="/" className="flex items-center gap-3 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" aria-label="North Star Sanctuary — Home">
+              <img src="/logo.png" alt="" className="h-10 w-10 object-contain" decoding="async" />
+              <span className={`text-lg font-semibold tracking-tight ${textColor}`}>North Star Sanctuary</span>
+            </Link>
+
+            <nav className="hidden md:flex items-center gap-8 text-sm flex-1 justify-center min-w-0">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`${textColor} opacity-90 hover:opacity-70 transition shrink-0 ${
+                    location.pathname === item.path ? "opacity-100 font-medium" : ""
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden md:flex items-center gap-4">
                 {isAuthenticated ? (
                   <button
                     type="button"
-                    onClick={handleLogout}
-                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                    onClick={() => void handleLogout()}
+                    className={`${textColor} text-sm opacity-80 hover:opacity-100 transition`}
                   >
-                    <LogOut className="h-3.5 w-3.5" /> Sign Out
+                    Sign Out
                   </button>
                 ) : (
-                  <Link to="/login" className="shrink-0">
-                    <button type="button" className={primaryButtonClasses}>
-                      Sign In
-                    </button>
+                  <Link to="/login" className={`${textColor} text-sm opacity-90 hover:opacity-70 transition`}>
+                    Sign In
                   </Link>
                 )}
-                <Link to="/donate" className="shrink-0">
-                  <Button
-                    size="sm"
-                    className="rounded-full bg-terracotta font-body text-[13px] font-medium text-terracotta-foreground hover:bg-terracotta/90 gap-1.5 px-4 transition-all hover:shadow-lg hover:shadow-terracotta/20"
+
+                <Link to="/donate">
+                  <button
+                    type="button"
+                    className="
+                    flex items-center gap-2
+                    px-4 py-2 rounded-full text-sm font-medium
+                    bg-[#E07A5F] text-white
+                    hover:bg-[#d96d51]
+                    transition
+                  "
                   >
-                    <Heart className="h-3 w-3" /> Donate
-                  </Button>
+                    ❤️ Donate
+                  </button>
                 </Link>
+
                 <button
                   type="button"
                   onClick={toggle}
-                  className="rounded-full p-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
                   aria-label="Toggle theme"
                 >
-                  {theme === "light" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+                  {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </button>
-              </nav>
+              </div>
 
               <div className="flex items-center gap-1 md:hidden">
                 <button
                   type="button"
                   onClick={toggle}
-                  className="rounded-full p-2 text-gray-600 dark:text-gray-400"
+                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
                   aria-label="Toggle theme"
                 >
                   {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
@@ -118,15 +151,15 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                 <button
                   type="button"
                   onClick={() => setMobileOpen(!mobileOpen)}
-                  className="rounded-full p-2 text-gray-900 dark:text-gray-100"
+                  className={`rounded-full p-2 ${textColor} opacity-90 hover:opacity-70 transition`}
                   aria-label="Menu"
                 >
                   {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </button>
               </div>
-            </>
-          }
-        />
+            </div>
+          </div>
+        </header>
 
         <AnimatePresence>
           {mobileOpen && (
@@ -135,7 +168,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="overflow-hidden border-b border-gray-200 bg-white dark:border-white/10 dark:bg-[#0B1D2A] md:hidden"
+              className="fixed left-0 right-0 top-[4.5rem] z-40 max-h-[min(70vh,calc(100dvh-4.5rem))] overflow-y-auto border-b border-white/10 bg-gradient-to-r from-[#0B1D2A] via-[#12324A] to-[#1A4A6A] backdrop-blur-md md:hidden"
             >
               <div className="space-y-1 px-6 py-6">
                 {navItems.map((item) => (
@@ -143,43 +176,54 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
-                    className="block rounded-xl px-4 py-3 font-body text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-white/10"
+                    className="block rounded-xl px-4 py-3 text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
                   >
                     {item.label}
                   </Link>
                 ))}
                 <div className="flex flex-col gap-2 pt-4">
                   {isAuthenticated ? (
-                    <Button
-                      variant="outline"
+                    <button
+                      type="button"
                       onClick={() => {
                         setMobileOpen(false);
                         void handleLogout();
                       }}
-                      className="w-full gap-1.5 rounded-xl border-gray-200 bg-gray-50 font-body dark:border-white/10 dark:bg-white/5"
+                      className="w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
                     >
-                      <LogOut className="h-3.5 w-3.5" /> Sign Out
-                    </Button>
+                      Sign Out
+                    </button>
                   ) : (
-                    <Link to="/login" onClick={() => setMobileOpen(false)} className="block w-full">
-                      <button type="button" className={`${primaryButtonClasses} w-full`}>
-                        Sign In
-                      </button>
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileOpen(false)}
+                      className="block rounded-xl px-4 py-3 text-sm font-medium text-white opacity-90 transition hover:opacity-100 hover:bg-white/10"
+                    >
+                      Sign In
                     </Link>
                   )}
-                  <Link to="/donate" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full gap-1.5 rounded-xl bg-terracotta font-body font-medium text-terracotta-foreground hover:bg-terracotta/90">
-                      <Heart className="h-3.5 w-3.5" /> Donate
-                    </Button>
+                  <Link to="/donate" onClick={() => setMobileOpen(false)} className="block">
+                    <button
+                      type="button"
+                      className="
+                        w-full flex items-center justify-center gap-2
+                        px-4 py-3 rounded-full text-sm font-medium
+                        bg-[#E07A5F] text-white
+                        hover:bg-[#d96d51]
+                        transition
+                      "
+                    >
+                      ❤️ Donate
+                    </button>
                   </Link>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </>
 
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pt-20">{children}</main>
 
       {/* Footer — minimal, editorial */}
       <footer className="gradient-navy-deep text-navy-foreground">

@@ -68,7 +68,7 @@ export default function DonatePage() {
 
   return (
     <PublicLayout>
-      <section className="relative min-h-screen pt-28 pb-20 sm:pt-32 sm:pb-24 overflow-hidden">
+      <section className="relative min-h-screen pt-8 pb-20 sm:pt-10 sm:pb-24 overflow-hidden">
         <div className="absolute inset-0 gradient-cream-warm" />
 
         <div className="relative max-w-3xl mx-auto px-6">

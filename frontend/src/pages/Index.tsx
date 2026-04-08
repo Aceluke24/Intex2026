@@ -64,7 +64,7 @@ const Index = () => {
 
   return (
     <PublicLayout>
-      <section className="relative overflow-hidden gradient-hero text-navy-foreground pt-32 pb-24 sm:pt-36 sm:pb-28 lg:pt-44 lg:pb-32">
+      <section className="relative overflow-hidden gradient-hero text-navy-foreground pt-12 pb-24 sm:pt-14 sm:pb-28 lg:pt-16 lg:pb-32">
         <div
           className="absolute inset-0 opacity-20"
           style={{

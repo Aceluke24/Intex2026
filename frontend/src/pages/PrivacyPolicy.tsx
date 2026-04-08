@@ -25,7 +25,7 @@ const sections = [
 
 const PrivacyPolicy = () => (
   <PublicLayout>
-    <section className="pt-32 lg:pt-44 pb-28 gradient-cream-warm">
+    <section className="pt-10 lg:pt-14 pb-28 gradient-cream-warm">
       <div className="max-w-3xl mx-auto px-6">
         <Reveal>
           <p className="font-body text-[11px] font-medium uppercase tracking-[0.3em] text-terracotta mb-6">Legal</p>
