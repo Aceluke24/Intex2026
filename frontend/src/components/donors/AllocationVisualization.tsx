@@ -1,4 +1,4 @@
-import type { AllocationSlice } from "@/lib/donorsContributionsMockData";
+import type { AllocationSlice } from "@/lib/donorsTypes";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
 
@@ -67,7 +67,7 @@ export function AllocationVisualization({ data }: AllocationVisualizationProps) 
         <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">Allocation</p>
         <h3 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground">Where support flows</h3>
         <p className="mt-2 max-w-md font-body text-sm leading-relaxed text-muted-foreground">
-          Safehouses and programs — year-to-date distribution (mock).
+          Safehouses and programs — distribution from recorded campaign donations.
         </p>
       </div>
 

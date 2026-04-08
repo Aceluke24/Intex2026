@@ -1,4 +1,4 @@
-import type { AllocationSlice, FeedEntry } from "@/lib/donorsContributionsMockData";
+import type { AllocationSlice, FeedEntry } from "@/lib/donorsTypes";
 import { motion } from "framer-motion";
 import { AllocationVisualization } from "./AllocationVisualization";
 import { ContributionItem } from "./ContributionItem";

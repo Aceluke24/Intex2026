@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { DashboardMetric } from "@/lib/dashboardMockData";
+import type { DashboardMetric } from "@/lib/dashboardTypes";
 import { Users, Home, Heart, Percent, Calendar, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 

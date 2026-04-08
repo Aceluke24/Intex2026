@@ -1,4 +1,4 @@
-import type { CalendarEvent } from "@/lib/dashboardMockData";
+import type { CalendarEvent } from "@/lib/dashboardTypes";
 import { Calendar, Home, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 

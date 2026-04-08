@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ResidentCase } from "@/lib/caseloadMockData";
+import type { ResidentCase } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { Eye, Pencil } from "lucide-react";
 import { motion } from "framer-motion";

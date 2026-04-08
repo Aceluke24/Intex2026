@@ -4,15 +4,7 @@ import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { delay } from "@/lib/mockData";
-import {
-  annualAccomplishment,
-  donationTrends,
-  reportsOverview,
-  residentOutcomeBars,
-  reintegrationTrend,
-  safehouseComparison,
-} from "@/lib/reportsAnalyticsMockData";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -38,7 +30,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const softTooltip = {
@@ -51,15 +43,126 @@ const softTooltip = {
   },
 };
 
+type ReportsAnalytics = {
+  totalCases: number;
+  activeCases: number;
+  closedCases: number;
+  highRiskCases: number;
+  reintegrationRate: number;
+  monthlyAdmissions: { month: string; count: number }[];
+  monthlyClosures: { month: string; count: number }[];
+  donationTrends: { month: string; total: number }[];
+  caseTrends: { month: string; active: number; closed: number }[];
+  safehouseDistribution: { safehouse: string; count: number }[];
+};
+
 const ReportsPage = () => {
   usePageHeader("Reports & Analytics", "Impact & performance");
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState("9m");
+  const [analytics, setAnalytics] = useState<ReportsAnalytics | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await apiFetchJson<ReportsAnalytics>("/api/reports");
+      setAnalytics(data);
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load reports.");
+      setAnalytics(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    delay(780).then(() => setLoading(false));
-  }, []);
+    void load();
+  }, [load]);
+
+  const donationChart = useMemo(() => {
+    if (!analytics?.donationTrends?.length) return [];
+    return analytics.donationTrends.map((d) => ({ month: d.month, amount: d.total }));
+  }, [analytics]);
+
+  const residentOutcomeBars = useMemo(() => {
+    if (!analytics) return [];
+    const t = Math.max(analytics.totalCases, 1);
+    const a = Math.max(analytics.activeCases, 1);
+    return [
+      { label: "Active share of census", value: Math.min(100, Math.round((analytics.activeCases / t) * 100)) },
+      { label: "Closed cases share", value: Math.min(100, Math.round((analytics.closedCases / t) * 100)) },
+      {
+        label: "High risk (of active)",
+        value: Math.min(100, Math.round((analytics.highRiskCases / a) * 100)),
+      },
+      { label: "Reintegration rate", value: Math.min(100, Math.round(analytics.reintegrationRate)) },
+    ];
+  }, [analytics]);
+
+  const safehouseComparison = useMemo(() => {
+    if (!analytics?.safehouseDistribution?.length) return [];
+    const max = Math.max(...analytics.safehouseDistribution.map((s) => s.count), 1);
+    return analytics.safehouseDistribution.map((s) => ({
+      name: s.safehouse,
+      score: Math.round((s.count / max) * 100),
+    }));
+  }, [analytics]);
+
+  const reintegrationTrend = useMemo(() => {
+    if (!analytics) return [];
+    const r = Math.round(analytics.reintegrationRate);
+    return analytics.caseTrends.slice(-6).map((c) => ({
+      quarter: c.month.length > 6 ? c.month.slice(0, 6) : c.month,
+      rate: r,
+    }));
+  }, [analytics]);
+
+  const donationsThisMonth = analytics?.donationTrends?.length
+    ? analytics.donationTrends[analytics.donationTrends.length - 1]?.total ?? 0
+    : 0;
+
+  const annualBlocks = useMemo(() => {
+    if (!analytics) {
+      return {
+        caring: { title: "Caring", subtitle: "Shelter & services", items: [] as { label: string; value: string }[] },
+        healing: { title: "Healing", subtitle: "Risk & recovery", items: [] as { label: string; value: string }[] },
+        teaching: { title: "Teaching", subtitle: "Movement & resources", items: [] as { label: string; value: string }[] },
+      };
+    }
+    return {
+      caring: {
+        title: "Caring",
+        subtitle: "Shelter & case census",
+        items: [
+          { label: "Residents in database", value: analytics.totalCases.toLocaleString() },
+          { label: "Active cases", value: analytics.activeCases.toLocaleString() },
+          { label: "Closed cases", value: analytics.closedCases.toLocaleString() },
+        ],
+      },
+      healing: {
+        title: "Healing",
+        subtitle: "Risk & reintegration",
+        items: [
+          { label: "High-risk (active)", value: analytics.highRiskCases.toLocaleString() },
+          { label: "Reintegration rate", value: `${Math.round(analytics.reintegrationRate)}%` },
+          { label: "Admissions (last month in series)", value: String(analytics.monthlyAdmissions.at(-1)?.count ?? "—") },
+        ],
+      },
+      teaching: {
+        title: "Teaching",
+        subtitle: "Resources & movement",
+        items: [
+          { label: "Donations (latest month in chart)", value: `$${Math.round(donationsThisMonth).toLocaleString()}` },
+          { label: "Closures (last month in series)", value: String(analytics.monthlyClosures.at(-1)?.count ?? "—") },
+          { label: "Safehouses with residents", value: String(analytics.safehouseDistribution.length) },
+        ],
+      },
+    };
+  }, [analytics, donationsThisMonth]);
 
   return (
     <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
@@ -91,7 +194,9 @@ const ReportsPage = () => {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => toast.success("PDF queued", { description: "You will receive a download link (demo)." })}
+                onClick={() =>
+                  toast.success("PDF queued", { description: "You will receive a download link when export is enabled." })
+                }
                 className="h-11 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
                 <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
@@ -100,7 +205,9 @@ const ReportsPage = () => {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => toast.success("CSV queued", { description: "Tabular export preparing (demo)." })}
+                onClick={() =>
+                  toast.success("CSV queued", { description: "Tabular export will run when the service is connected." })
+                }
                 className="h-11 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
                 <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
@@ -110,13 +217,19 @@ const ReportsPage = () => {
           </div>
         }
       >
+        {loadError && (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {loadError}
+          </p>
+        )}
+
         {loading ? (
           <div className="mb-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-[120px] rounded-[1.1rem] bg-white/45" />
             ))}
           </div>
-        ) : (
+        ) : analytics ? (
           <section className="mb-14 xl:mb-18">
             <div className="mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground/65" strokeWidth={1.5} />
@@ -125,37 +238,27 @@ const ReportsPage = () => {
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <CaseloadMetricCard
-                label="Total residents served"
-                value={reportsOverview.totalResidentsServed}
-                icon={Users}
-                motionDelay={0}
-              />
+              <CaseloadMetricCard label="Total residents served" value={analytics.totalCases} icon={Users} motionDelay={0} />
               <CaseloadMetricCard
                 label="Reintegration success rate"
-                value={reportsOverview.reintegrationSuccessRate}
+                value={analytics.reintegrationRate}
                 format={(n) => `${Math.round(n)}%`}
                 icon={HeartHandshake}
                 motionDelay={0.05}
               />
+              <CaseloadMetricCard label="Active cases" value={analytics.activeCases} icon={Sparkles} motionDelay={0.1} />
               <CaseloadMetricCard
-                label="Active cases"
-                value={reportsOverview.activeCases}
-                icon={Sparkles}
-                motionDelay={0.1}
-              />
-              <CaseloadMetricCard
-                label="Donations this month"
-                value={reportsOverview.donationsThisMonth}
+                label="Donations (latest month in chart)"
+                value={donationsThisMonth}
                 format={(n) => `$${Math.round(n).toLocaleString()}`}
                 icon={LineChartIcon}
                 motionDelay={0.14}
               />
             </div>
           </section>
-        )}
+        ) : null}
 
-        {!loading && (
+        {!loading && analytics && (
           <>
             <div className="mb-12 grid gap-8 xl:grid-cols-2">
               <motion.div
@@ -170,7 +273,7 @@ const ReportsPage = () => {
                 <p className="mt-1 font-body text-sm text-muted-foreground">Monthly revenue trajectory</p>
                 <div className="mt-6 h-[260px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={donationTrends} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <AreaChart data={donationChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="donationFill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="hsl(340 45% 68%)" stopOpacity={0.35} />
@@ -191,10 +294,7 @@ const ReportsPage = () => {
                         tick={{ fontSize: 11, fill: "hsl(213 15% 48%)" }}
                         tickFormatter={(v) => `$${v / 1000}k`}
                       />
-                      <Tooltip
-                        {...softTooltip}
-                        formatter={(v: number) => [`$${v.toLocaleString()}`, "Amount"]}
-                      />
+                      <Tooltip {...softTooltip} formatter={(v: number) => [`$${v.toLocaleString()}`, "Amount"]} />
                       <Area
                         type="monotone"
                         dataKey="amount"
@@ -218,7 +318,7 @@ const ReportsPage = () => {
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/75">
                   Resident outcomes
                 </p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Program progress indicators</p>
+                <p className="mt-1 font-body text-sm text-muted-foreground">Case mix indicators (0–100)</p>
                 <div className="mt-6 h-[260px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={residentOutcomeBars} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
@@ -256,7 +356,7 @@ const ReportsPage = () => {
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/75">
                   Safehouse comparison
                 </p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Relative performance index</p>
+                <p className="mt-1 font-body text-sm text-muted-foreground">Residents by safehouse (relative)</p>
                 <div className="mt-8 space-y-5">
                   {safehouseComparison.map((s, i) => (
                     <div key={s.name}>
@@ -286,13 +386,13 @@ const ReportsPage = () => {
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/75">
                   Reintegration success
                 </p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Quarterly trend</p>
+                <p className="mt-1 font-body text-sm text-muted-foreground">Rolling rate (shown across recent months)</p>
                 <div className="mt-6 flex items-end gap-3">
                   <div>
                     <p className="font-display text-4xl font-bold tabular-nums tracking-tight text-foreground">
-                      {reportsOverview.reintegrationSuccessRate}%
+                      {Math.round(analytics.reintegrationRate)}%
                     </p>
-                    <p className="mt-1 font-body text-xs text-muted-foreground">Current rolling average</p>
+                    <p className="mt-1 font-body text-xs text-muted-foreground">Model summary from resident records</p>
                   </div>
                 </div>
                 <div className="mt-8 h-[180px] w-full">
@@ -300,7 +400,13 @@ const ReportsPage = () => {
                     <LineChart data={reintegrationTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="4 8" stroke="hsl(36 20% 88% / 0.5)" />
                       <XAxis dataKey="quarter" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(213 15% 48%)" }} />
-                      <YAxis domain={[75, 90]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(213 15% 48%)" }} tickFormatter={(v) => `${v}%`} />
+                      <YAxis
+                        domain={[0, 100]}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 11, fill: "hsl(213 15% 48%)" }}
+                        tickFormatter={(v) => `${v}%`}
+                      />
                       <Tooltip {...softTooltip} formatter={(v: number) => [`${v}%`, "Rate"]} />
                       <Line
                         type="monotone"
@@ -328,32 +434,33 @@ const ReportsPage = () => {
                 </h2>
               </div>
               <p className="mb-8 max-w-2xl font-body text-sm leading-relaxed text-muted-foreground">
-                Structured summary inspired by Philippine social welfare reporting — caring, healing, and teaching dimensions.
+                Structured summary — caring, healing, and teaching dimensions — populated from live database aggregates.
               </p>
               <div className="grid gap-6 lg:grid-cols-3">
-                {([annualAccomplishment.caring, annualAccomplishment.healing, annualAccomplishment.teaching] as const).map(
-                  (block, i) => (
-                    <motion.div
-                      key={block.title}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 * i, duration: 0.4 }}
-                      whileHover={{ y: -3 }}
-                      className="rounded-[1.15rem] border border-white/50 bg-gradient-to-b from-white/65 to-[hsl(36_32%_98%)]/90 p-6 shadow-[0_8px_36px_rgba(45,35,48,0.06)] backdrop-blur-md dark:border-white/10 dark:from-white/[0.08] dark:to-white/[0.04]"
-                    >
-                      <h3 className="font-display text-lg font-semibold text-foreground">{block.title}</h3>
-                      <p className="mt-1 font-body text-xs text-muted-foreground">{block.subtitle}</p>
-                      <ul className="mt-6 space-y-4">
-                        {block.items.map((item) => (
-                          <li key={item.label} className="flex items-baseline justify-between gap-3 border-b border-white/40 pb-3 last:border-0 dark:border-white/10">
-                            <span className="font-body text-sm text-foreground/85">{item.label}</span>
-                            <span className="font-display text-lg font-semibold tabular-nums text-foreground">{item.value}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </motion.div>
-                  )
-                )}
+                {([annualBlocks.caring, annualBlocks.healing, annualBlocks.teaching] as const).map((block, i) => (
+                  <motion.div
+                    key={block.title}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 * i, duration: 0.4 }}
+                    whileHover={{ y: -3 }}
+                    className="rounded-[1.15rem] border border-white/50 bg-gradient-to-b from-white/65 to-[hsl(36_32%_98%)]/90 p-6 shadow-[0_8px_36px_rgba(45,35,48,0.06)] backdrop-blur-md dark:border-white/10 dark:from-white/[0.08] dark:to-white/[0.04]"
+                  >
+                    <h3 className="font-display text-lg font-semibold text-foreground">{block.title}</h3>
+                    <p className="mt-1 font-body text-xs text-muted-foreground">{block.subtitle}</p>
+                    <ul className="mt-6 space-y-4">
+                      {block.items.map((item) => (
+                        <li
+                          key={item.label}
+                          className="flex items-baseline justify-between gap-3 border-b border-white/40 pb-3 last:border-0 dark:border-white/10"
+                        >
+                          <span className="font-body text-sm text-foreground/85">{item.label}</span>
+                          <span className="font-display text-lg font-semibold tabular-nums text-foreground">{item.value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                ))}
               </div>
             </motion.section>
           </>

@@ -18,8 +18,8 @@ export function ProtectedRoute({ requiredRole }: Props) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (requiredRole === "Admin" && !isAdmin) return <Navigate to="/" replace />;
-  if (requiredRole === "Donor" && !isDonor && !isAdmin) return <Navigate to="/" replace />;
+  if (requiredRole === "Admin" && !isAdmin) return <Navigate to="/login" replace />;
+  if (requiredRole === "Donor" && !isDonor && !isAdmin) return <Navigate to="/login" replace />;
 
   return <Outlet />;
 }

@@ -3,7 +3,29 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Heart, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { stories } from "@/lib/mockData";
+const stories = [
+  {
+    id: 1,
+    quote: "North Star gave me the courage to start over. Today, I have my own apartment and a job I love.",
+    name: "Maria S.",
+    program: "Safe Housing → Job Training",
+    year: 2024,
+  },
+  {
+    id: 2,
+    quote: "The counselors here didn't just listen — they helped me find myself again. My children and I are thriving.",
+    name: "Anonymous",
+    program: "Trauma Counseling",
+    year: 2023,
+  },
+  {
+    id: 3,
+    quote: "I never thought I'd feel safe again. This place proved me wrong.",
+    name: "Jordan T.",
+    program: "Emergency Shelter",
+    year: 2024,
+  },
+] as const;
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE } from "@/lib/apiBase";

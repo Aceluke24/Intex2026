@@ -1,4 +1,4 @@
-import type { ResidentRow, ResidentStatus } from "@/lib/dashboardMockData";
+import type { ResidentRow, ResidentStatus } from "@/lib/dashboardTypes";
 import { cn } from "@/lib/utils";
 
 const statusStyles: Record<ResidentStatus, string> = {

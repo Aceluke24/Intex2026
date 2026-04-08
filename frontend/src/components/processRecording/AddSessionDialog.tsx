@@ -11,9 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { EmotionalTag, ProcessSessionEntry, SessionType } from "@/lib/processRecordingMockData";
-import { socialWorkers } from "@/lib/caseloadMockData";
-import { processResidents } from "@/lib/processRecordingMockData";
+import type { EmotionalTag, ProcessSessionEntry, ProcessResidentOption, SessionType } from "@/lib/processRecordingTypes";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -23,13 +21,22 @@ type AddSessionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultResidentId?: string | "all";
+  residents: ProcessResidentOption[];
+  workerOptions: string[];
   onSave: (entry: Omit<ProcessSessionEntry, "id"> & { id?: string }) => void;
 };
 
-export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave }: AddSessionDialogProps) {
-  const [residentId, setResidentId] = useState(processResidents[0]?.id ?? "");
+export function AddSessionDialog({
+  open,
+  onOpenChange,
+  defaultResidentId,
+  residents,
+  workerOptions,
+  onSave,
+}: AddSessionDialogProps) {
+  const [residentId, setResidentId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [worker, setWorker] = useState(socialWorkers[0]);
+  const [worker, setWorker] = useState("");
   const [sessionType, setSessionType] = useState<SessionType>("Individual");
   const [emotional, setEmotional] = useState<EmotionalTag>("Stable");
   const [narrative, setNarrative] = useState("");
@@ -37,13 +44,23 @@ export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave
   const [followUp, setFollowUp] = useState("");
 
   useEffect(() => {
-    if (open) {
-      if (defaultResidentId && defaultResidentId !== "all") setResidentId(defaultResidentId);
-      setDate(new Date().toISOString().slice(0, 10));
+    if (!open) return;
+    setDate(new Date().toISOString().slice(0, 10));
+    const firstW = workerOptions[0] ?? "";
+    setWorker(firstW);
+    if (!residents.length) {
+      setResidentId("");
+      return;
     }
-  }, [open, defaultResidentId]);
+    if (defaultResidentId && defaultResidentId !== "all" && residents.some((r) => r.id === defaultResidentId)) {
+      setResidentId(defaultResidentId);
+    } else {
+      setResidentId(residents[0].id);
+    }
+  }, [open, defaultResidentId, residents, workerOptions]);
 
   const handleSave = () => {
+    if (!residents.length) return;
     const preview = narrative.trim().slice(0, 160) + (narrative.length > 160 ? "…" : "");
     onSave({
       residentId,
@@ -52,7 +69,7 @@ export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave
       sessionType,
       emotionalState: emotional,
       narrativePreview: preview || "Session documented.",
-      emotionalObserved: "Recorded during intake of session notes.",
+      emotionalObserved: `Emotional tone recorded as ${emotional}.`,
       narrativeFull: narrative.trim() || "—",
       interventions: interventions.trim() || "—",
       followUp: followUp.trim() || "—",
@@ -77,6 +94,11 @@ export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4 px-6 py-5"
         >
+          {residents.length === 0 && (
+            <p className="rounded-xl border border-dashed border-border/60 bg-white/40 px-3 py-2 font-body text-sm text-muted-foreground dark:bg-white/[0.04]">
+              No residents returned from the server yet — you cannot add a session until resident records exist.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label className="font-body text-xs">Resident</Label>
@@ -85,7 +107,7 @@ export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {processResidents.map((r) => (
+                  {residents.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.displayName} ({r.caseId})
                     </SelectItem>
@@ -112,7 +134,7 @@ export function AddSessionDialog({ open, onOpenChange, defaultResidentId, onSave
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {socialWorkers.map((w) => (
+                  {workerOptions.map((w) => (
                     <SelectItem key={w} value={w}>
                       {w}
                     </SelectItem>

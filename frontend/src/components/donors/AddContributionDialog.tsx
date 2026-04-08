@@ -17,14 +17,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ContributionKind } from "@/lib/donorsContributionsMockData";
-import { programAreas, safehouses, supporters } from "@/lib/donorsContributionsMockData";
-import { useState } from "react";
+import type { ContributionKind } from "@/lib/donorsTypes";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+const DEFAULT_PROGRAMS = ["General operations", "Safe housing", "Counseling", "Education", "Outreach"];
 
 type AddContributionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  supporterOptions: { id: string; name: string }[];
+  safehouses: string[];
+  programAreas?: string[];
   onSubmit?: (payload: {
     supporterId: string;
     kind: ContributionKind;
@@ -44,23 +48,40 @@ const kinds: { value: ContributionKind; label: string }[] = [
   { value: "social", label: "Social / advocacy" },
 ];
 
-export function AddContributionDialog({ open, onOpenChange, onSubmit }: AddContributionDialogProps) {
-  const [supporterId, setSupporterId] = useState(supporters[0]?.id ?? "");
+export function AddContributionDialog({
+  open,
+  onOpenChange,
+  supporterOptions,
+  safehouses,
+  programAreas = DEFAULT_PROGRAMS,
+  onSubmit,
+}: AddContributionDialogProps) {
+  const [supporterId, setSupporterId] = useState("");
   const [kind, setKind] = useState<ContributionKind>("monetary");
   const [amount, setAmount] = useState("");
   const [hours, setHours] = useState("");
   const [description, setDescription] = useState("");
-  const [safehouse, setSafehouse] = useState(safehouses[0] ?? "");
-  const [program, setProgram] = useState(programAreas[0] ?? "");
+  const [safehouse, setSafehouse] = useState("");
+  const [program, setProgram] = useState(programAreas[0] ?? DEFAULT_PROGRAMS[0]);
+
+  useEffect(() => {
+    if (!open) return;
+    const firstS = supporterOptions[0]?.id ?? "";
+    const firstSh = safehouses[0] ?? "";
+    const firstP = programAreas[0] ?? DEFAULT_PROGRAMS[0];
+    setSupporterId(firstS);
+    setSafehouse(firstSh);
+    setProgram(firstP);
+  }, [open, supporterOptions, safehouses, programAreas]);
 
   const reset = () => {
-    setSupporterId(supporters[0]?.id ?? "");
+    setSupporterId(supporterOptions[0]?.id ?? "");
     setKind("monetary");
     setAmount("");
     setHours("");
     setDescription("");
     setSafehouse(safehouses[0] ?? "");
-    setProgram(programAreas[0] ?? "");
+    setProgram(programAreas[0] ?? DEFAULT_PROGRAMS[0]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -75,7 +96,7 @@ export function AddContributionDialog({ open, onOpenChange, onSubmit }: AddContr
       program,
     });
     toast.success("Contribution recorded", {
-      description: `${supporters.find((s) => s.id === supporterId)?.name ?? "Supporter"} — ${kind}`,
+      description: `${supporterOptions.find((s) => s.id === supporterId)?.name ?? "Supporter"} — ${kind}`,
     });
     reset();
     onOpenChange(false);
@@ -102,7 +123,7 @@ export function AddContributionDialog({ open, onOpenChange, onSubmit }: AddContr
                   <SelectValue placeholder="Choose supporter" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {supporters.map((s) => (
+                  {supporterOptions.map((s) => (
                     <SelectItem key={s.id} value={s.id} className="font-body">
                       {s.name}
                     </SelectItem>

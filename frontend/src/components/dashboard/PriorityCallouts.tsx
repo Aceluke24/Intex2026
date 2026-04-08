@@ -1,4 +1,4 @@
-import type { PriorityCallout } from "@/lib/dashboardMockData";
+import type { PriorityCallout } from "@/lib/dashboardTypes";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 

@@ -12,13 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { CaseCategory, ResidentCase, SocioDemoProfile } from "@/lib/caseloadMockData";
-import { caseCategories, reintegrationPhases, socialWorkers } from "@/lib/caseloadMockData";
-import { safehouses } from "@/lib/donorsContributionsMockData";
+import type { CaseCategory, ResidentCase, SocioDemoProfile } from "@/lib/caseloadTypes";
+import { caseCategories, reintegrationPhases } from "@/lib/caseloadTypes";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const STEPS = ["Profile", "Case classification", "Family context", "Admission & assignment"] as const;
 
@@ -27,6 +26,8 @@ type AddEditCaseDialogProps = {
   onOpenChange: (open: boolean) => void;
   editing: ResidentCase | null;
   onSave: (c: ResidentCase) => void;
+  safehouseOptions: string[];
+  workerOptions: string[];
 };
 
 const emptySocio: SocioDemoProfile = {
@@ -36,7 +37,9 @@ const emptySocio: SocioDemoProfile = {
   informalSettler: false,
 };
 
-function toFormState(c: ResidentCase | null): FormState {
+function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerOptions: string[]): FormState {
+  const sh = safehouseOptions[0] ?? "—";
+  const wk = workerOptions[0] ?? "—";
   if (!c) {
     return {
       displayName: "",
@@ -50,8 +53,8 @@ function toFormState(c: ResidentCase | null): FormState {
       admissionDate: new Date().toISOString().slice(0, 10),
       referralSource: "",
       originLocation: "",
-      safehouse: safehouses[0],
-      assignedWorker: socialWorkers[0],
+      safehouse: sh,
+      assignedWorker: wk,
       caseNotes: "",
     };
   }
@@ -95,16 +98,28 @@ type FormState = {
   caseNotes: string;
 };
 
-export function AddEditCaseDialog({ open, onOpenChange, editing, onSave }: AddEditCaseDialogProps) {
+export function AddEditCaseDialog({
+  open,
+  onOpenChange,
+  editing,
+  onSave,
+  safehouseOptions,
+  workerOptions,
+}: AddEditCaseDialogProps) {
+  const shOpts = useMemo(
+    () => (safehouseOptions.length ? safehouseOptions : ["—"]),
+    [safehouseOptions]
+  );
+  const wOpts = useMemo(() => (workerOptions.length ? workerOptions : ["—"]), [workerOptions]);
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<FormState>(() => toFormState(null));
+  const [form, setForm] = useState<FormState>(() => toFormState(null, ["—"], ["—"]));
 
   useEffect(() => {
     if (open) {
       setStep(0);
-      setForm(toFormState(editing));
+      setForm(toFormState(editing, shOpts, wOpts));
     }
-  }, [open, editing]);
+  }, [open, editing, shOpts, wOpts]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -388,7 +403,7 @@ export function AddEditCaseDialog({ open, onOpenChange, editing, onSave }: AddEd
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {safehouses.map((sh) => (
+                        {shOpts.map((sh) => (
                           <SelectItem key={sh} value={sh}>
                             {sh}
                           </SelectItem>
@@ -426,7 +441,7 @@ export function AddEditCaseDialog({ open, onOpenChange, editing, onSave }: AddEd
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {socialWorkers.map((w) => (
+                      {wOpts.map((w) => (
                         <SelectItem key={w} value={w}>
                           {w}
                         </SelectItem>

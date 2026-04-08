@@ -7,7 +7,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DonationMonth } from "@/lib/dashboardMockData";
+import type { DonationMonth } from "@/lib/dashboardTypes";
 import { useId } from "react";
 
 type DonationChartProps = {

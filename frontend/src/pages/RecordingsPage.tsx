@@ -5,41 +5,170 @@ import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { delay } from "@/lib/mockData";
+import { apiFetchJson } from "@/lib/apiFetch";
 import {
-  initialProcessSessions,
-  processResidents,
+  mapApiEmotionalState,
+  type ProcessResidentOption,
   type ProcessSessionEntry,
-} from "@/lib/processRecordingMockData";
+  type SessionType,
+} from "@/lib/processRecordingTypes";
 import { motion } from "framer-motion";
 import { PenLine, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+type RecordingListItem = {
+  id: number;
+  recordingId: number;
+  residentId: number;
+  sessionDate: string;
+  sessionType: string;
+  residentName: string;
+  clinicianName: string;
+  emotionalState: string;
+  note: string | null;
+  date: string;
+};
+
+type RecordingListResponse = {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: RecordingListItem[];
+};
+
+type ResidentApi = {
+  residentId: number;
+  caseControlNo: string;
+  internalCode: string;
+  caseCategory: string;
+  assignedSocialWorker: string | null;
+};
+
+type ResidentsResponse = { items: ResidentApi[] };
+
+function mapListItemToEntry(item: RecordingListItem): ProcessSessionEntry {
+  const sessionType: SessionType = item.sessionType?.toLowerCase() === "group" ? "Group" : "Individual";
+  const note = item.note?.trim() || "—";
+  const id = String(item.recordingId ?? item.id);
+  return {
+    id,
+    residentId: String(item.residentId),
+    date: item.date || item.sessionDate,
+    worker: item.clinicianName?.trim() || "—",
+    sessionType,
+    emotionalState: mapApiEmotionalState(item.emotionalState || ""),
+    narrativePreview: note,
+    emotionalObserved: item.emotionalState?.trim() || "—",
+    narrativeFull: note,
+    interventions: "—",
+    followUp: "—",
+  };
+}
+
+function mapResident(r: ResidentApi): ProcessResidentOption {
+  const display = r.internalCode?.trim()
+    ? `Resident ${r.internalCode}`
+    : `Resident #${r.residentId}`;
+  return {
+    id: String(r.residentId),
+    displayName: display,
+    caseId: r.caseControlNo?.trim() || `R-${r.residentId}`,
+    category: r.caseCategory || "—",
+  };
+}
 
 const RecordingsPage = () => {
   usePageHeader("Process Recordings", "Clinical session documentation");
 
   const [loading, setLoading] = useState(true);
-  const [sessions, setSessions] = useState<ProcessSessionEntry[]>(initialProcessSessions);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ProcessSessionEntry[]>([]);
+  const [residents, setResidents] = useState<ProcessResidentOption[]>([]);
   const [residentFilter, setResidentFilter] = useState<string | "all">("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<ProcessSessionEntry | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => {
-    delay(640).then(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [recRes, resRes] = await Promise.all([
+        apiFetchJson<RecordingListResponse>("/api/recordings?page=1&pageSize=100"),
+        apiFetchJson<ResidentsResponse>("/api/residents?page=1&pageSize=500"),
+      ]);
+      setSessions(recRes.items.map(mapListItemToEntry));
+      setResidents(resRes.items.map(mapResident));
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load recordings.");
+      setSessions([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const workersForDialog = useMemo(() => {
+    const w = new Set<string>();
+    sessions.forEach((s) => {
+      if (s.worker && s.worker !== "—") w.add(s.worker);
+    });
+    return w.size > 0 ? Array.from(w).sort((a, b) => a.localeCompare(b)) : ["—"];
+  }, [sessions]);
+
+  useEffect(() => {
+    if (!selectedEntryId) {
+      setDetailEntry(null);
+      return;
+    }
+    const base = sessions.find((s) => s.id === selectedEntryId);
+    if (!base) {
+      setDetailEntry(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetchJson<Record<string, unknown>>(`/api/recordings/${selectedEntryId}`);
+        if (cancelled) return;
+        const narrative = typeof r.sessionNarrative === "string" ? r.sessionNarrative : base.narrativeFull;
+        const emotional =
+          typeof r.emotionalStateObserved === "string" ? r.emotionalStateObserved : base.emotionalObserved;
+        const interventions =
+          typeof r.interventionsApplied === "string" && r.interventionsApplied.trim()
+            ? r.interventionsApplied
+            : base.interventions;
+        const followUp =
+          typeof r.followUpActions === "string" && r.followUpActions.trim() ? r.followUpActions : base.followUp;
+        const worker = typeof r.socialWorker === "string" && r.socialWorker.trim() ? r.socialWorker : base.worker;
+        setDetailEntry({
+          ...base,
+          narrativeFull: narrative || base.narrativeFull,
+          emotionalObserved: emotional || base.emotionalObserved,
+          interventions,
+          followUp,
+          worker,
+        });
+      } catch {
+        if (!cancelled) setDetailEntry(base);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEntryId, sessions]);
 
   const filteredSessions = useMemo(() => {
     const list =
       residentFilter === "all" ? sessions : sessions.filter((s) => s.residentId === residentFilter);
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [sessions, residentFilter]);
-
-  const selectedEntry = useMemo(
-    () => sessions.find((s) => s.id === selectedEntryId) ?? null,
-    [sessions, selectedEntryId]
-  );
 
   const openEntry = (id: string) => {
     setSelectedEntryId(id);
@@ -72,6 +201,11 @@ const RecordingsPage = () => {
           </>
         }
       >
+        {loadError && (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {loadError}
+          </p>
+        )}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -81,7 +215,7 @@ const RecordingsPage = () => {
           {loading ? (
             <Skeleton className="h-[120px] rounded-[1.15rem] bg-white/45" />
           ) : (
-            <ResidentSelector residents={processResidents} value={residentFilter} onChange={setResidentFilter} />
+            <ResidentSelector residents={residents} value={residentFilter} onChange={setResidentFilter} />
           )}
         </motion.section>
 
@@ -117,7 +251,7 @@ const RecordingsPage = () => {
         onOpenChange={setSheetOpen}
         className="sm:max-w-[min(100%,26rem)] lg:max-w-[min(100%,34rem)]"
       >
-        {selectedEntry && <SessionEntrySheet entry={selectedEntry} />}
+        {detailEntry && <SessionEntrySheet entry={detailEntry} />}
       </SlideOverPanel>
 
       <motion.button
@@ -138,23 +272,12 @@ const RecordingsPage = () => {
         open={addOpen}
         onOpenChange={setAddOpen}
         defaultResidentId={residentFilter}
-        onSave={(payload) => {
-          const id = `PR-${Date.now().toString().slice(-6)}`;
-          const full: ProcessSessionEntry = {
-            id,
-            residentId: payload.residentId,
-            date: payload.date,
-            worker: payload.worker,
-            sessionType: payload.sessionType,
-            emotionalState: payload.emotionalState,
-            narrativePreview: payload.narrativePreview,
-            emotionalObserved: payload.emotionalObserved,
-            narrativeFull: payload.narrativeFull,
-            interventions: payload.interventions,
-            followUp: payload.followUp,
-          };
-          setSessions((prev) => [full, ...prev]);
-          toast.success("Session saved", { description: "Entry added to the timeline (demo)." });
+        residents={residents}
+        workerOptions={workersForDialog}
+        onSave={() => {
+          toast.message("Session entry", {
+            description: "New recordings are created through the clinical API. Refresh after saving in your EMR.",
+          });
         }}
       />
     </AdminLayout>

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { ProcessResidentOption } from "@/lib/processRecordingMockData";
+import type { ProcessResidentOption } from "@/lib/processRecordingTypes";
 import { motion } from "framer-motion";
 import { Check, ChevronsUpDown, Users } from "lucide-react";
 import { useState } from "react";

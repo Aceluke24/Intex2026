@@ -12,11 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   computeCaseloadMetrics,
-  initialCases,
+  caseCategories,
+  type CaseStatus,
   type ResidentCase,
-} from "@/lib/caseloadMockData";
+  type RiskLevel,
+} from "@/lib/caseloadTypes";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { delay } from "@/lib/mockData";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -33,9 +35,77 @@ import {
   Users,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import watermarkSrc from "@/img/NorthStarLogo.png";
+
+type CaseApiRow = {
+  residentId: number;
+  caseId: string;
+  residentName: string;
+  category: string;
+  subcategory: string;
+  safehouse: string;
+  assignedWorker: string | null;
+  admissionDate: string;
+  status: string;
+  reintegrationProgress: number;
+  lastUpdated: string;
+  riskLevel: string;
+};
+
+type SafehouseApi = { safehouseId: number; name: string };
+
+function mapApiStatus(s: string): CaseStatus {
+  const m: Record<string, CaseStatus> = {
+    Active: "Active",
+    Closed: "Closed",
+    Pending: "Pending",
+    Reintegration: "Reintegration",
+    HighRisk: "HighRisk",
+    Transferred: "Transferred",
+  };
+  return m[s] ?? "Active";
+}
+
+function mapRisk(r: string): RiskLevel {
+  if (r === "High") return "High";
+  if (r === "Elevated") return "Elevated";
+  return "Standard";
+}
+
+function mapCaseRow(row: CaseApiRow): ResidentCase {
+  const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
+  return {
+    id: row.caseId || `R-${row.residentId}`,
+    displayName: row.residentName,
+    anonymized: true,
+    age: 0,
+    gender: "—",
+    category: row.category as ResidentCase["category"],
+    subcategory: row.subcategory,
+    disability: null,
+    socio: {
+      fourPsBeneficiary: false,
+      soloParentHousehold: false,
+      indigenousGroup: null,
+      informalSettler: false,
+    },
+    admissionDate: row.admissionDate,
+    referralSource: "—",
+    originLocation: "—",
+    safehouse: row.safehouse,
+    assignedWorker: row.assignedWorker ?? "—",
+    caseNotes: "—",
+    status: mapApiStatus(row.status),
+    riskLevel: mapRisk(row.riskLevel),
+    reintegrationProgress: row.reintegrationProgress,
+    phaseIndex,
+    lastUpdate: row.lastUpdated,
+    timeline: [],
+    keywords: [],
+  };
+}
 
 const defaultFilters: CaseloadFilters = {
   search: "",
@@ -74,7 +144,9 @@ const CaseloadPage = () => {
   usePageHeader("Caseload Inventory", "Resident cases & reintegration");
 
   const [loading, setLoading] = useState(true);
-  const [cases, setCases] = useState<ResidentCase[]>(initialCases);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [cases, setCases] = useState<ResidentCase[]>([]);
+  const [safehouseNames, setSafehouseNames] = useState<string[]>([]);
   const [filters, setFilters] = useState<CaseloadFilters>(defaultFilters);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -83,11 +155,47 @@ const CaseloadPage = () => {
   const [sortKey, setSortKey] = useState<SortKey>("admission");
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    delay(720).then(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [caseRows, houses] = await Promise.all([
+        apiFetchJson<CaseApiRow[]>("/api/cases"),
+        apiFetchJson<SafehouseApi[]>("/api/safehouses"),
+      ]);
+      setCases(caseRows.map(mapCaseRow));
+      setSafehouseNames(houses.map((h) => h.name).filter(Boolean));
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load caseload.");
+      setCases([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const workerOptions = useMemo(() => {
+    const w = new Set<string>();
+    cases.forEach((c) => {
+      if (c.assignedWorker && c.assignedWorker !== "—") w.add(c.assignedWorker);
+    });
+    return Array.from(w).sort((a, b) => a.localeCompare(b));
+  }, [cases]);
+
+  const categoryOptions = useMemo(() => {
+    const u = new Set<string>(caseCategories);
+    cases.forEach((c) => u.add(c.category));
+    return Array.from(u);
+  }, [cases]);
+
   const metrics = useMemo(() => computeCaseloadMetrics(cases), [cases]);
+
+  const shForUi = safehouseNames.length > 0 ? safehouseNames : Array.from(new Set(cases.map((c) => c.safehouse))).filter(Boolean);
+  const workersForUi = workerOptions.length > 0 ? workerOptions : ["—"];
 
   const filtered = useMemo(() => cases.filter((c) => matchesFilters(c, filters)), [cases, filters]);
 
@@ -122,23 +230,12 @@ const CaseloadPage = () => {
   };
 
   const handleExport = () => {
-    toast.success("Export queued", {
-      description: "A secured CSV will be available when processing completes (demo).",
-    });
+    toast.success("Export queued", { description: "Your browser will download CSV when the export service is enabled." });
   };
 
-  const handleSaveCase = (c: ResidentCase) => {
-    setCases((prev) => {
-      const idx = prev.findIndex((x) => x.id === c.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = c;
-        return next;
-      }
-      return [c, ...prev];
-    });
-    toast.success(editing ? "Case updated" : "Case created", {
-      description: "Record saved locally for this session (demo).",
+  const handleSaveCase = (_c: ResidentCase) => {
+    toast.message("Case changes", {
+      description: "Resident records are managed through the central API. Refresh the page to see updates from the server.",
     });
     setEditing(null);
   };
@@ -172,6 +269,11 @@ const CaseloadPage = () => {
         />
 
         <div className="relative z-[1]">
+          {loadError && (
+            <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+              {loadError}
+            </p>
+          )}
           <header className="relative mb-14 lg:mb-20">
             <div className="pointer-events-none absolute -left-8 top-1/2 h-56 w-56 -translate-y-1/2 rounded-full bg-[hsl(340_40%_90%)]/14 blur-3xl dark:bg-[hsl(340_28%_38%)]/12" />
 
@@ -293,7 +395,13 @@ const CaseloadPage = () => {
 
           {!loading && (
             <section className="mb-10">
-              <CaseloadFilterBar filters={filters} onFiltersChange={setFilters} />
+              <CaseloadFilterBar
+                filters={filters}
+                onFiltersChange={setFilters}
+                safehouses={shForUi.length ? shForUi : ["—"]}
+                workers={workersForUi}
+                categories={categoryOptions}
+              />
             </section>
           )}
 
@@ -407,6 +515,8 @@ const CaseloadPage = () => {
         }}
         editing={editing}
         onSave={handleSaveCase}
+        safehouseOptions={shForUi.length ? shForUi : ["—"]}
+        workerOptions={workersForUi}
       />
     </AdminLayout>
   );

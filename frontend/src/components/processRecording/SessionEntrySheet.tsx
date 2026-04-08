@@ -1,5 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingMockData";
+import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingTypes";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { BookOpen, Heart, ListChecks, Sparkles } from "lucide-react";

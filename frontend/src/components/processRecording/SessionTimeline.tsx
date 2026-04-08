@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingMockData";
+import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingTypes";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, User } from "lucide-react";

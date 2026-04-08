@@ -13,29 +13,83 @@ import {
 } from "@/components/donors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { delay } from "@/lib/mockData";
-import {
-  allocationByDestination,
-  contributionFeed as initialFeed,
-  donorMetrics,
-  getTimelineForSupporter,
-  type FeedEntry,
-  type Supporter,
-  type SupporterKind,
-  type SupporterStatus,
-  supporters as initialSupporters,
-} from "@/lib/donorsContributionsMockData";
+import { apiFetchJson } from "@/lib/apiFetch";
+import type {
+  ApiSupporterRow,
+  ContributionBreakdown,
+  DonorsDashboardResponse,
+  FeedEntry,
+  Supporter,
+  SupporterKind,
+  SupporterStatus,
+  TimelineEntry,
+} from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Clock, Download, Gift, HeartHandshake, Plus, Sparkles, TrendingUp, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import watermarkSrc from "@/img/NorthStarLogo.png";
 
-function donorInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
+const EMPTY_METRICS: DonorsDashboardResponse["metrics"] = {
+  totalSupporters: 0,
+  activeDonors: 0,
+  monthlyContributions: 0,
+  volunteerHoursLogged: 0,
+  inKindValue: 0,
+};
+
+function emptyBreakdown(): ContributionBreakdown {
+  return { monetary: 0, timeHours: 0, skillsSessions: 0, inKindValue: 0, socialActions: 0 };
+}
+
+/** Backend may emit camelCase or PascalCase; partial payloads must not break React state. */
+function normalizeDonorsPayload(raw: unknown): DonorsDashboardResponse {
+  const r = raw as Record<string, unknown>;
+  const supporters = (r.supporters ?? r.Supporters) as DonorsDashboardResponse["supporters"] | undefined;
+  const feed = (r.feed ?? r.Feed) as FeedEntry[] | undefined;
+  const metrics = (r.metrics ?? r.Metrics) as DonorsDashboardResponse["metrics"] | undefined;
+  const allocationByDestination = (r.allocationByDestination ?? r.AllocationByDestination) as
+    | DonorsDashboardResponse["allocationByDestination"]
+    | undefined;
+  return {
+    supporters: Array.isArray(supporters) ? supporters : [],
+    feed: Array.isArray(feed) ? feed : [],
+    metrics: metrics ?? EMPTY_METRICS,
+    allocationByDestination: Array.isArray(allocationByDestination) ? allocationByDestination : [],
+  };
+}
+
+function mapSupporterRow(s: ApiSupporterRow): Supporter {
+  const br = s.breakdown ?? emptyBreakdown();
+  const breakdown: ContributionBreakdown = {
+    monetary: Number(br.monetary) || 0,
+    timeHours: Number(br.timeHours) || 0,
+    skillsSessions: Number(br.skillsSessions) || 0,
+    inKindValue: Number(br.inKindValue) || 0,
+    socialActions: Number(br.socialActions) || 0,
+  };
+  return {
+    id: String(s.id ?? ""),
+    name: s.name ?? "",
+    email: s.email ?? "",
+    phone: s.phone ?? "",
+    kind: (s.kind as SupporterKind) ?? "Monetary",
+    status: (s.status as SupporterStatus) ?? "Inactive",
+    totalContributionsValue: Number(s.totalContributionsValue) || 0,
+    lastActivity: s.lastActivity ?? "",
+    notes: s.notes ?? "",
+    breakdown,
+  };
+}
+
+function donorInitials(name: string | undefined) {
+  const n = (name ?? "").trim();
+  if (!n) return "••";
+  return n
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((x) => x[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
@@ -45,11 +99,61 @@ const DonorsPage = () => {
   usePageHeader("Donors & Contributions", "Supporter relationship management");
 
   const [loading, setLoading] = useState(true);
-  const [supporters, setSupporters] = useState<Supporter[]>(initialSupporters);
-  const [notesById, setNotesById] = useState<Record<string, string>>(() =>
-    Object.fromEntries(initialSupporters.map((s) => [s.id, s.notes]))
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [supporters, setSupporters] = useState<Supporter[]>([]);
+  const [notesById, setNotesById] = useState<Record<string, string>>({});
+  const [feed, setFeed] = useState<FeedEntry[]>([]);
+  const [donorMetrics, setDonorMetrics] = useState<DonorsDashboardResponse["metrics"]>(EMPTY_METRICS);
+  const [allocationByDestination, setAllocationByDestination] = useState<DonorsDashboardResponse["allocationByDestination"]>(
+    []
   );
-  const [feed, setFeed] = useState<FeedEntry[]>(initialFeed);
+  const [safehouseNames, setSafehouseNames] = useState<string[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [dashRaw, housesRaw] = await Promise.all([
+        apiFetchJson<unknown>("/api/donors"),
+        apiFetchJson<unknown>("/api/safehouses"),
+      ]);
+      const dash = normalizeDonorsPayload(dashRaw);
+      const mapped: Supporter[] = dash.supporters.map(mapSupporterRow);
+      setSupporters(mapped);
+      setNotesById(Object.fromEntries(mapped.map((x) => [x.id, x.notes])));
+      setFeed(dash.feed);
+      setDonorMetrics({
+        ...EMPTY_METRICS,
+        ...dash.metrics,
+        totalSupporters: Number(dash.metrics.totalSupporters) || 0,
+        activeDonors: Number(dash.metrics.activeDonors) || 0,
+        monthlyContributions: Number(dash.metrics.monthlyContributions) || 0,
+        volunteerHoursLogged: Number(dash.metrics.volunteerHoursLogged) || 0,
+        inKindValue: Number(dash.metrics.inKindValue) || 0,
+      });
+      setAllocationByDestination(dash.allocationByDestination);
+      const houseList = Array.isArray(housesRaw) ? housesRaw : [];
+      setSafehouseNames(
+        houseList
+          .map((h: Record<string, unknown>) => {
+            const n = h.name ?? h.Name;
+            return typeof n === "string" ? n : "";
+          })
+          .filter(Boolean)
+      );
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load donors.");
+      setSupporters([]);
+      setFeed([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<SupporterKind | "All">("All");
   const [statusFilter, setStatusFilter] = useState<SupporterStatus | "All">("All");
@@ -58,11 +162,21 @@ const DonorsPage = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => {
-    delay(650).then(() => setLoading(false));
-  }, []);
-
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
+
+  const timelineForSelected = useMemo((): TimelineEntry[] => {
+    if (!selected) return [];
+    return feed
+      .filter((f) => f.supporterName === selected.name)
+      .map((f, i) => ({
+        id: `${f.id}-${i}`,
+        supporterId: selected.id,
+        at: f.at,
+        kind: f.kind,
+        title: f.kind,
+        detail: f.description,
+      }));
+  }, [feed, selected]);
 
   const topDonors = useMemo(() => {
     return [...supporters].sort((a, b) => b.totalContributionsValue - a.totalContributionsValue).slice(0, 3);
@@ -72,9 +186,13 @@ const DonorsPage = () => {
     return supporters.filter((s) => {
       const q = search.toLowerCase().trim();
       const digitQuery = search.replace(/\D/g, "");
-      const phoneMatch = digitQuery.length > 0 && s.phone.replace(/\D/g, "").includes(digitQuery);
+      const phoneMatch =
+        digitQuery.length > 0 && (s.phone ?? "").replace(/\D/g, "").includes(digitQuery);
       const matchSearch =
-        !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || phoneMatch;
+        !q ||
+        (s.name ?? "").toLowerCase().includes(q) ||
+        (s.email ?? "").toLowerCase().includes(q) ||
+        phoneMatch;
       const matchType = typeFilter === "All" || s.kind === typeFilter;
       const matchStatus = statusFilter === "All" || s.status === statusFilter;
       return matchSearch && matchType && matchStatus;
@@ -87,19 +205,17 @@ const DonorsPage = () => {
   };
 
   const handleMarkInactive = () => {
-    if (!selectedId) return;
-    setSupporters((prev) =>
-      prev.map((s) => (s.id === selectedId ? { ...s, status: "Inactive" as const } : s))
-    );
-    toast.success("Supporter marked inactive", { description: "You can reactivate from the directory filters." });
+    toast.message("Status update", {
+      description: "Supporter status is managed in the central database. Use your admin tools to change records.",
+    });
   };
 
   const handleExport = () => {
-    toast.success("Export queued", { description: "You’ll receive a CSV link when the report is ready (demo)." });
+    toast.success("Export queued", { description: "You will receive a CSV link when the export service is enabled." });
   };
 
   const handleAddSupporter = () => {
-    toast.message("Add supporter", { description: "Connects to your CRM in production — demo only." });
+    toast.message("Add supporter", { description: "Create new supporter records through your connected CRM or admin API." });
   };
 
   return (
@@ -134,6 +250,11 @@ const DonorsPage = () => {
         />
 
         <div className="relative z-[1]">
+          {loadError && (
+            <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+              {loadError}
+            </p>
+          )}
           {/* Hero */}
           <header className="relative mb-20 lg:mb-28">
             <div className="pointer-events-none absolute -left-10 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-[hsl(340_45%_88%)]/20 blur-3xl dark:bg-[hsl(340_30%_40%)]/15" />
@@ -280,7 +401,7 @@ const DonorsPage = () => {
                 <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[1.85rem]">
                   Top Donors
                 </h2>
-                <p className="mt-2 font-body text-sm text-muted-foreground">By lifetime contribution value (demo data)</p>
+                <p className="mt-2 font-body text-sm text-muted-foreground">By lifetime contribution value</p>
               </div>
               <div className="grid gap-5 md:grid-cols-3">
                 {topDonors.map((s, i) => (
@@ -427,11 +548,13 @@ const DonorsPage = () => {
         {selected && (
           <SupporterProfileSheet
             supporter={selected}
-            timeline={getTimelineForSupporter(selected.id)}
+            timeline={timelineForSelected}
             notes={notesById[selected.id] ?? ""}
             onNotesChange={(v) => setNotesById((prev) => ({ ...prev, [selected.id]: v }))}
             onMarkInactive={handleMarkInactive}
-            onEdit={() => toast.message("Edit profile", { description: "Demo — wire to your admin API." })}
+            onEdit={() =>
+              toast.message("Edit profile", { description: "Profile updates are synced from your supporter database." })
+            }
           />
         )}
       </SlideOverPanel>
@@ -439,18 +562,13 @@ const DonorsPage = () => {
       <AddContributionDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        onSubmit={(payload) => {
-          const name = supporters.find((s) => s.id === payload.supporterId)?.name ?? "Supporter";
-          const newEntry: FeedEntry = {
-            id: `F-${Date.now()}`,
-            supporterName: name,
-            kind: payload.kind,
-            description: payload.description || "Contribution logged",
-            at: new Date().toISOString(),
-            amount: payload.amount ? Number(payload.amount) : undefined,
-            hours: payload.hours ? Number(payload.hours) : undefined,
-          };
-          setFeed((prev) => [newEntry, ...prev]);
+        supporterOptions={supporters.map((s) => ({ id: s.id, name: s.name }))}
+        safehouses={safehouseNames.length ? safehouseNames : ["—"]}
+        onSubmit={() => {
+          toast.message("Contribution", {
+            description: "Log donations through the donations API in production; the feed will refresh on next load.",
+          });
+          void load();
         }}
       />
     </AdminLayout>

@@ -4,9 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { CaseCategory, CaseStatus } from "@/lib/caseloadMockData";
-import { caseCategories, socialWorkers } from "@/lib/caseloadMockData";
-import { safehouses } from "@/lib/donorsContributionsMockData";
+import type { CaseCategory, CaseStatus } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarIcon, Search, SlidersHorizontal, X } from "lucide-react";
@@ -24,6 +22,9 @@ export type CaseloadFilters = {
 type CaseloadFilterBarProps = {
   filters: CaseloadFilters;
   onFiltersChange: (next: CaseloadFilters) => void;
+  safehouses: string[];
+  workers: string[];
+  categories: string[];
 };
 
 const statuses: Array<CaseStatus | "All"> = ["All", "Active", "Pending", "Reintegration", "Closed"];
@@ -45,7 +46,13 @@ function labelForFilter(key: keyof CaseloadFilters, value: unknown, filters: Cas
   return null;
 }
 
-export function CaseloadFilterBar({ filters, onFiltersChange }: CaseloadFilterBarProps) {
+export function CaseloadFilterBar({
+  filters,
+  onFiltersChange,
+  safehouses,
+  workers,
+  categories,
+}: CaseloadFilterBarProps) {
   const set = (patch: Partial<CaseloadFilters>) => onFiltersChange({ ...filters, ...patch });
 
   const activePills: { key: keyof CaseloadFilters; label: string }[] = [];
@@ -125,7 +132,7 @@ export function CaseloadFilterBar({ filters, onFiltersChange }: CaseloadFilterBa
               <SelectItem value="All" className="font-body text-xs">
                 All categories
               </SelectItem>
-              {caseCategories.map((c) => (
+              {categories.map((c) => (
                 <SelectItem key={c} value={c} className="font-body text-xs">
                   {c}
                 </SelectItem>
@@ -141,7 +148,7 @@ export function CaseloadFilterBar({ filters, onFiltersChange }: CaseloadFilterBa
               <SelectItem value="All" className="font-body text-xs">
                 All workers
               </SelectItem>
-              {socialWorkers.map((w) => (
+              {workers.map((w) => (
                 <SelectItem key={w} value={w} className="font-body text-xs">
                   {w}
                 </SelectItem>

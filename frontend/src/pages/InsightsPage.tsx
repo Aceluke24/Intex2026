@@ -1,12 +1,105 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AIInsightCard } from "@/components/AIInsightCard";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { aiInsights } from "@/lib/mockData";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { Brain } from "lucide-react";
 import { motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+type DonorChurnRow = {
+  supporterId: number;
+  displayName: string;
+  churnRisk: number;
+  riskCategory: string;
+};
+
+type ResidentRiskRow = {
+  residentId: number;
+  caseControlNo: string;
+  internalCode: string;
+  currentRiskLevel: string | null;
+  riskEscalated: boolean;
+  recentConcernsCount: number;
+  openIncidents: number;
+};
+
+type InsightCard = {
+  type: string;
+  title: string;
+  description: string;
+  urgency: "high" | "medium" | "low";
+  action: string;
+};
 
 const InsightsPage = () => {
   usePageHeader("AI Insights", "Recommendations & signals");
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [churn, setChurn] = useState<DonorChurnRow[]>([]);
+  const [residentRisk, setResidentRisk] = useState<ResidentRiskRow[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [c, r] = await Promise.all([
+        apiFetchJson<DonorChurnRow[]>("/api/insights/donor-churn"),
+        apiFetchJson<ResidentRiskRow[]>("/api/insights/resident-risk"),
+      ]);
+      setChurn(c);
+      setResidentRisk(r);
+    } catch (e) {
+      console.error(e);
+      setLoadError(e instanceof Error ? e.message : "Failed to load insights.");
+      setChurn([]);
+      setResidentRisk([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const cards = useMemo((): InsightCard[] => {
+    if (loading) return [];
+    const out: InsightCard[] = [];
+    const criticalDonors = churn.filter((x) => x.riskCategory === "Critical").length;
+    const highChurn = churn.filter((x) => x.churnRisk >= 0.5).length;
+    if (churn.length > 0) {
+      out.push({
+        type: "churn",
+        title: "Donor retention signals",
+        description: `${criticalDonors} active supporters are in the critical inactivity window; ${highChurn} show elevated churn risk (rule-based scores).`,
+        urgency: criticalDonors > 0 ? "high" : "medium",
+        action: "Review donor list",
+      });
+    }
+    const escalated = residentRisk.filter((x) => x.riskEscalated).length;
+    const concerns = residentRisk.filter((x) => x.recentConcernsCount > 0).length;
+    const incidents = residentRisk.filter((x) => x.openIncidents > 0).length;
+    if (residentRisk.length > 0) {
+      out.push({
+        type: "resident",
+        title: "Active resident risk",
+        description: `${escalated} cases show escalated risk versus intake; ${concerns} have recent flagged process recordings; ${incidents} have open incidents.`,
+        urgency: escalated > 0 || incidents > 0 ? "high" : "low",
+        action: "Open caseload",
+      });
+    }
+    if (out.length === 0) {
+      out.push({
+        type: "prediction",
+        title: "Models in calibration",
+        description: "Insight endpoints are returning data. As more cases and donations accumulate, rankings will stabilize.",
+        urgency: "low",
+        action: "Refresh",
+      });
+    }
+    return out;
+  }, [churn, residentRisk, loading]);
 
   return (
     <AdminLayout contentClassName="max-w-[1000px]">
@@ -22,24 +115,34 @@ const InsightsPage = () => {
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight text-foreground lg:text-3xl">AI Insights</h1>
             <p className="mt-2 font-body text-sm leading-relaxed text-muted-foreground">
-              Machine learning–powered recommendations — demo content only.
+              Rule-based scores from live donor and resident data — swap in model outputs when your ML pipeline is ready.
             </p>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {aiInsights.map((insight, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              className="transition-transform duration-200 hover:-translate-y-1"
-            >
-              <AIInsightCard {...insight} />
-            </motion.div>
-          ))}
-        </div>
+        {loadError && (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {loadError}
+          </p>
+        )}
+
+        {loading ? (
+          <p className="font-body text-sm text-muted-foreground">Loading insights…</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {cards.map((insight, i) => (
+              <motion.div
+                key={`${insight.title}-${i}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                className="transition-transform duration-200 hover:-translate-y-1"
+              >
+                <AIInsightCard {...insight} />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

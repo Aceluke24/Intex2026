@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { Supporter, TimelineEntry } from "@/lib/donorsContributionsMockData";
-import { format } from "date-fns";
+import type { ContributionBreakdown, Supporter, TimelineEntry } from "@/lib/donorsTypes";
+import { formatDateSafe } from "@/lib/formatDate";
 import {
   Clock,
   DollarSign,
@@ -44,6 +44,10 @@ const timelineIcon = (kind: TimelineEntry["kind"]) => {
   }
 };
 
+function defaultBreakdown(): ContributionBreakdown {
+  return { monetary: 0, timeHours: 0, skillsSessions: 0, inKindValue: 0, socialActions: 0 };
+}
+
 export function SupporterProfileSheet({
   supporter,
   timeline,
@@ -52,7 +56,7 @@ export function SupporterProfileSheet({
   onMarkInactive,
   onEdit,
 }: SupporterProfileSheetProps) {
-  const b = supporter.breakdown;
+  const b = supporter.breakdown ?? defaultBreakdown();
 
   return (
     <div className="flex h-full flex-col">
@@ -126,7 +130,7 @@ export function SupporterProfileSheet({
                       <p className="font-display text-sm font-semibold text-foreground">{t.title}</p>
                       <p className="mt-1 font-body text-sm leading-relaxed text-muted-foreground">{t.detail}</p>
                       <p className="mt-2 font-body text-[11px] text-muted-foreground/75">
-                        {format(new Date(t.at), "MMMM d, yyyy")}
+                        {formatDateSafe(t.at, "MMMM d, yyyy")}
                       </p>
                     </div>
                   </motion.li>

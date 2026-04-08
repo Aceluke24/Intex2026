@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { AttentionItem, DashboardMetric } from "@/lib/dashboardMockData";
+import type { AttentionItem, DashboardMetric } from "@/lib/dashboardTypes";
 import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, Calendar, Heart, Minus, Percent, Sparkles, Users } from "lucide-react";
 import { Link } from "react-router-dom";

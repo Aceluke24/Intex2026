@@ -1,4 +1,6 @@
+using System.Globalization;
 using Intex2026.Data;
+using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +14,103 @@ public class ReportsController : ControllerBase
 {
     private readonly AppDbContext _db;
     public ReportsController(AppDbContext db) => _db = db;
+
+    [HttpGet]
+    public async Task<IActionResult> GetAnalytics(CancellationToken ct)
+    {
+        var residents = await _db.Residents.AsNoTracking().ToListAsync(ct);
+        var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
+
+        var totalCases = residents.Count;
+        var activeCases = residents.Count(r => r.CaseStatus == "Active");
+        var closedCases = residents.Count(r => r.CaseStatus == "Closed");
+        var highRiskCases = residents.Count(r =>
+        {
+            var x = (r.CurrentRiskLevel ?? "").Trim();
+            return r.CaseStatus == "Active" && x is "High" or "Critical";
+        });
+
+        var withReint = residents.Where(r =>
+            !string.IsNullOrWhiteSpace(r.ReintegrationStatus) && r.ReintegrationStatus != "Not Started").ToList();
+        var completedReint = withReint.Count(r => r.ReintegrationStatus == "Completed");
+        var reintegrationRate = withReint.Count > 0 ? completedReint / (double)withReint.Count * 100.0 : 0.0;
+
+        static decimal DonationMoney(Donation d)
+        {
+            if (d.DonationType == "Monetary") return d.Amount ?? 0;
+            if (d.DonationType == "InKind") return d.EstimatedValue ?? d.Amount ?? 0;
+            return d.Amount ?? d.EstimatedValue ?? 0;
+        }
+
+        var months = new List<(string Key, string Label, DateOnly Start, DateOnly End)>();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        for (var i = 11; i >= 0; i--)
+        {
+            var d = today.AddMonths(-i);
+            var start = new DateOnly(d.Year, d.Month, 1);
+            var end = start.AddMonths(1).AddDays(-1);
+            var key = $"{d.Year}-{d.Month:00}";
+            var label = start.ToString("MMM yyyy", CultureInfo.CurrentCulture);
+            months.Add((key, label, start, end));
+        }
+
+        var monthlyAdmissions = new List<object>();
+        var monthlyClosures = new List<object>();
+        var donationTrends = new List<object>();
+        var caseTrends = new List<object>();
+
+        foreach (var m in months)
+        {
+            var adm = residents.Count(r => r.DateOfAdmission >= m.Start && r.DateOfAdmission <= m.End);
+            var clo = residents.Count(r => r.DateClosed.HasValue && r.DateClosed.Value >= m.Start && r.DateClosed.Value <= m.End);
+            monthlyAdmissions.Add(new { month = m.Label, count = adm });
+            monthlyClosures.Add(new { month = m.Label, count = clo });
+
+            var donTotal = donations
+                .Where(d => $"{d.DonationDate.Year}-{d.DonationDate.Month:00}" == m.Key)
+                .Sum(d => DonationMoney(d));
+            donationTrends.Add(new { month = m.Label, total = (double)donTotal });
+
+            var end = m.End;
+            var activeSnapshot = residents.Count(r =>
+                r.DateOfAdmission <= end &&
+                (r.DateClosed == null || r.DateClosed > end) &&
+                r.CaseStatus != "Transferred");
+            var closedInMonth = residents.Count(r =>
+                r.DateClosed.HasValue &&
+                r.DateClosed.Value.Year == m.Start.Year &&
+                r.DateClosed.Value.Month == m.Start.Month);
+            caseTrends.Add(new
+            {
+                month = m.Label,
+                active = activeSnapshot,
+                closed = closedInMonth
+            });
+        }
+
+        var safehouseDistribution = await _db.Residents
+            .AsNoTracking()
+            .Include(r => r.Safehouse)
+            .Where(r => r.Safehouse != null)
+            .GroupBy(r => r.Safehouse!.Name)
+            .Select(g => new { safehouse = g.Key, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            totalCases,
+            activeCases,
+            closedCases,
+            highRiskCases,
+            reintegrationRate,
+            monthlyAdmissions,
+            monthlyClosures,
+            donationTrends,
+            caseTrends,
+            safehouseDistribution
+        });
+    }
 
     // GET /api/reports/donations — monthly donation totals grouped by month and type
     [HttpGet("donations")]

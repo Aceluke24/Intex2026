@@ -1,6 +1,6 @@
-import type { FeedEntry } from "@/lib/donorsContributionsMockData";
+import type { FeedEntry } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { formatDateSafe } from "@/lib/formatDate";
 import { Clock, DollarSign, Gift, HeartHandshake, Share2, Wrench } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -49,16 +49,20 @@ type ContributionItemProps = {
 };
 
 export function ContributionItem({ entry, index = 0, variant = "default", isLast = false }: ContributionItemProps) {
-  const cfg = kindConfig[entry.kind];
+  const cfg = kindConfig[entry.kind] ?? kindConfig.monetary;
   const Icon = cfg.icon;
-  const time = format(new Date(entry.at), "MMM d · h:mm a");
+  const time = formatDateSafe(entry.at, "MMM d · h:mm a");
+
+  const desc = entry.description ?? "";
+  const amountNum = entry.amount != null && !Number.isNaN(Number(entry.amount)) ? Number(entry.amount) : undefined;
+  const hoursNum = entry.hours != null && !Number.isNaN(Number(entry.hours)) ? Number(entry.hours) : undefined;
 
   const detail =
-    entry.amount !== undefined
-      ? `$${entry.amount.toLocaleString()} · ${entry.description}`
-      : entry.hours !== undefined
-        ? `${entry.hours} hrs · ${entry.description}`
-        : entry.description;
+    amountNum !== undefined
+      ? `$${amountNum.toLocaleString()} · ${desc}`
+      : hoursNum !== undefined
+        ? `${hoursNum} hrs · ${desc}`
+        : desc;
 
   if (variant === "timeline") {
     return (

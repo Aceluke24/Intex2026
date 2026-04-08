@@ -1,7 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ResidentCase } from "@/lib/caseloadMockData";
-import { reintegrationPhases } from "@/lib/caseloadMockData";
+import type { ResidentCase } from "@/lib/caseloadTypes";
+import { reintegrationPhases } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import type { ElementType } from "react";

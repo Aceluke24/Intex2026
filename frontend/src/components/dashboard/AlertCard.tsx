@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { AttentionItem } from "@/lib/dashboardMockData";
+import type { AttentionItem } from "@/lib/dashboardTypes";
 import { ArrowRight, AlertCircle, Clock } from "lucide-react";
 
 type AlertCardProps = {

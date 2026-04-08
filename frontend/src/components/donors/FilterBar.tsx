@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LayoutGrid, Search, Table2 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { SupporterKind, SupporterStatus } from "@/lib/donorsContributionsMockData";
+import type { SupporterKind, SupporterStatus } from "@/lib/donorsTypes";
 
 type ViewMode = "table" | "card";
 

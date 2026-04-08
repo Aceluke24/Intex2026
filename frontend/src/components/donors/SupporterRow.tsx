@@ -1,8 +1,8 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Supporter } from "@/lib/donorsContributionsMockData";
-import { format } from "date-fns";
+import type { Supporter } from "@/lib/donorsTypes";
+import { formatDateSafe } from "@/lib/formatDate";
 import { Eye, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -35,7 +35,7 @@ const kindPill: Record<string, string> = {
 };
 
 export function SupporterRow({ supporter, onOpen, onEdit, style, index = 0 }: SupporterRowProps) {
-  const last = format(new Date(supporter.lastActivity), "MMM d, yyyy");
+  const last = formatDateSafe(supporter.lastActivity, "MMM d, yyyy");
   const isActive = supporter.status === "Active";
 
   return (
