@@ -12,8 +12,18 @@ const baseNavItems = [
   { label: "Home", path: "/" },
   { label: "About", path: "/about" },
   { label: "Our Impact", path: "/impact" },
-  { label: "Privacy", path: "/privacy" },
 ];
+
+const footerNavigateLinks = [
+  { label: "Home", path: "/" },
+  { label: "About", path: "/about" },
+  { label: "Our Impact", path: "/impact" },
+  { label: "Donate", path: "/donate" },
+].filter((item) => item.path && item.path.trim().length > 0);
+
+const footerLegalLinks = [{ label: "Privacy Policy", path: "/privacy" }].filter(
+  (item) => item.path && item.path.trim().length > 0
+);
 
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggle } = useTheme();
@@ -180,23 +190,35 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
             <div className="lg:col-span-3">
               <p className="font-body font-medium text-[11px] uppercase tracking-[0.2em] text-terracotta mb-5">Navigate</p>
               <div className="space-y-3">
-                {["Our Impact", "Programs", "Volunteer", "Contact"].map((l) => (
-                  <a key={l} href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">{l}</a>
+                {footerNavigateLinks.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300"
+                  >
+                    {item.label}
+                  </Link>
                 ))}
               </div>
             </div>
             <div className="lg:col-span-3">
               <p className="font-body font-medium text-[11px] uppercase tracking-[0.2em] text-terracotta mb-5">Legal</p>
               <div className="space-y-3">
-                <Link to="/privacy" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">Privacy Policy</Link>
-                <a href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">Terms of Service</a>
-                <a href="#" className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300">501(c)(3) Status</a>
+                {footerLegalLinks.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className="block text-sm font-body text-navy-foreground/50 hover:text-terracotta transition-colors duration-300"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </div>
             </div>
           </div>
           <div className="mt-20 pt-8 border-t border-navy-foreground/8">
             <p className="text-[12px] font-body text-navy-foreground/30">
-              © 2024 North Star Sanctuary. All rights reserved. EIN: 84-1234567
+              © 2026 North Star Sanctuary. All rights reserved. EIN: 84-1234567
             </p>
           </div>
         </div>
