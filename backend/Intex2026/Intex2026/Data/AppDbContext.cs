@@ -27,6 +27,10 @@ public class AppDbContext : DbContext
     public DbSet<IncidentReport> IncidentReports => Set<IncidentReport>();
     public DbSet<ResidentAnalytics> ResidentAnalytics => Set<ResidentAnalytics>();
 
+    // Finance & Operations
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<OrganizationalGoal> OrganizationalGoals => Set<OrganizationalGoal>();
+
     // Outreach & Communication Domain
     public DbSet<SocialMediaPost> SocialMediaPosts => Set<SocialMediaPost>();
     public DbSet<SafehouseMonthlyMetric> SafehouseMonthlyMetrics => Set<SafehouseMonthlyMetric>();
@@ -92,5 +96,21 @@ public class AppDbContext : DbContext
 
         builder.Entity<HomeVisitation>()
             .HasIndex(h => h.VisitDate);
+
+        // Expense: optional FK to Safehouse
+        builder.Entity<Expense>()
+            .HasOne(e => e.Safehouse)
+            .WithMany()
+            .HasForeignKey(e => e.SafehouseId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // OrganizationalGoal: optional FK to Safehouse
+        builder.Entity<OrganizationalGoal>()
+            .HasOne(g => g.Safehouse)
+            .WithMany()
+            .HasForeignKey(g => g.SafehouseId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

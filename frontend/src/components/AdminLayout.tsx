@@ -13,6 +13,10 @@ import {
   Heart,
   ClipboardList,
   MapPin,
+  Activity,
+  DollarSign,
+  Receipt,
+  Megaphone,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -30,25 +34,39 @@ function navItemActive(pathname: string, itemPath: string): boolean {
 
 const navGroups = [
   {
-    label: "Overview",
+    label: "Programs & Operations",
     items: [
-      { label: "Command Center", path: "/dashboard", icon: LayoutDashboard },
-      { label: "AI Insights", path: "/dashboard/insights", icon: Brain },
-    ],
-  },
-  {
-    label: "Case Management",
-    items: [
+      { label: "Programs Dashboard", path: "/dashboard/programs", icon: Activity },
       { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
       { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
       { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
     ],
   },
   {
-    label: "Operations",
+    label: "Finance & Contributions",
     items: [
+      { label: "Finance Dashboard", path: "/dashboard/finance", icon: DollarSign },
       { label: "Donors & Contributions", path: "/dashboard/donors", icon: Heart },
+      { label: "Expenses", path: "/dashboard/expenses", icon: Receipt },
+    ],
+  },
+  {
+    label: "Outreach",
+    items: [
+      { label: "Social Media", path: "/dashboard/outreach", icon: Megaphone },
+    ],
+  },
+  {
+    label: "Reporting",
+    items: [
       { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3 },
+      { label: "AI Insights", path: "/dashboard/insights", icon: Brain },
+    ],
+  },
+  {
+    label: "Overview",
+    items: [
+      { label: "Command Center", path: "/dashboard", icon: LayoutDashboard },
     ],
   },
 ];

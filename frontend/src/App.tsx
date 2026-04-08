@@ -27,6 +27,10 @@ import DonorPortal from "./pages/DonorPortal.tsx";
 import DonatePage from "./pages/DonatePage.tsx";
 import Mission from "./pages/Mission.tsx";
 import GetInvolved from "./pages/GetInvolved.tsx";
+import ProgramsDashboardPage from "./pages/ProgramsDashboardPage.tsx";
+import FinanceDashboardPage from "./pages/FinanceDashboardPage.tsx";
+import ExpensesPage from "./pages/ExpensesPage.tsx";
+import OutreachPage from "./pages/OutreachPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +78,10 @@ const App = () => (
                   <Route path="/dashboard/visitations" element={<VisitationsPage />} />
                   <Route path="/dashboard/reports" element={<ReportsPage />} />
                   <Route path="/dashboard/insights" element={<InsightsPage />} />
+                  <Route path="/dashboard/programs" element={<ProgramsDashboardPage />} />
+                  <Route path="/dashboard/finance" element={<FinanceDashboardPage />} />
+                  <Route path="/dashboard/expenses" element={<ExpensesPage />} />
+                  <Route path="/dashboard/outreach" element={<OutreachPage />} />
                 </Route>
               </Route>
 
