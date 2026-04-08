@@ -168,18 +168,44 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var runCsvSeedOnStartup =
+    builder.Configuration.GetValue<bool?>("Seed:RunCsvOnStartup") ??
+    app.Environment.IsDevelopment();
+
+var runIdentitySeedOnStartup =
+    builder.Configuration.GetValue<bool?>("GenerateDefaultIdentityAdmin:RunOnStartup") ??
+    app.Environment.IsDevelopment();
+
+var applyMigrationsOnStartup =
+    builder.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup") ??
+    app.Environment.IsDevelopment();
+
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
     {
         var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.MigrateAsync();
-        await CsvDataSeeder.SeedAsync(appDb, app.Environment);
+        if (applyMigrationsOnStartup)
+        {
+            await appDb.Database.MigrateAsync();
+        }
+
+        if (runCsvSeedOnStartup)
+        {
+            await CsvDataSeeder.SeedAsync(appDb, app.Environment);
+        }
 
         var authDb = scope.ServiceProvider.GetRequiredService<AuthIdentityDbContext>();
-        await authDb.Database.MigrateAsync();
-        await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
+        if (applyMigrationsOnStartup)
+        {
+            await authDb.Database.MigrateAsync();
+        }
+
+        if (runIdentitySeedOnStartup)
+        {
+            await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
+        }
     }
     catch (Exception ex)
     {
