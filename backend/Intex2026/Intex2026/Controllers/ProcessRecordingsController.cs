@@ -80,10 +80,6 @@ public class ProcessRecordingsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] ProcessRecording recording)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (recording.RecordingId <= 0)
-        {
-            recording.RecordingId = (await _db.ProcessRecordings.Select(r => (int?)r.RecordingId).MaxAsync() ?? 0) + 1;
-        }
         _db.ProcessRecordings.Add(recording);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = recording.RecordingId }, recording);

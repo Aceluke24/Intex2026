@@ -76,7 +76,6 @@ public class ResidentsController : ControllerBase
         if (!ModelState.IsValid) return BadRequest(ModelState);
         var resident = new Resident
         {
-            ResidentId = (await _db.Residents.Select(r => (int?)r.ResidentId).MaxAsync() ?? 0) + 1,
             CaseControlNo = GenerateCaseControlNo(),
             InternalCode = GenerateInternalCode(req.SafehouseId),
             SafehouseId = req.SafehouseId,
@@ -109,30 +108,29 @@ public class ResidentsController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] ResidentUpsertRequest req)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var affected = await _db.Database.ExecuteSqlInterpolatedAsync($@"
-UPDATE Residents
-SET SafehouseId = {req.SafehouseId},
-    CaseStatus = {req.CaseStatus},
-    Sex = {req.Sex},
-    DateOfBirth = {req.DateOfBirth},
-    CaseCategory = {req.CaseCategory},
-    DateOfAdmission = {req.DateOfAdmission},
-    DateEnrolled = {req.DateEnrolled},
-    ReferralSource = {req.ReferralSource},
-    AssignedSocialWorker = {req.AssignedSocialWorker},
-    InitialCaseAssessment = {req.InitialCaseAssessment},
-    InitialRiskLevel = {req.InitialRiskLevel},
-    CurrentRiskLevel = {req.CurrentRiskLevel},
-    FamilyIs4ps = {req.FamilyIs4ps},
-    FamilySoloParent = {req.FamilySoloParent},
-    FamilyIndigenous = {req.FamilyIndigenous},
-    FamilyInformalSettler = {req.FamilyInformalSettler},
-    IsPwd = {req.IsPwd},
-    PwdType = {req.PwdType}
-WHERE ResidentId = {id}
-");
+        var resident = await _db.Residents.FirstOrDefaultAsync(r => r.ResidentId == id);
+        if (resident == null) return NotFound();
 
-        if (affected == 0) return NotFound();
+        resident.SafehouseId = req.SafehouseId;
+        resident.CaseStatus = req.CaseStatus;
+        resident.Sex = string.IsNullOrWhiteSpace(req.Sex) ? resident.Sex : req.Sex;
+        resident.DateOfBirth = req.DateOfBirth;
+        resident.CaseCategory = req.CaseCategory;
+        resident.DateOfAdmission = req.DateOfAdmission;
+        resident.DateEnrolled = req.DateEnrolled;
+        resident.ReferralSource = req.ReferralSource;
+        resident.AssignedSocialWorker = req.AssignedSocialWorker;
+        resident.InitialCaseAssessment = req.InitialCaseAssessment;
+        resident.InitialRiskLevel = req.InitialRiskLevel;
+        resident.CurrentRiskLevel = req.CurrentRiskLevel;
+        resident.FamilyIs4ps = req.FamilyIs4ps;
+        resident.FamilySoloParent = req.FamilySoloParent;
+        resident.FamilyIndigenous = req.FamilyIndigenous;
+        resident.FamilyInformalSettler = req.FamilyInformalSettler;
+        resident.IsPwd = req.IsPwd;
+        resident.PwdType = req.PwdType;
+
+        await _db.SaveChangesAsync();
         return NoContent();
     }
 

@@ -53,10 +53,6 @@ public class HomeVisitationsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] HomeVisitation visitation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (visitation.VisitationId <= 0)
-        {
-            visitation.VisitationId = (await _db.HomeVisitations.Select(v => (int?)v.VisitationId).MaxAsync() ?? 0) + 1;
-        }
         _db.HomeVisitations.Add(visitation);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = visitation.VisitationId }, visitation);

@@ -84,7 +84,6 @@ public class DonationsController : ControllerBase
 
         var donation = new Donation
         {
-            DonationId = (await _db.Donations.Select(d => (int?)d.DonationId).MaxAsync() ?? 0) + 1,
             SupporterId = user.SupporterId.Value,
             DonationType = donationType,
             DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
@@ -108,10 +107,6 @@ public class DonationsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] Donation donation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (donation.DonationId <= 0)
-        {
-            donation.DonationId = (await _db.Donations.Select(d => (int?)d.DonationId).MaxAsync() ?? 0) + 1;
-        }
         _db.Donations.Add(donation);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = donation.DonationId }, donation);

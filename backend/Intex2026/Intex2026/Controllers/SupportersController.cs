@@ -57,10 +57,6 @@ public class SupportersController : ControllerBase
     public async Task<IActionResult> Create([FromBody] Supporter supporter)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (supporter.SupporterId <= 0)
-        {
-            supporter.SupporterId = (await _db.Supporters.Select(s => (int?)s.SupporterId).MaxAsync() ?? 0) + 1;
-        }
         supporter.CreatedAt = DateTime.UtcNow;
         _db.Supporters.Add(supporter);
         await _db.SaveChangesAsync();
