@@ -11,14 +11,18 @@ import { API_BASE } from "@/lib/apiBase";
 const baseNavItems = [
   { label: "Home", path: "/" },
   { label: "About", path: "/about" },
+  { label: "Mission", path: "/mission" },
   { label: "Our Impact", path: "/impact" },
+  { label: "Get Involved", path: "/get-involved" },
 ];
 
 const footerNavigateLinks = [
   { label: "Home", path: "/" },
   { label: "About", path: "/about" },
+  { label: "Mission", path: "/mission" },
   { label: "Our Impact", path: "/impact" },
   { label: "Donate", path: "/donate" },
+  { label: "Get Involved", path: "/get-involved" },
 ].filter((item) => item.path && item.path.trim().length > 0);
 
 const footerLegalLinks = [{ label: "Privacy Policy", path: "/privacy" }].filter(
@@ -185,6 +189,9 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                 Guiding survivors toward safety, healing, and new beginnings.
                 Every contribution helps us provide shelter, counseling, and
                 a path forward for those who need it most.
+              </p>
+              <p className="text-navy-foreground/40 text-xs font-body leading-relaxed max-w-sm mt-4">
+                To protect the safety of those we serve, identifying details are never shared.
               </p>
             </div>
             <div className="lg:col-span-3">

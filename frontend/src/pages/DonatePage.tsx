@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Heart, CheckCircle } from "lucide-react";
 import { API_BASE } from "@/lib/apiBase";
+import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 
 const DONATION_TYPES = ["Monetary", "InKind", "Time", "Skills", "SocialMedia"] as const;
 
@@ -83,13 +84,27 @@ export default function DonatePage() {
               </p>
             </div>
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-3">
-              Make a Difference
+              How Your Gift Makes an Impact
             </h1>
             <p className="font-body text-base text-muted-foreground leading-relaxed mb-10">
-              Your contribution directly funds safe housing, counseling, and life-skills
-              programs for survivors rebuilding their lives.
+              Your contribution helps fund housing, education, health support, and expansion into underserved regions.
             </p>
           </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            {[
+              { title: "Housing", text: "Safe homes, daily care, and stable living environments." },
+              { title: "Education", text: "School placement, tutoring, and life-skills development." },
+              { title: "Health", text: "Counseling, trauma recovery, and medical coordination." },
+              { title: "Expansion", text: "New regional partnerships and increased capacity." },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                <h2 className="font-semibold text-foreground mb-1">{item.title}</h2>
+                <p className="text-sm text-muted-foreground">{item.text}</p>
+              </div>
+            ))}
+          </div>
+          <PublicSafetyNote className="mb-8" />
 
           {success ? (
             <motion.div
