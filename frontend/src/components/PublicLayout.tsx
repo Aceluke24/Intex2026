@@ -65,8 +65,8 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     to={item.path}
                     className={`rounded-full px-3 py-1.5 font-body text-[13px] font-medium transition-colors ${
                       location.pathname === item.path
-                        ? "text-gray-900 dark:text-white"
-                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                        ? "text-gray-900 dark:text-gray-100"
+                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                     }`}
                   >
                     {item.label}
@@ -77,7 +77,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                   >
                     <LogOut className="h-3.5 w-3.5" /> Sign Out
                   </button>
@@ -99,7 +99,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                 <button
                   type="button"
                   onClick={toggle}
-                  className="rounded-full p-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  className="rounded-full p-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                   aria-label="Toggle theme"
                 >
                   {theme === "light" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
@@ -118,7 +118,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                 <button
                   type="button"
                   onClick={() => setMobileOpen(!mobileOpen)}
-                  className="rounded-full p-2 text-gray-900 dark:text-white"
+                  className="rounded-full p-2 text-gray-900 dark:text-gray-100"
                   aria-label="Menu"
                 >
                   {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -143,7 +143,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
-                    className="block rounded-xl px-4 py-3 font-body text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100 dark:text-white dark:hover:bg-white/10"
+                    className="block rounded-xl px-4 py-3 font-body text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-white/10"
                   >
                     {item.label}
                   </Link>

@@ -8,7 +8,6 @@ import {
   Brain,
   Moon,
   Sun,
-  LogOut,
   ChevronLeft,
   ChevronRight,
   Heart,
@@ -97,7 +96,7 @@ export const AdminLayout = ({
               <button
                 onClick={toggle}
                 type="button"
-                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
                 aria-label="Toggle theme"
               >
                 {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
@@ -105,10 +104,9 @@ export const AdminLayout = ({
               <button
                 onClick={() => void handleLogout()}
                 type="button"
-                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-body text-sm text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white sm:px-3"
+                className="text-sm text-gray-500 hover:underline dark:text-gray-400"
               >
-                <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Sign Out</span>
+                Sign Out
               </button>
             </>
           }
