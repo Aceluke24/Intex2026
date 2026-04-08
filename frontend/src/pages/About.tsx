@@ -87,7 +87,7 @@ const About = () => {
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button asChild size="lg" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 gap-2">
-                <Link to="/#donate">
+                <Link to="/donate">
                   <Heart className="w-4 h-4" /> Donate
                 </Link>
               </Button>

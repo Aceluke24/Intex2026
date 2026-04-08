@@ -17,9 +17,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "@/components/BrandLogo";
+import { BrandLogo, BrandLockup } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE } from "@/lib/apiBase";
+import { useAdminChrome } from "@/contexts/AdminChromeContext";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === "/dashboard") return pathname === "/dashboard";
@@ -62,7 +63,8 @@ export const AdminLayout = ({
   const { theme, toggle } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const { refetch } = useAuth();
+  const { user, refetch } = useAuth();
+  const { header } = useAdminChrome();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
@@ -73,13 +75,59 @@ export const AdminLayout = ({
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* ── Top header bar ────────────────────────────────────── */}
+      <header className={cn(
+        "fixed top-0 right-0 z-50 flex items-center h-14 px-4 bg-sidebar border-b border-sidebar-border transition-all duration-300",
+        collapsed ? "left-16" : "left-60"
+      )}>
+        <BrandLockup variant="nav" className="mr-auto text-sidebar-foreground" />
+
+        {header && (
+          <div className="hidden sm:flex flex-col items-center mx-auto">
+            <span className="font-display text-sm font-semibold text-sidebar-foreground leading-tight">
+              {header.title}
+            </span>
+            {header.subtitle && (
+              <span className="font-body text-[11px] text-sidebar-foreground/40 leading-tight">
+                {header.subtitle}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          {user && (
+            <span className="hidden md:block font-body text-[12px] text-sidebar-foreground/50 mr-2 max-w-[160px] truncate">
+              {user.email}
+            </span>
+          )}
+          <button
+            onClick={toggle}
+            type="button"
+            className="p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all"
+            aria-label="Toggle theme"
+          >
+            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={handleLogout}
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-body text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── Left sidebar ──────────────────────────────────────── */}
       <aside
         className={cn(
           "fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-sidebar transition-all duration-300",
           collapsed ? "w-16" : "w-60"
         )}
       >
-        <div className="flex items-center min-h-16 h-16 px-4">
+        <div className="flex items-center min-h-14 h-14 px-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 min-w-0" aria-label="North Star Sanctuary — Home">
             <BrandLogo variant="compact" className="shrink-0" />
             {!collapsed && (
@@ -123,15 +171,7 @@ export const AdminLayout = ({
           ))}
         </nav>
 
-        <div className="p-2.5 space-y-0.5">
-          <button
-            onClick={toggle}
-            type="button"
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
-          >
-            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-            {!collapsed && <span>{theme === "light" ? "Dark" : "Light"}</span>}
-          </button>
+        <div className="p-2.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
             type="button"
@@ -140,18 +180,11 @@ export const AdminLayout = ({
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!collapsed && <span>Collapse</span>}
           </button>
-          <button
-            onClick={handleLogout}
-            type="button"
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-[13px] font-body text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            {!collapsed && <span>Sign Out</span>}
-          </button>
         </div>
       </aside>
 
-      <main className={cn("flex-1 transition-all duration-300 min-h-screen", collapsed ? "ml-16" : "ml-60")}>
+      {/* ── Main content ──────────────────────────────────────── */}
+      <main className={cn("flex-1 transition-all duration-300 min-h-screen pt-14", collapsed ? "ml-16" : "ml-60")}>
         <div className={cn("p-6 lg:p-10 max-w-6xl", contentClassName)}>
           <StickyStaffBar />
           {children}

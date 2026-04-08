@@ -205,8 +205,8 @@ const Index = () => {
             transition={{ duration: 1, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-wrap justify-center gap-4"
           >
-            <Button size="lg" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-sm px-8 gap-2 h-12 transition-all duration-300 hover:shadow-xl hover:shadow-terracotta/20 hover:scale-[1.02]">
-              <Heart className="w-4 h-4" /> Give Today
+            <Button size="lg" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-sm px-8 gap-2 h-12 transition-all duration-300 hover:shadow-xl hover:shadow-terracotta/20 hover:scale-[1.02]" asChild>
+              <Link to="/donate"><Heart className="w-4 h-4" /> Give Today</Link>
             </Button>
             <Button size="lg" variant="ghost" className="rounded-full text-navy-foreground/80 hover:text-navy-foreground hover:bg-navy-foreground/5 font-body text-sm px-8 h-12" asChild>
               <Link to="/about">Learn Our Story</Link>
@@ -458,8 +458,8 @@ const Index = () => {
               Every dollar directly funds programs that transform lives.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Button size="lg" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-sm px-10 gap-2 h-13 transition-all duration-300 hover:shadow-xl hover:shadow-terracotta/25 hover:scale-[1.02]">
-                <Heart className="w-4 h-4" /> Give Today
+              <Button size="lg" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-sm px-10 gap-2 h-13 transition-all duration-300 hover:shadow-xl hover:shadow-terracotta/25 hover:scale-[1.02]" asChild>
+                <Link to="/donate"><Heart className="w-4 h-4" /> Give Today</Link>
               </Button>
               <Button size="lg" variant="ghost" className="rounded-full text-navy-foreground/70 hover:text-navy-foreground hover:bg-navy-foreground/5 font-body text-sm px-10 h-13">
                 Become a Volunteer

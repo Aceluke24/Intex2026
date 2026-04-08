@@ -98,13 +98,13 @@ export function BrandLockup({ variant = "nav", className }: BrandLockupProps) {
       <span
         className={cn(
           "font-display font-semibold tracking-tight text-left leading-snug",
-          isNav ? "text-[15px] sm:text-base text-foreground hidden min-[380px]:block max-w-[11rem] sm:max-w-none" : "text-base sm:text-lg text-navy-foreground"
+          isNav ? "text-[15px] sm:text-base text-current hidden min-[380px]:block max-w-[11rem] sm:max-w-none" : "text-base sm:text-lg text-navy-foreground"
         )}
       >
         {isNav ? (
           <>
             North Star
-            <span className="text-muted-foreground font-medium"> Sanctuary</span>
+            <span className="opacity-50 font-medium"> Sanctuary</span>
           </>
         ) : (
           "North Star Sanctuary"

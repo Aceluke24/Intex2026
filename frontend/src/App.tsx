@@ -24,6 +24,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import About from "./pages/About.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
 import DonorPortal from "./pages/DonorPortal.tsx";
+import DonatePage from "./pages/DonatePage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="/signup" element={<SignUp />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/about" element={<About />} />
+              <Route path="/donate" element={<DonatePage />} />
 
               {/* Donor-only route */}
               <Route element={<ProtectedRoute requiredRole="Donor" />}>

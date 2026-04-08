@@ -232,9 +232,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseSecurityHeaders();
-
-app.UseCors(FrontendCorsPolicy);
 app.UseHttpsRedirection();
+app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

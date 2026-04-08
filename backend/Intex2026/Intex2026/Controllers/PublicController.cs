@@ -1,4 +1,5 @@
 using Intex2026.Data;
+using Intex2026.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,12 @@ namespace Intex2026.Controllers;
 public class PublicController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public PublicController(AppDbContext db) => _db = db;
+    private readonly ILogger<PublicController> _logger;
+    public PublicController(AppDbContext db, ILogger<PublicController> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     // GET /api/public/residents/count — public survivor count (landing)
     [HttpGet("residents/count")]
@@ -23,8 +29,9 @@ public class PublicController : ControllerBase
                 .CountAsync();
             return Ok(new { count });
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching resident count");
             return Ok(new { count = 0 });
         }
     }
@@ -60,8 +67,9 @@ public class PublicController : ControllerBase
                 completionRate
             });
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching impact summary");
             return Ok(new
             {
                 survivors = 0,
@@ -93,8 +101,9 @@ public class PublicController : ControllerBase
 
             return Ok(data);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching donations trend");
             return Ok(Array.Empty<object>());
         }
     }
@@ -142,8 +151,9 @@ public class PublicController : ControllerBase
                 interventionPlans = Math.Round(planRate, 1)
             });
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching program outcomes");
             return Ok(new
             {
                 safeHousing = 0d,
@@ -174,8 +184,9 @@ public class PublicController : ControllerBase
 
             return Ok(campaigns);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching campaigns");
             return Ok(Array.Empty<object>());
         }
     }
@@ -212,8 +223,9 @@ public class PublicController : ControllerBase
                 operations = (int)(ops * 100 / total)
             });
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error fetching allocation");
             return Ok(new { direct = 0, outreach = 0, operations = 0 });
         }
     }
@@ -254,6 +266,64 @@ public class PublicController : ControllerBase
         });
     }
 
+    // POST /api/public/donations — anonymous donation submission from the public donate page
+    [HttpPost("donations")]
+    public async Task<IActionResult> SubmitDonation([FromBody] PublicDonationRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email) ||
+            string.IsNullOrWhiteSpace(req.FirstName) ||
+            string.IsNullOrWhiteSpace(req.LastName))
+        {
+            return BadRequest(new { error = "First name, last name, and email are required." });
+        }
+
+        var donationType = req.DonationType ?? "Monetary";
+        var validTypes = new[] { "Monetary", "InKind", "Time", "Skills", "SocialMedia" };
+        if (!validTypes.Contains(donationType))
+            return BadRequest(new { error = "Invalid donation type." });
+
+        // Find or create supporter by email
+        var supporter = await _db.Supporters
+            .FirstOrDefaultAsync(s => s.Email == req.Email.Trim().ToLower());
+
+        if (supporter == null)
+        {
+            supporter = new Supporter
+            {
+                SupporterType = donationType == "Monetary" ? "MonetaryDonor" : "InKindDonor",
+                DisplayName = $"{req.FirstName.Trim()} {req.LastName.Trim()}",
+                FirstName = req.FirstName.Trim(),
+                LastName = req.LastName.Trim(),
+                Email = req.Email.Trim().ToLower(),
+                RelationshipType = "Local",
+                Status = "Active",
+                AcquisitionChannel = "Website",
+                FirstDonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Supporters.Add(supporter);
+            await _db.SaveChangesAsync();
+        }
+
+        var donation = new Donation
+        {
+            SupporterId = supporter.SupporterId,
+            DonationType = donationType,
+            DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            ChannelSource = "Website",
+            Amount = donationType == "Monetary" ? req.Amount : null,
+            EstimatedValue = donationType != "Monetary" ? req.EstimatedValue : null,
+            CampaignName = req.CampaignName?.Trim(),
+            Notes = req.Notes?.Trim(),
+            IsRecurring = false,
+        };
+
+        _db.Donations.Add(donation);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { donationId = donation.DonationId, message = "Thank you for your contribution!" });
+    }
+
     // GET /api/public/safehouses — basic safehouse info (no sensitive data)
     [HttpGet("safehouses")]
     public async Task<IActionResult> Safehouses()
@@ -264,4 +334,16 @@ public class PublicController : ControllerBase
             .ToListAsync();
         return Ok(data);
     }
+}
+
+public class PublicDonationRequest
+{
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Email { get; set; }
+    public string? DonationType { get; set; }
+    public decimal? Amount { get; set; }
+    public decimal? EstimatedValue { get; set; }
+    public string? CampaignName { get; set; }
+    public string? Notes { get; set; }
 }
