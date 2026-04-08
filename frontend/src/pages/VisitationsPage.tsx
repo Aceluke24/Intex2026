@@ -3,6 +3,7 @@ import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,14 +16,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, Users } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type ResidentOption = { residentId: number; internalCode: string; caseControlNo: string };
+type SelectOption = { value: string; label: string };
 
 type VisitationRow = {
   id: number;
+  residentId?: number;
   residentName: string;
   caseId: string;
   visitType: string;
@@ -33,7 +36,310 @@ type VisitationRow = {
   staffName: string;
   status: string;
   safetyFlag: boolean;
+  observations?: string;
+  interventions?: SelectOption[];
+  followUps?: SelectOption[];
 };
+
+type VisitationDetail = {
+  visitationId: number;
+  residentId: number;
+  visitDate: string;
+  coordinationKind: string;
+  visitType: string;
+  socialWorker: string;
+  locationVisited: string | null;
+  purpose: string | null;
+  observations: string | null;
+  familyCooperationLevel: string | null;
+  safetyConcernsNoted: boolean;
+  followUpNeeded: boolean;
+  followUpNotes: string | null;
+  visitOutcome: string | null;
+  visitTime: string | null;
+};
+
+type VisitFormModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  initialData: VisitationRow | null;
+  residents: ResidentOption[];
+  interventionOptions: SelectOption[];
+  followUpOptions: SelectOption[];
+  onCreateIntervention: (label: string) => void;
+  onCreateFollowUp: (label: string) => void;
+  onSave: (payload: {
+    id?: number;
+    residentId: number;
+    date: string;
+    type: string;
+    staff: string;
+    observations: string;
+    interventions: SelectOption[];
+    followUps: SelectOption[];
+    safetyFlag: boolean;
+  }) => Promise<void>;
+};
+
+const tokenId = (label: string) =>
+  label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "item";
+
+const parseTokenString = (raw: string | null | undefined): SelectOption[] =>
+  (raw ?? "")
+    .split(";")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((label) => ({ value: tokenId(label), label }));
+
+const toTokenString = (items: SelectOption[]) => items.map((i) => i.label.trim()).filter(Boolean).join("; ");
+
+function MultiCreatableField({
+  label,
+  options,
+  selected,
+  setSelected,
+  onCreate,
+}: {
+  label: string;
+  options: SelectOption[];
+  selected: SelectOption[];
+  setSelected: (items: SelectOption[]) => void;
+  onCreate: (name: string) => void;
+}) {
+  const [pick, setPick] = useState("");
+  const [draft, setDraft] = useState("");
+
+  const addOption = (opt: SelectOption) => {
+    if (selected.some((s) => s.value === opt.value)) return;
+    setSelected([...selected, opt]);
+  };
+
+  const removeOption = (value: string) => setSelected(selected.filter((s) => s.value !== value));
+
+  const createAndAdd = () => {
+    const name = draft.trim();
+    if (!name) return;
+    const created = { value: tokenId(name), label: name };
+    onCreate(name);
+    addOption(created);
+    setDraft("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="font-body text-xs">{label}</Label>
+      <div className="flex flex-wrap gap-2">
+        {selected.map((opt) => (
+          <span
+            key={opt.value}
+            className="inline-flex items-center gap-1 rounded-md bg-[hsl(210_70%_96%)] px-2 py-1 font-body text-xs text-[hsl(210_75%_35%)] dark:bg-[hsl(210_30%_20%)] dark:text-[hsl(210_55%_85%)]"
+          >
+            {opt.label}
+            <button type="button" onClick={() => removeOption(opt.value)} aria-label={`Remove ${opt.label}`}>
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <Select value={pick} onValueChange={(val) => { setPick(val); const opt = options.find((o) => o.value === val); if (opt) addOption(opt); }}>
+          <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+            <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Create ${label.toLowerCase().slice(0, -1)}`}
+            className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+          />
+          <Button type="button" variant="outline" className="rounded-xl" onClick={createAndAdd}>
+            Add
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisitFormModal({
+  isOpen,
+  onClose,
+  initialData,
+  residents,
+  interventionOptions,
+  followUpOptions,
+  onCreateIntervention,
+  onCreateFollowUp,
+  onSave,
+}: VisitFormModalProps) {
+  const [residentId, setResidentId] = useState("");
+  const [type, setType] = useState("HomeVisit");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [staff, setStaff] = useState("");
+  const [observations, setObservations] = useState("");
+  const [safetyFlag, setSafetyFlag] = useState(false);
+  const [selectedInterventions, setSelectedInterventions] = useState<SelectOption[]>([]);
+  const [selectedFollowUps, setSelectedFollowUps] = useState<SelectOption[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialData) {
+      setResidentId(String(initialData.residentId ?? ""));
+      setType(initialData.visitType);
+      setDate(initialData.date);
+      setStaff(initialData.staffName ?? "");
+      setObservations(initialData.observations ?? initialData.notes ?? "");
+      setSafetyFlag(initialData.safetyFlag);
+      setSelectedInterventions(initialData.interventions ?? []);
+      setSelectedFollowUps(initialData.followUps ?? []);
+      return;
+    }
+    setResidentId(residents[0] ? String(residents[0].residentId) : "");
+    setType("HomeVisit");
+    setDate(new Date().toISOString().slice(0, 10));
+    setStaff("");
+    setObservations("");
+    setSafetyFlag(false);
+    setSelectedInterventions([]);
+    setSelectedFollowUps([]);
+  }, [isOpen, initialData, residents]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!residentId) return;
+    setSaving(true);
+    try {
+      await onSave({
+        id: initialData?.id,
+        residentId: Number(residentId),
+        date,
+        type,
+        staff,
+        observations,
+        interventions: selectedInterventions,
+        followUps: selectedFollowUps,
+        safetyFlag,
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-[min(100%,34rem)] overflow-y-auto rounded-[1.25rem] border-0 bg-[hsl(36_32%_97%)] p-0 dark:bg-[hsl(213_40%_10%)]">
+        <div className="border-b border-white/50 px-6 pb-4 pt-6 dark:border-white/10">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-semibold tracking-tight">
+              {initialData ? "Edit visit / conference" : "Log visit / conference"}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+        <form onSubmit={submit} className="space-y-4 px-6 py-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="font-body text-xs">Resident</Label>
+              <Select value={residentId} onValueChange={setResidentId}>
+                <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                  <SelectValue placeholder="Select resident" />
+                </SelectTrigger>
+                <SelectContent>
+                  {residents.map((r) => (
+                    <SelectItem key={r.residentId} value={String(r.residentId)}>
+                      {r.internalCode || `Resident #${r.residentId}`} ({r.caseControlNo})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-xs">Visit Type</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HomeVisit">Home Visit</SelectItem>
+                  <SelectItem value="CaseConference">Case Conference</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-body text-xs">Date</Label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="font-body text-xs">Staff (SW-XX)</Label>
+              <Input
+                value={staff}
+                onChange={(e) => setStaff(e.target.value)}
+                placeholder="SW-01"
+                className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label className="font-body text-xs">Observations</Label>
+              <Textarea
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+                className="min-h-[110px] rounded-xl border-white/60 bg-white/70 font-body text-sm dark:border-white/10 dark:bg-white/10"
+                placeholder="Visit observations"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <MultiCreatableField
+                label="Interventions"
+                options={interventionOptions}
+                selected={selectedInterventions}
+                setSelected={setSelectedInterventions}
+                onCreate={onCreateIntervention}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <MultiCreatableField
+                label="Follow-up actions"
+                options={followUpOptions}
+                selected={selectedFollowUps}
+                setSelected={setSelectedFollowUps}
+                onCreate={onCreateFollowUp}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-center gap-2 font-body text-sm cursor-pointer">
+                <input type="checkbox" checked={safetyFlag} onChange={(e) => setSafetyFlag(e.target.checked)} className="rounded" />
+                Safety concerns noted
+              </label>
+            </div>
+          </div>
+          <DialogFooter className="border-t border-white/50 px-0 pt-4 dark:border-white/10">
+            <Button type="button" variant="ghost" className="rounded-xl font-body" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !residentId} className="rounded-xl font-body">
+              {saving ? "Saving…" : initialData ? "Update visit" : "Save visit"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function DetailSheet({ v }: { v: VisitationRow }) {
   return (
@@ -105,31 +411,48 @@ const VisitationsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selected, setSelected] = useState<VisitationRow | null>(null);
 
-  // Log Visit dialog
-  const [logOpen, setLogOpen] = useState(false);
-  const [logResidents, setLogResidents] = useState<ResidentOption[]>([]);
-  const [logResidentId, setLogResidentId] = useState("");
-  const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10));
-  const [logKind, setLogKind] = useState("HomeVisit");
-  const [logVisitType, setLogVisitType] = useState("Routine Follow-Up");
-  const [logWorker, setLogWorker] = useState("");
-  const [logLocation, setLogLocation] = useState("");
-  const [logPurpose, setLogPurpose] = useState("");
-  const [logObservations, setLogObservations] = useState("");
-  const [logCooperation, setLogCooperation] = useState("Cooperative");
-  const [logOutcome, setLogOutcome] = useState("Favorable");
-  const [logSafety, setLogSafety] = useState(false);
-  const [logFollowUp, setLogFollowUp] = useState(false);
-  const [logFollowUpNotes, setLogFollowUpNotes] = useState("");
-  const [logSubmitting, setLogSubmitting] = useState(false);
-  const [logError, setLogError] = useState<string | null>(null);
+  const [residents, setResidents] = useState<ResidentOption[]>([]);
+  const [selectedVisit, setSelectedVisit] = useState<VisitationRow | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [interventionOptions, setInterventionOptions] = useState<SelectOption[]>([]);
+  const [followUpOptions, setFollowUpOptions] = useState<SelectOption[]>([]);
+
+  const ensureResidents = useCallback(async () => {
+    if (residents.length > 0) return;
+    const data = await apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`);
+    setResidents(data.items);
+  }, [residents.length]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const data = await apiFetchJson<VisitationRow[]>(`${API_PREFIX}/visitations`);
-      setRows(data);
+      const details = await Promise.all(
+        data.map(async (row) => {
+          try {
+            const d = await apiFetchJson<VisitationDetail>(`${API_PREFIX}/visitations/${row.id}`);
+            return {
+              ...row,
+              residentId: d.residentId,
+              observations: d.observations ?? "",
+              interventions: parseTokenString(d.purpose),
+              followUps: parseTokenString(d.followUpNotes),
+            };
+          } catch {
+            return row;
+          }
+        })
+      );
+      const allInterventions = new Map<string, SelectOption>();
+      const allFollowUps = new Map<string, SelectOption>();
+      details.forEach((d) => {
+        (d.interventions ?? []).forEach((i) => allInterventions.set(i.value, i));
+        (d.followUps ?? []).forEach((f) => allFollowUps.set(f.value, f));
+      });
+      setInterventionOptions(Array.from(allInterventions.values()).sort((a, b) => a.label.localeCompare(b.label)));
+      setFollowUpOptions(Array.from(allFollowUps.values()).sort((a, b) => a.label.localeCompare(b.label)));
+      setRows(details);
     } catch (e) {
       console.error(e);
       setLoadError(e instanceof Error ? e.message : "Failed to load visitations.");
@@ -151,66 +474,78 @@ const VisitationsPage = () => {
     setSheetOpen(true);
   };
 
-  const openLogDialog = async () => {
-    setLogError(null);
-    setLogDate(new Date().toISOString().slice(0, 10));
-    if (logResidents.length === 0) {
-      try {
-        const data = await apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`);
-        setLogResidents(data.items);
-        if (data.items.length > 0) setLogResidentId(String(data.items[0].residentId));
-      } catch { /* non-fatal */ }
+  const openCreateModal = async () => {
+    try {
+      await ensureResidents();
+      setSelectedVisit(null);
+      setIsModalOpen(true);
+    } catch {
+      toast.error("Failed to load residents for form.");
     }
-    setLogOpen(true);
   };
 
-  const handleLogSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLogSubmitting(true);
-    setLogError(null);
+  const handleModalSave = async (payload: {
+    id?: number;
+    residentId: number;
+    date: string;
+    type: string;
+    staff: string;
+    observations: string;
+    interventions: SelectOption[];
+    followUps: SelectOption[];
+    safetyFlag: boolean;
+  }) => {
     try {
       const body = {
-        residentId: parseInt(logResidentId, 10),
-        visitDate: logDate,
-        coordinationKind: logKind,
-        visitType: logVisitType,
-        socialWorker: logWorker,
-        locationVisited: logLocation || null,
-        purpose: logPurpose || null,
-        observations: logObservations || null,
-        familyCooperationLevel: logCooperation,
-        safetyConcernsNoted: logSafety,
-        followUpNeeded: logFollowUp,
-        followUpNotes: logFollowUp ? logFollowUpNotes || null : null,
-        visitOutcome: logOutcome,
+        visitationId: payload.id ?? 0,
+        residentId: payload.residentId,
+        visitDate: payload.date,
+        coordinationKind: payload.type,
+        visitType: payload.type === "CaseConference" ? "Case Conference" : "Routine Follow-Up",
+        socialWorker: payload.staff || "SW-01",
+        locationVisited: null,
+        purpose: toTokenString(payload.interventions) || null,
+        observations: payload.observations || null,
+        familyCooperationLevel: "Cooperative",
+        safetyConcernsNoted: payload.safetyFlag,
+        followUpNeeded: payload.followUps.length > 0,
+        followUpNotes: toTokenString(payload.followUps) || null,
+        visitOutcome: "Favorable",
+        visitTime: null,
+        interventionIds: payload.interventions.map((i) => i.value),
+        followUpActionIds: payload.followUps.map((f) => f.value),
       };
-      const res = await apiFetch(`${API_PREFIX}/visitations`, { method: "POST", body: JSON.stringify(body) });
+      const res = payload.id
+        ? await apiFetch(`${API_PREFIX}/visitations/${payload.id}`, { method: "PUT", body: JSON.stringify(body) })
+        : await apiFetch(`${API_PREFIX}/visitations`, { method: "POST", body: JSON.stringify(body) });
       if (!res.ok) throw new Error(await res.text());
-      setLogOpen(false);
-      setLogObservations(""); setLogPurpose(""); setLogLocation(""); setLogFollowUpNotes(""); setLogWorker("");
-      toast.success("Visit logged successfully.");
-      void load();
+      toast.success(payload.id ? "Visit updated." : "Visit logged successfully.");
+      await load();
     } catch (e) {
-      setLogError(e instanceof Error ? e.message : "Failed to save.");
-    } finally {
-      setLogSubmitting(false);
+      toast.error(e instanceof Error ? e.message : "Failed to save.");
+      throw e;
     }
   };
 
-  const handleEditVisitation = async (id: number) => {
+  const handleEditVisitation = async (visit: VisitationRow) => {
     try {
-      const existing = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/visitations/${id}`);
-      const current = String(existing.observations ?? "");
-      const next = window.prompt("Update observations", current);
-      if (next == null) return;
-      const body = { ...existing, visitationId: id, observations: next.trim() || null };
-      const res = await apiFetch(`${API_PREFIX}/visitations/${id}`, { method: "PUT", body: JSON.stringify(body) });
-      if (!res.ok) throw new Error(await res.text());
-      toast.success("Visit updated.");
-      await load();
+      await ensureResidents();
+      const existing = await apiFetchJson<VisitationDetail>(`${API_PREFIX}/visitations/${visit.id}`);
+      setSelectedVisit({
+        ...visit,
+        residentId: existing.residentId,
+        date: String(existing.visitDate).slice(0, 10),
+        visitType: existing.coordinationKind || visit.visitType,
+        staffName: existing.socialWorker ?? visit.staffName,
+        observations: existing.observations ?? "",
+        interventions: parseTokenString(existing.purpose),
+        followUps: parseTokenString(existing.followUpNotes),
+        safetyFlag: existing.safetyConcernsNoted,
+      });
+      setIsModalOpen(true);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to update visit.");
+      toast.error("Failed to open visit editor.");
     }
   };
 
@@ -239,7 +574,7 @@ const VisitationsPage = () => {
           <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
             <Button
               type="button"
-              onClick={openLogDialog}
+              onClick={openCreateModal}
               className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.3)]"
             >
               <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
@@ -283,55 +618,51 @@ const VisitationsPage = () => {
             ) : (
               <div className="grid gap-5 md:grid-cols-2">
                 {homeVisits.map((v, i) => (
-                  <motion.button
+                  <motion.div
                     key={v.id}
-                    type="button"
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.04 * i, duration: 0.4 }}
                     whileHover={{ y: -4, transition: { duration: 0.22 } }}
-                    onClick={() => openRow(v)}
                     className={cn(
-                      "relative w-full overflow-hidden rounded-[1.15rem] border border-white/50 bg-white/55 p-5 text-left shadow-[0_4px_28px_rgba(45,35,48,0.05)] backdrop-blur-md transition-shadow hover:shadow-[0_16px_48px_rgba(45,35,48,0.1)] dark:border-white/10 dark:bg-white/[0.07]"
+                      "relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/70 p-5 text-left shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-white/[0.07]"
                     )}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <span className="inline-flex rounded-full border px-2.5 py-0.5 font-body text-[10px] font-semibold uppercase tracking-wide border-[hsl(340_30%_88%)] bg-[hsl(340_28%_97%)] text-[hsl(340_32%_32%)] dark:border-white/12 dark:bg-[hsl(340_22%_16%)] dark:text-[hsl(340_35%_88%)]">
-                        Home visit
-                      </span>
-                      <span className="font-mono text-[10px] text-muted-foreground">{v.id}</span>
-                    </div>
-                    <p className="mt-4 font-display text-lg font-semibold text-foreground">{v.residentName}</p>
-                    <p className="mt-1 font-body text-xs text-muted-foreground">{v.caseId}</p>
-                    <div className="mt-4 flex flex-wrap gap-3 font-body text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {v.date}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {v.time}
-                      </span>
-                    </div>
-                    <p className="mt-3 line-clamp-2 font-body text-sm text-foreground/85">{v.notes}</p>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/40 pt-3 dark:border-white/10">
-                      <span className="font-body text-[11px] text-muted-foreground">{v.staffName}</span>
-                      <div className="flex items-center gap-2">
-                        <Button type="button" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void handleEditVisitation(v.id); }}>
-                          Edit
-                        </Button>
-                        <Button type="button" size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); void handleDeleteVisitation(v.id); }}>
-                          Delete
-                        </Button>
-                        {v.safetyFlag && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-[hsl(0_25%_96%)] px-2 py-0.5 font-body text-[10px] font-semibold text-[hsl(0_30%_36%)] dark:bg-[hsl(0_22%_18%)] dark:text-[hsl(0_25%_78%)]">
-                            <AlertTriangle className="h-3 w-3" />
-                            Safety
-                          </span>
-                        )}
+                    <div className="flex justify-between gap-3">
+                      <div>
+                        <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
+                        </div>
+                        <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
+                        <div className="font-body text-sm text-muted-foreground">
+                          {v.caseId} • {v.date}
+                        </div>
                       </div>
+                      <div className="font-body text-xs text-muted-foreground">{v.staffName}</div>
                     </div>
-                  </motion.button>
+                    <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes}</div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(v.interventions ?? []).map((tag) => (
+                        <span
+                          key={`${v.id}-${tag.value}`}
+                          className="rounded bg-blue-50 px-2 py-1 font-body text-xs text-blue-600 dark:bg-blue-900/25 dark:text-blue-200"
+                        >
+                          {tag.label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex justify-end gap-3">
+                      <button type="button" onClick={() => void handleEditVisitation(v)} className="font-body text-sm text-blue-600">
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => void handleDeleteVisitation(v.id)} className="font-body text-sm text-red-500">
+                        Delete
+                      </button>
+                      <button type="button" onClick={() => openRow(v)} className="font-body text-sm text-muted-foreground">
+                        View
+                      </button>
+                    </div>
+                  </motion.div>
                 ))}
                 {homeVisits.length === 0 && (
                   <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
@@ -352,35 +683,47 @@ const VisitationsPage = () => {
             ) : (
               <div className="grid gap-5 md:grid-cols-2">
                 {conferences.map((v, i) => (
-                  <motion.button
+                  <motion.div
                     key={v.id}
-                    type="button"
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.04 * i }}
                     whileHover={{ y: -3 }}
-                    onClick={() => openRow(v)}
-                    className="rounded-[1.15rem] border border-white/50 bg-gradient-to-br from-white/70 to-[hsl(36_30%_98%)]/80 p-6 text-left shadow-[0_8px_36px_rgba(45,35,48,0.06)] backdrop-blur-md dark:border-white/10 dark:from-white/[0.09] dark:to-white/[0.05]"
+                    className="rounded-2xl border border-white/50 bg-white/70 p-5 text-left shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-white/[0.07]"
                   >
-                    <div className="flex items-center gap-2 text-[hsl(340_32%_42%)] dark:text-[hsl(340_35%_78%)]">
-                      <Users className="h-4 w-4" />
-                      <span className="font-body text-[11px] font-semibold uppercase tracking-[0.14em]">Conference</span>
+                    <div className="flex justify-between gap-3">
+                      <div>
+                        <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">Case Conference</div>
+                        <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
+                        <div className="font-body text-sm text-muted-foreground">
+                          {v.caseId} • {v.date}
+                        </div>
+                      </div>
+                      <div className="font-body text-xs text-muted-foreground">{v.staffName}</div>
                     </div>
-                    <p className="mt-3 font-body text-xs text-muted-foreground">
-                      {format(new Date(v.date), "EEE · MMM d")} · {v.time}
-                    </p>
-                    <h3 className="mt-2 font-display text-lg font-semibold text-foreground">{v.residentName}</h3>
-                    <p className="mt-2 font-body text-sm text-muted-foreground">{v.caseId}</p>
-                    <p className="mt-4 line-clamp-3 font-body text-sm text-foreground/85">{v.notes}</p>
-                    <div className="mt-4 flex items-center gap-2">
-                      <Button type="button" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void handleEditVisitation(v.id); }}>
+                    <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes}</div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(v.interventions ?? []).map((tag) => (
+                        <span
+                          key={`${v.id}-${tag.value}`}
+                          className="rounded bg-blue-50 px-2 py-1 font-body text-xs text-blue-600 dark:bg-blue-900/25 dark:text-blue-200"
+                        >
+                          {tag.label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex justify-end gap-3">
+                      <button type="button" onClick={() => void handleEditVisitation(v)} className="font-body text-sm text-blue-600">
                         Edit
-                      </Button>
-                      <Button type="button" size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); void handleDeleteVisitation(v.id); }}>
+                      </button>
+                      <button type="button" onClick={() => void handleDeleteVisitation(v.id)} className="font-body text-sm text-red-500">
                         Delete
-                      </Button>
+                      </button>
+                      <button type="button" onClick={() => openRow(v)} className="font-body text-sm text-muted-foreground">
+                        View
+                      </button>
                     </div>
-                  </motion.button>
+                  </motion.div>
                 ))}
                 {conferences.length === 0 && (
                   <p className="col-span-full py-16 text-center font-body text-sm text-muted-foreground">
@@ -401,126 +744,25 @@ const VisitationsPage = () => {
         {selected && <DetailSheet v={selected} />}
       </SlideOverPanel>
 
-      <Dialog open={logOpen} onOpenChange={setLogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-[min(100%,34rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl font-semibold">Log Visit / Conference</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleLogSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1">
-                <Label className="font-body text-xs">Resident</Label>
-                <Select value={logResidentId} onValueChange={setLogResidentId}>
-                  <SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger>
-                  <SelectContent>
-                    {logResidents.map((r) => (
-                      <SelectItem key={r.residentId} value={String(r.residentId)}>
-                        {r.internalCode || `Resident #${r.residentId}`} ({r.caseControlNo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Date</Label>
-                <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Record Type</Label>
-                <Select value={logKind} onValueChange={setLogKind}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="HomeVisit">Home Visit</SelectItem>
-                    <SelectItem value="CaseConference">Case Conference</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Visit Type</Label>
-                <Select value={logVisitType} onValueChange={setLogVisitType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Initial Assessment">Initial Assessment</SelectItem>
-                    <SelectItem value="Routine Follow-Up">Routine Follow-Up</SelectItem>
-                    <SelectItem value="Reintegration Assessment">Reintegration Assessment</SelectItem>
-                    <SelectItem value="Post-Placement Monitoring">Post-Placement Monitoring</SelectItem>
-                    <SelectItem value="Emergency">Emergency</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Social Worker</Label>
-                <input value={logWorker} onChange={(e) => setLogWorker(e.target.value)} placeholder="Name"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label className="font-body text-xs">Location Visited</Label>
-                <input value={logLocation} onChange={(e) => setLogLocation(e.target.value)} placeholder="Address or description"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label className="font-body text-xs">Purpose</Label>
-                <input value={logPurpose} onChange={(e) => setLogPurpose(e.target.value)} placeholder="Purpose of visit"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label className="font-body text-xs">Observations</Label>
-                <Textarea value={logObservations} onChange={(e) => setLogObservations(e.target.value)}
-                  placeholder="Home environment, family dynamics…" className="min-h-[80px] text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Family Cooperation</Label>
-                <Select value={logCooperation} onValueChange={setLogCooperation}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Highly Cooperative">Highly Cooperative</SelectItem>
-                    <SelectItem value="Cooperative">Cooperative</SelectItem>
-                    <SelectItem value="Neutral">Neutral</SelectItem>
-                    <SelectItem value="Uncooperative">Uncooperative</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="font-body text-xs">Visit Outcome</Label>
-                <Select value={logOutcome} onValueChange={setLogOutcome}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Favorable">Favorable</SelectItem>
-                    <SelectItem value="Needs Improvement">Needs Improvement</SelectItem>
-                    <SelectItem value="Unfavorable">Unfavorable</SelectItem>
-                    <SelectItem value="Inconclusive">Inconclusive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 flex items-center gap-6">
-                <label className="flex items-center gap-2 font-body text-sm cursor-pointer">
-                  <input type="checkbox" checked={logSafety} onChange={(e) => setLogSafety(e.target.checked)} className="rounded" />
-                  Safety concerns noted
-                </label>
-                <label className="flex items-center gap-2 font-body text-sm cursor-pointer">
-                  <input type="checkbox" checked={logFollowUp} onChange={(e) => setLogFollowUp(e.target.checked)} className="rounded" />
-                  Follow-up needed
-                </label>
-              </div>
-              {logFollowUp && (
-                <div className="col-span-2 space-y-1">
-                  <Label className="font-body text-xs">Follow-up Notes</Label>
-                  <Textarea value={logFollowUpNotes} onChange={(e) => setLogFollowUpNotes(e.target.value)}
-                    placeholder="Describe required follow-up…" className="min-h-[60px] text-sm" />
-                </div>
-              )}
-            </div>
-            {logError && <p className="font-body text-xs text-destructive">{logError}</p>}
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setLogOpen(false)} className="font-body">Cancel</Button>
-              <Button type="submit" disabled={logSubmitting || !logResidentId} className="font-body">
-                {logSubmitting ? "Saving…" : "Save Visit"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <VisitFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialData={selectedVisit}
+        residents={residents}
+        interventionOptions={interventionOptions}
+        followUpOptions={followUpOptions}
+        onCreateIntervention={(name) =>
+          setInterventionOptions((prev) =>
+            prev.some((p) => p.value === tokenId(name)) ? prev : [...prev, { value: tokenId(name), label: name }]
+          )
+        }
+        onCreateFollowUp={(name) =>
+          setFollowUpOptions((prev) =>
+            prev.some((p) => p.value === tokenId(name)) ? prev : [...prev, { value: tokenId(name), label: name }]
+          )
+        }
+        onSave={handleModalSave}
+      />
     </AdminLayout>
   );
 };

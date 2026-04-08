@@ -79,7 +79,7 @@ function mapCaseRow(row: CaseApiRow): ResidentCase {
   const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
   return {
     id: row.caseId || `R-${row.residentId}`,
-    displayName: row.residentName,
+    displayName: row.caseId || row.residentName,
     anonymized: true,
     age: 0,
     gender: "—",
@@ -596,6 +596,7 @@ const CaseloadPage = () => {
         safehouseOptions={shForUi.length ? shForUi : ["—"]}
         workerOptions={workersForUi}
         existingCases={cases}
+        existingCasesLoaded={!loading}
       />
     </AdminLayout>
   );

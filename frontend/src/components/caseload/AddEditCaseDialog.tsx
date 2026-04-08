@@ -29,21 +29,20 @@ type AddEditCaseDialogProps = {
   safehouseOptions: string[];
   workerOptions: string[];
   existingCases: ResidentCase[];
+  existingCasesLoaded: boolean;
 };
 
 function generateNextDisplayName(cases: ResidentCase[]): string {
   if (!cases.length) return "LS-0001";
 
-  const numbers = cases
-    .flatMap((c) => [c.displayName, c.id])
-    .filter((name) => /^LS-\d{4}$/.test(name))
-    .map((name) => Number(name.split("-")[1]))
-    .filter((n) => Number.isFinite(n));
+  const max = Math.max(
+    ...cases
+      .map((c) => c.displayName)
+      .filter((name) => /^LS-\d{4}$/.test(name))
+      .map((name) => Number(name.split("-")[1]))
+  );
 
-  if (!numbers.length) return "LS-0001";
-
-  const max = Math.max(...numbers, 0);
-  const next = max + 1;
+  const next = (max || 0) + 1;
   return `LS-${String(next).padStart(4, "0")}`;
 }
 
@@ -123,6 +122,7 @@ export function AddEditCaseDialog({
   safehouseOptions,
   workerOptions,
   existingCases,
+  existingCasesLoaded,
 }: AddEditCaseDialogProps) {
   const shOpts = useMemo(
     () => (safehouseOptions.length ? safehouseOptions : ["—"]),
@@ -140,10 +140,10 @@ export function AddEditCaseDialog({
   }, [open, editing, shOpts, wOpts]);
 
   useEffect(() => {
-    if (open && !editing) {
+    if (open && !editing && existingCasesLoaded) {
       setForm((f) => ({ ...f, displayName: generateNextDisplayName(existingCases) }));
     }
-  }, [open, editing, existingCases]);
+  }, [open, editing, existingCases, existingCasesLoaded]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
