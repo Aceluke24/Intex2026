@@ -19,7 +19,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { ContributionKind } from "@/lib/donorsTypes";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 const DEFAULT_PROGRAMS = ["General operations", "Safe housing", "Counseling", "Education", "Outreach"];
 
@@ -37,7 +36,7 @@ type AddContributionDialogProps = {
     description: string;
     safehouse: string;
     program: string;
-  }) => void;
+  }) => void | Promise<void>;
 };
 
 const kinds: { value: ContributionKind; label: string }[] = [
@@ -84,22 +83,23 @@ export function AddContributionDialog({
     setProgram(programAreas[0] ?? DEFAULT_PROGRAMS[0]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.({
-      supporterId,
-      kind,
-      amount,
-      hours,
-      description,
-      safehouse,
-      program,
-    });
-    toast.success("Contribution recorded", {
-      description: `${supporterOptions.find((s) => s.id === supporterId)?.name ?? "Supporter"} — ${kind}`,
-    });
-    reset();
-    onOpenChange(false);
+    try {
+      await onSubmit?.({
+        supporterId,
+        kind,
+        amount,
+        hours,
+        description,
+        safehouse,
+        program,
+      });
+      reset();
+      onOpenChange(false);
+    } catch {
+      // Caller handles toast messaging; keep dialog open so user can fix input.
+    }
   };
 
   return (

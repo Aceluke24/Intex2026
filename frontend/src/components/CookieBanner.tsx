@@ -2,20 +2,28 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Shield, X } from "lucide-react";
+import { useCookieConsent } from "@/contexts/CookieConsentContext";
 
 export const CookieBanner = () => {
+  const { consent, setConsent } = useCookieConsent();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const accepted = localStorage.getItem("nss-cookies");
-    if (!accepted) {
+    if (consent === null) {
       const timer = setTimeout(() => setVisible(true), 2500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [consent]);
 
-  const accept = () => { localStorage.setItem("nss-cookies", "accepted"); setVisible(false); };
-  const dismiss = () => { localStorage.setItem("nss-cookies", "dismissed"); setVisible(false); };
+  const accept = () => {
+    setConsent("accepted");
+    setVisible(false);
+  };
+
+  const decline = () => {
+    setConsent("declined");
+    setVisible(false);
+  };
 
   return (
     <AnimatePresence>
@@ -34,18 +42,18 @@ export const CookieBanner = () => {
               </div>
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground leading-relaxed mb-4 font-body">
-                  We use essential cookies for site functionality. With your consent, we may use analytics cookies to improve your experience.
+                  We use essential cookies for site functionality. With your consent, we may use preference cookies (e.g., theme) to improve your experience.
                 </p>
                 <div className="flex items-center gap-2">
                   <Button onClick={accept} size="sm" className="rounded-lg bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 text-xs font-body h-7 px-4">
                     Accept
                   </Button>
-                  <Button onClick={dismiss} variant="ghost" size="sm" className="text-xs font-body h-7 text-muted-foreground">
+                  <Button onClick={decline} variant="ghost" size="sm" className="text-xs font-body h-7 text-muted-foreground">
                     Decline
                   </Button>
                 </div>
               </div>
-              <button onClick={dismiss} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+              <button onClick={decline} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>

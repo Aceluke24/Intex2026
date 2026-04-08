@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/lib/theme";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Moon, Sun, LogOut, ExternalLink, Heart, Calendar, Tag } from "lucide-react";
+import { Moon, Sun, LogOut, ExternalLink, Heart, Calendar, Tag, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "@/lib/apiBase";
@@ -37,7 +37,18 @@ export default function DonorPortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Donation form state
+  const [showForm, setShowForm] = useState(false);
+  const [formType, setFormType] = useState("Monetary");
+  const [formAmount, setFormAmount] = useState("");
+  const [formCampaign, setFormCampaign] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  const loadDonations = () => {
+    setLoading(true);
     fetch(`${API_BASE}/api/donations/mine`, { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load donations.");
@@ -45,7 +56,47 @@ export default function DonorPortal() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadDonations(); }, []);
+
+  const handleDonate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormSubmitting(true);
+    setFormError(null);
+    try {
+      const body: Record<string, unknown> = {
+        donationType: formType,
+        campaignName: formCampaign || null,
+        notes: formNotes || null,
+      };
+      if (formType === "Monetary") {
+        body.amount = parseFloat(formAmount) || 0;
+      } else {
+        body.estimatedValue = parseFloat(formAmount) || null;
+        body.impactUnit = "hours";
+      }
+      const res = await fetch(`${API_BASE}/api/donations/self`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message ?? "Failed to submit donation.");
+      }
+      setShowForm(false);
+      setFormAmount("");
+      setFormCampaign("");
+      setFormNotes("");
+      loadDonations();
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : "An error occurred.");
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
 
   const handleLogout = async () => {
     await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
@@ -149,6 +200,86 @@ export default function DonorPortal() {
               View Impact <ExternalLink className="w-3 h-3" />
             </Button>
           </Link>
+        </div>
+
+        {/* Make a Donation */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-semibold text-foreground">Make a Donation</h2>
+            {!showForm && (
+              <Button size="sm" onClick={() => setShowForm(true)} className="gap-1.5 font-body text-xs bg-terracotta text-terracotta-foreground hover:bg-terracotta/90">
+                <Plus className="w-3.5 h-3.5" /> Donate
+              </Button>
+            )}
+          </div>
+          {showForm && (
+            <div ref={formRef} className="rounded-2xl bg-card border border-border/50 p-6">
+              <form onSubmit={handleDonate} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-body text-xs text-muted-foreground block mb-1">Donation Type</label>
+                    <select
+                      value={formType}
+                      onChange={(e) => setFormType(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-body text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/40"
+                    >
+                      <option value="Monetary">Monetary (₱)</option>
+                      <option value="Time">Time (hours)</option>
+                      <option value="Skills">Skills</option>
+                      <option value="InKind">In-Kind</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-body text-xs text-muted-foreground block mb-1">
+                      {formType === "Monetary" ? "Amount (₱)" : "Estimated Value / Hours"}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value)}
+                      placeholder={formType === "Monetary" ? "e.g. 500" : "e.g. 4"}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-body text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/40"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="font-body text-xs text-muted-foreground block mb-1">Campaign (optional)</label>
+                  <select
+                    value={formCampaign}
+                    onChange={(e) => setFormCampaign(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-body text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/40"
+                  >
+                    <option value="">No campaign</option>
+                    <option value="Year-End Hope">Year-End Hope</option>
+                    <option value="Back to School">Back to School</option>
+                    <option value="Summer of Safety">Summer of Safety</option>
+                    <option value="GivingTuesday">GivingTuesday</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-body text-xs text-muted-foreground block mb-1">Notes (optional)</label>
+                  <textarea
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Any message with your donation…"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-body text-foreground focus:outline-none focus:ring-2 focus:ring-terracotta/40 resize-none"
+                  />
+                </div>
+                {formError && <p className="font-body text-xs text-red-500">{formError}</p>}
+                <div className="flex items-center gap-3 pt-1">
+                  <Button type="submit" disabled={formSubmitting} size="sm" className="bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body text-xs">
+                    {formSubmitting ? "Submitting…" : "Submit Donation"}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setShowForm(false); setFormError(null); }} className="font-body text-xs text-muted-foreground">
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Donation history */}

@@ -53,6 +53,10 @@ public class HomeVisitationsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] HomeVisitation visitation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        if (visitation.VisitationId <= 0)
+        {
+            visitation.VisitationId = (await _db.HomeVisitations.Select(v => (int?)v.VisitationId).MaxAsync() ?? 0) + 1;
+        }
         _db.HomeVisitations.Add(visitation);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = visitation.VisitationId }, visitation);
@@ -89,6 +93,10 @@ public class HomeVisitationsController : ControllerBase
             : (string.IsNullOrWhiteSpace(r.InternalCode) ? $"Resident #{r.ResidentId}" : $"Resident {r.InternalCode}");
 
         var kind = (v.CoordinationKind ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(kind) && (v.VisitType ?? string.Empty).Contains("conference", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = "CaseConference";
+        }
         var visitTypeApi = string.Equals(kind, "CaseConference", StringComparison.OrdinalIgnoreCase)
             ? "CaseConference"
             : "HomeVisit";
@@ -116,7 +124,7 @@ public class HomeVisitationsController : ControllerBase
             v.SafetyConcernsNoted);
     }
 
-    private static string MapCategory(string visitType)
+    private static string MapCategory(string? visitType)
     {
         var t = (visitType ?? "").Trim();
         if (t.Contains("Emergency", StringComparison.OrdinalIgnoreCase))

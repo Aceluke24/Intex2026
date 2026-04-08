@@ -2,7 +2,17 @@ namespace Intex2026.Infrastructure
 {
     public static class SecurityHeaders
     {
-        public const string ContentSecurityPolicy = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
+        public const string ContentSecurityPolicy =
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self'; " +
+            "connect-src 'self' https://accounts.google.com; " +
+            "frame-src https://accounts.google.com; " +
+            "base-uri 'self'; " +
+            "frame-ancestors 'none'; " +
+            "object-src 'none'";
 
         public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app)
         {

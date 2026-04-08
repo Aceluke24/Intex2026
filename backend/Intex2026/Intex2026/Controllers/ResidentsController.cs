@@ -14,6 +14,9 @@ public class ResidentsController : ControllerBase
     private readonly AppDbContext _db;
     public ResidentsController(AppDbContext db) => _db = db;
 
+    private static string GenerateCaseControlNo() => $"CC-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
+    private static string GenerateInternalCode(int safehouseId) => $"SH{safehouseId:D2}-{DateTime.UtcNow:HHmmssfff}";
+
     // GET /api/residents?caseStatus=Active&safehouseId=1&caseCategory=Neglected&search=foo&page=1&pageSize=25
     [HttpGet]
     public async Task<IActionResult> GetAll(
@@ -68,9 +71,33 @@ public class ResidentsController : ControllerBase
 
     // POST /api/residents
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] Resident resident)
+    public async Task<IActionResult> Create([FromBody] ResidentUpsertRequest req)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        var resident = new Resident
+        {
+            ResidentId = (await _db.Residents.Select(r => (int?)r.ResidentId).MaxAsync() ?? 0) + 1,
+            CaseControlNo = GenerateCaseControlNo(),
+            InternalCode = GenerateInternalCode(req.SafehouseId),
+            SafehouseId = req.SafehouseId,
+            CaseStatus = req.CaseStatus,
+            Sex = string.IsNullOrWhiteSpace(req.Sex) ? "F" : req.Sex,
+            DateOfBirth = req.DateOfBirth,
+            CaseCategory = req.CaseCategory,
+            DateOfAdmission = req.DateOfAdmission,
+            DateEnrolled = req.DateEnrolled,
+            ReferralSource = req.ReferralSource,
+            AssignedSocialWorker = req.AssignedSocialWorker,
+            InitialCaseAssessment = req.InitialCaseAssessment,
+            InitialRiskLevel = req.InitialRiskLevel,
+            CurrentRiskLevel = req.CurrentRiskLevel,
+            FamilyIs4ps = req.FamilyIs4ps,
+            FamilySoloParent = req.FamilySoloParent,
+            FamilyIndigenous = req.FamilyIndigenous,
+            FamilyInformalSettler = req.FamilyInformalSettler,
+            IsPwd = req.IsPwd,
+            PwdType = req.PwdType,
+        };
         resident.CreatedAt = DateTime.UtcNow;
         _db.Residents.Add(resident);
         await _db.SaveChangesAsync();
@@ -79,12 +106,33 @@ public class ResidentsController : ControllerBase
 
     // PUT /api/residents/{id}
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Resident resident)
+    public async Task<IActionResult> Update(int id, [FromBody] ResidentUpsertRequest req)
     {
-        if (id != resident.ResidentId) return BadRequest();
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        _db.Entry(resident).State = EntityState.Modified;
-        await _db.SaveChangesAsync();
+        var affected = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE Residents
+SET SafehouseId = {req.SafehouseId},
+    CaseStatus = {req.CaseStatus},
+    Sex = {req.Sex},
+    DateOfBirth = {req.DateOfBirth},
+    CaseCategory = {req.CaseCategory},
+    DateOfAdmission = {req.DateOfAdmission},
+    DateEnrolled = {req.DateEnrolled},
+    ReferralSource = {req.ReferralSource},
+    AssignedSocialWorker = {req.AssignedSocialWorker},
+    InitialCaseAssessment = {req.InitialCaseAssessment},
+    InitialRiskLevel = {req.InitialRiskLevel},
+    CurrentRiskLevel = {req.CurrentRiskLevel},
+    FamilyIs4ps = {req.FamilyIs4ps},
+    FamilySoloParent = {req.FamilySoloParent},
+    FamilyIndigenous = {req.FamilyIndigenous},
+    FamilyInformalSettler = {req.FamilyInformalSettler},
+    IsPwd = {req.IsPwd},
+    PwdType = {req.PwdType}
+WHERE ResidentId = {id}
+");
+
+        if (affected == 0) return NotFound();
         return NoContent();
     }
 
@@ -101,3 +149,24 @@ public class ResidentsController : ControllerBase
         return NoContent();
     }
 }
+
+public record ResidentUpsertRequest(
+    int SafehouseId,
+    string CaseStatus,
+    string Sex,
+    DateOnly DateOfBirth,
+    string CaseCategory,
+    DateOnly DateOfAdmission,
+    DateOnly DateEnrolled,
+    string? ReferralSource,
+    string? AssignedSocialWorker,
+    string? InitialCaseAssessment,
+    string InitialRiskLevel,
+    string CurrentRiskLevel,
+    bool FamilyIs4ps,
+    bool FamilySoloParent,
+    bool FamilyIndigenous,
+    bool FamilyInformalSettler,
+    bool IsPwd,
+    string? PwdType
+);

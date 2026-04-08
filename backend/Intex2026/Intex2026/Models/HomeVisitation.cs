@@ -14,10 +14,15 @@ public class HomeVisitation
 
     public DateOnly VisitDate { get; set; }
 
-    /// <summary>HomeVisit | CaseConference — distinguishes field visits from coordination conferences.</summary>
+    /// <summary>
+    /// Compatibility field for clients; not persisted in legacy production schema.
+    /// HomeVisit | CaseConference
+    /// </summary>
+    [NotMapped]
     public string CoordinationKind { get; set; } = "HomeVisit";
 
-    /// <summary>Optional time of visit (display string, e.g. 10:00 AM).</summary>
+    /// <summary>Compatibility field for clients; not persisted in legacy production schema.</summary>
+    [NotMapped]
     public string? VisitTime { get; set; }
 
     public string SocialWorker { get; set; } = string.Empty;

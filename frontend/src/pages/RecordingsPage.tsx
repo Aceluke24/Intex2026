@@ -5,7 +5,7 @@ import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetchJson } from "@/lib/apiFetch";
+import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import {
   mapApiEmotionalState,
   type ProcessResidentOption,
@@ -274,10 +274,40 @@ const RecordingsPage = () => {
         defaultResidentId={residentFilter}
         residents={residents}
         workerOptions={workersForDialog}
-        onSave={() => {
-          toast.message("Session entry", {
-            description: "New recordings are created through the clinical API. Refresh after saving in your EMR.",
-          });
+        onSave={async (entry) => {
+          // Map UI emotional state back to API values
+          const emotionalMap: Record<string, string> = {
+            Stable: "Calm",
+            Anxious: "Anxious",
+            Hopeful: "Hopeful",
+            Distressed: "Distressed",
+            Resilient: "Happy",
+            Withdrawn: "Withdrawn",
+          };
+          const body = {
+            residentId: parseInt(entry.residentId, 10),
+            sessionDate: entry.date,
+            socialWorker: entry.worker,
+            sessionType: entry.sessionType,
+            emotionalStateObserved: emotionalMap[entry.emotionalState] ?? "Calm",
+            sessionNarrative: entry.narrativeFull !== "—" ? entry.narrativeFull : null,
+            interventionsApplied: entry.interventions !== "—" ? entry.interventions : null,
+            followUpActions: entry.followUp !== "—" ? entry.followUp : null,
+            progressNoted: false,
+            concernsFlagged: false,
+            referralMade: false,
+          };
+          try {
+            const res = await apiFetch("/api/recordings", {
+              method: "POST",
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            toast.success("Session entry saved.");
+            void load();
+          } catch (e) {
+            toast.error("Failed to save session: " + (e instanceof Error ? e.message : "Unknown error"));
+          }
         }}
       />
     </AdminLayout>

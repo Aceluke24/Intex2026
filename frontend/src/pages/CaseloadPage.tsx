@@ -18,7 +18,7 @@ import {
   type RiskLevel,
 } from "@/lib/caseloadTypes";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { apiFetchJson } from "@/lib/apiFetch";
+import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -146,6 +146,8 @@ const CaseloadPage = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cases, setCases] = useState<ResidentCase[]>([]);
+  const [safehouseList, setSafehouseList] = useState<SafehouseApi[]>([]);
+  const [residentIdMap, setResidentIdMap] = useState<Record<string, number>>({});
   const [safehouseNames, setSafehouseNames] = useState<string[]>([]);
   const [filters, setFilters] = useState<CaseloadFilters>(defaultFilters);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -163,8 +165,17 @@ const CaseloadPage = () => {
         apiFetchJson<CaseApiRow[]>("/api/cases"),
         apiFetchJson<SafehouseApi[]>("/api/safehouses"),
       ]);
-      setCases(caseRows.map(mapCaseRow));
+      const mapped = caseRows.map(mapCaseRow);
+      setCases(mapped);
+      setSafehouseList(houses);
       setSafehouseNames(houses.map((h) => h.name).filter(Boolean));
+      // Build a map from caseControlNo / R-{id} → residentId for API updates
+      const idMap: Record<string, number> = {};
+      caseRows.forEach((r) => {
+        idMap[r.caseId] = r.residentId;
+        idMap[`R-${r.residentId}`] = r.residentId;
+      });
+      setResidentIdMap(idMap);
     } catch (e) {
       console.error(e);
       setLoadError(e instanceof Error ? e.message : "Failed to load caseload.");
@@ -233,11 +244,57 @@ const CaseloadPage = () => {
     toast.success("Export queued", { description: "Your browser will download CSV when the export service is enabled." });
   };
 
-  const handleSaveCase = (_c: ResidentCase) => {
-    toast.message("Case changes", {
-      description: "Resident records are managed through the central API. Refresh the page to see updates from the server.",
-    });
-    setEditing(null);
+  const handleSaveCase = async (c: ResidentCase) => {
+    // Map UI category to API enum (Abandoned | Foundling | Surrendered | Neglected)
+    const categoryMap: Record<string, string> = {
+      Abandoned: "Abandoned", Foundling: "Foundling", Surrendered: "Surrendered",
+      Neglect: "Neglected", "Domestic violence": "Neglected", Trafficking: "Neglected",
+      Abuse: "Neglected", Exploitation: "Neglected", Displacement: "Abandoned",
+    };
+    const riskMap: Record<string, string> = { Standard: "Low", Elevated: "Medium", High: "High" };
+
+    const safehouse = safehouseList.find((sh) => sh.name === c.safehouse);
+    const safehouseId = safehouse?.safehouseId ?? safehouseList[0]?.safehouseId ?? 1;
+    const dob = new Date(new Date().getFullYear() - (c.age || 18), 0, 1).toISOString().slice(0, 10);
+    const apiStatus = c.status === "Reintegration" ? "Active" : (c.status === "Pending" ? "Active" : c.status);
+
+    const body = {
+      safehouseId,
+      caseStatus: apiStatus,
+      sex: "F",
+      dateOfBirth: dob,
+      caseCategory: categoryMap[c.category] ?? "Neglected",
+      dateOfAdmission: c.admissionDate,
+      dateEnrolled: c.admissionDate,
+      referralSource: c.referralSource !== "—" ? c.referralSource : "Community",
+      assignedSocialWorker: c.assignedWorker !== "—" ? c.assignedWorker : null,
+      initialCaseAssessment: c.caseNotes !== "—" ? c.caseNotes : "Intake assessment",
+      initialRiskLevel: riskMap[c.riskLevel] ?? "Low",
+      currentRiskLevel: riskMap[c.riskLevel] ?? "Low",
+      familyIs4ps: c.socio.fourPsBeneficiary,
+      familySoloParent: c.socio.soloParentHousehold,
+      familyIndigenous: !!c.socio.indigenousGroup,
+      familyInformalSettler: c.socio.informalSettler,
+      isPwd: !!c.disability,
+      pwdType: c.disability || null,
+    };
+
+    const residentId = residentIdMap[c.id];
+    try {
+      const res = residentId
+        ? await apiFetch(`/api/residents/${residentId}`, {
+            method: "PUT",
+            body: JSON.stringify({ residentId, ...body }),
+          })
+        : await apiFetch("/api/residents", { method: "POST", body: JSON.stringify(body) });
+
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(residentId ? "Case record updated." : "Case record created.");
+      setEditing(null);
+      void load();
+    } catch (e) {
+      toast.error("Save failed: " + (e instanceof Error ? e.message : "Unknown error"));
+    }
   };
 
   return (

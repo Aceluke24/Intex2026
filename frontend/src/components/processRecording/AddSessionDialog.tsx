@@ -23,7 +23,7 @@ type AddSessionDialogProps = {
   defaultResidentId?: string | "all";
   residents: ProcessResidentOption[];
   workerOptions: string[];
-  onSave: (entry: Omit<ProcessSessionEntry, "id"> & { id?: string }) => void;
+  onSave: (entry: Omit<ProcessSessionEntry, "id"> & { id?: string }) => void | Promise<void>;
 };
 
 export function AddSessionDialog({

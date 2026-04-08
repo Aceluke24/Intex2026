@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AdminChromeProvider } from "@/contexts/AdminChromeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CookieConsentProvider } from "@/contexts/CookieConsentContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,6 +36,7 @@ function DashboardChromeLayout() {
 }
 
 const App = () => (
+  <CookieConsentProvider>
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -86,6 +88,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ThemeProvider>
+  </CookieConsentProvider>
 );
 
 export default App;

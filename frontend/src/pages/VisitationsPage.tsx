@@ -6,13 +6,19 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiFetchJson } from "@/lib/apiFetch";
+import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+type ResidentOption = { residentId: number; internalCode: string; caseControlNo: string };
 
 type VisitationRow = {
   id: number;
@@ -98,6 +104,25 @@ const VisitationsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selected, setSelected] = useState<VisitationRow | null>(null);
 
+  // Log Visit dialog
+  const [logOpen, setLogOpen] = useState(false);
+  const [logResidents, setLogResidents] = useState<ResidentOption[]>([]);
+  const [logResidentId, setLogResidentId] = useState("");
+  const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10));
+  const [logKind, setLogKind] = useState("HomeVisit");
+  const [logVisitType, setLogVisitType] = useState("Routine Follow-Up");
+  const [logWorker, setLogWorker] = useState("");
+  const [logLocation, setLogLocation] = useState("");
+  const [logPurpose, setLogPurpose] = useState("");
+  const [logObservations, setLogObservations] = useState("");
+  const [logCooperation, setLogCooperation] = useState("Cooperative");
+  const [logOutcome, setLogOutcome] = useState("Favorable");
+  const [logSafety, setLogSafety] = useState(false);
+  const [logFollowUp, setLogFollowUp] = useState(false);
+  const [logFollowUpNotes, setLogFollowUpNotes] = useState("");
+  const [logSubmitting, setLogSubmitting] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -125,6 +150,52 @@ const VisitationsPage = () => {
     setSheetOpen(true);
   };
 
+  const openLogDialog = async () => {
+    setLogError(null);
+    setLogDate(new Date().toISOString().slice(0, 10));
+    if (logResidents.length === 0) {
+      try {
+        const data = await apiFetchJson<{ items: ResidentOption[] }>("/api/residents?page=1&pageSize=500");
+        setLogResidents(data.items);
+        if (data.items.length > 0) setLogResidentId(String(data.items[0].residentId));
+      } catch { /* non-fatal */ }
+    }
+    setLogOpen(true);
+  };
+
+  const handleLogSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLogSubmitting(true);
+    setLogError(null);
+    try {
+      const body = {
+        residentId: parseInt(logResidentId, 10),
+        visitDate: logDate,
+        coordinationKind: logKind,
+        visitType: logVisitType,
+        socialWorker: logWorker,
+        locationVisited: logLocation || null,
+        purpose: logPurpose || null,
+        observations: logObservations || null,
+        familyCooperationLevel: logCooperation,
+        safetyConcernsNoted: logSafety,
+        followUpNeeded: logFollowUp,
+        followUpNotes: logFollowUp ? logFollowUpNotes || null : null,
+        visitOutcome: logOutcome,
+      };
+      const res = await apiFetch("/api/visitations", { method: "POST", body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(await res.text());
+      setLogOpen(false);
+      setLogObservations(""); setLogPurpose(""); setLogLocation(""); setLogFollowUpNotes(""); setLogWorker("");
+      toast.success("Visit logged successfully.");
+      void load();
+    } catch (e) {
+      setLogError(e instanceof Error ? e.message : "Failed to save.");
+    } finally {
+      setLogSubmitting(false);
+    }
+  };
+
   return (
     <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
       <StaffPageShell
@@ -136,11 +207,7 @@ const VisitationsPage = () => {
           <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
             <Button
               type="button"
-              onClick={() =>
-                toast.message("Log visit", {
-                  description: "Create or update visitations through the Home Visitations API.",
-                })
-              }
+              onClick={openLogDialog}
               className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.3)]"
             >
               <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
@@ -285,6 +352,127 @@ const VisitationsPage = () => {
       >
         {selected && <DetailSheet v={selected} />}
       </SlideOverPanel>
+
+      <Dialog open={logOpen} onOpenChange={setLogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-[min(100%,34rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-semibold">Log Visit / Conference</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleLogSubmit} className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1">
+                <Label className="font-body text-xs">Resident</Label>
+                <Select value={logResidentId} onValueChange={setLogResidentId}>
+                  <SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger>
+                  <SelectContent>
+                    {logResidents.map((r) => (
+                      <SelectItem key={r.residentId} value={String(r.residentId)}>
+                        {r.internalCode || `Resident #${r.residentId}`} ({r.caseControlNo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Date</Label>
+                <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Record Type</Label>
+                <Select value={logKind} onValueChange={setLogKind}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HomeVisit">Home Visit</SelectItem>
+                    <SelectItem value="CaseConference">Case Conference</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Visit Type</Label>
+                <Select value={logVisitType} onValueChange={setLogVisitType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Initial Assessment">Initial Assessment</SelectItem>
+                    <SelectItem value="Routine Follow-Up">Routine Follow-Up</SelectItem>
+                    <SelectItem value="Reintegration Assessment">Reintegration Assessment</SelectItem>
+                    <SelectItem value="Post-Placement Monitoring">Post-Placement Monitoring</SelectItem>
+                    <SelectItem value="Emergency">Emergency</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Social Worker</Label>
+                <input value={logWorker} onChange={(e) => setLogWorker(e.target.value)} placeholder="Name"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label className="font-body text-xs">Location Visited</Label>
+                <input value={logLocation} onChange={(e) => setLogLocation(e.target.value)} placeholder="Address or description"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label className="font-body text-xs">Purpose</Label>
+                <input value={logPurpose} onChange={(e) => setLogPurpose(e.target.value)} placeholder="Purpose of visit"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label className="font-body text-xs">Observations</Label>
+                <Textarea value={logObservations} onChange={(e) => setLogObservations(e.target.value)}
+                  placeholder="Home environment, family dynamics…" className="min-h-[80px] text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Family Cooperation</Label>
+                <Select value={logCooperation} onValueChange={setLogCooperation}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Highly Cooperative">Highly Cooperative</SelectItem>
+                    <SelectItem value="Cooperative">Cooperative</SelectItem>
+                    <SelectItem value="Neutral">Neutral</SelectItem>
+                    <SelectItem value="Uncooperative">Uncooperative</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body text-xs">Visit Outcome</Label>
+                <Select value={logOutcome} onValueChange={setLogOutcome}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Favorable">Favorable</SelectItem>
+                    <SelectItem value="Needs Improvement">Needs Improvement</SelectItem>
+                    <SelectItem value="Unfavorable">Unfavorable</SelectItem>
+                    <SelectItem value="Inconclusive">Inconclusive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 flex items-center gap-6">
+                <label className="flex items-center gap-2 font-body text-sm cursor-pointer">
+                  <input type="checkbox" checked={logSafety} onChange={(e) => setLogSafety(e.target.checked)} className="rounded" />
+                  Safety concerns noted
+                </label>
+                <label className="flex items-center gap-2 font-body text-sm cursor-pointer">
+                  <input type="checkbox" checked={logFollowUp} onChange={(e) => setLogFollowUp(e.target.checked)} className="rounded" />
+                  Follow-up needed
+                </label>
+              </div>
+              {logFollowUp && (
+                <div className="col-span-2 space-y-1">
+                  <Label className="font-body text-xs">Follow-up Notes</Label>
+                  <Textarea value={logFollowUpNotes} onChange={(e) => setLogFollowUpNotes(e.target.value)}
+                    placeholder="Describe required follow-up…" className="min-h-[60px] text-sm" />
+                </div>
+              )}
+            </div>
+            {logError && <p className="font-body text-xs text-destructive">{logError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setLogOpen(false)} className="font-body">Cancel</Button>
+              <Button type="submit" disabled={logSubmitting || !logResidentId} className="font-body">
+                {logSubmitting ? "Saving…" : "Save Visit"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

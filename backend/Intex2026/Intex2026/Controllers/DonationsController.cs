@@ -64,11 +64,54 @@ public class DonationsController : ControllerBase
         return Ok(donations);
     }
 
+    // POST /api/donations/self — donors submit a fake donation for themselves
+    [HttpPost("self")]
+    [Authorize(Roles = "Donor")]
+    public async Task<IActionResult> CreateSelf([FromBody] SelfDonationRequest req)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userIdClaim);
+        if (user?.SupporterId == null)
+            return BadRequest(new { message = "Your account is not linked to a supporter profile. Contact an administrator." });
+
+        var donationType = req.DonationType?.Trim() switch
+        {
+            "Monetary" or "InKind" or "Time" or "Skills" or "SocialMedia" => req.DonationType.Trim(),
+            _ => "Monetary"
+        };
+
+        var donation = new Donation
+        {
+            DonationId = (await _db.Donations.Select(d => (int?)d.DonationId).MaxAsync() ?? 0) + 1,
+            SupporterId = user.SupporterId.Value,
+            DonationType = donationType,
+            DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            ChannelSource = "Direct",
+            CurrencyCode = donationType == "Monetary" ? "PHP" : null,
+            Amount = donationType == "Monetary" ? req.Amount : null,
+            EstimatedValue = req.EstimatedValue,
+            ImpactUnit = donationType != "Monetary" ? req.ImpactUnit ?? "hours" : null,
+            IsRecurring = false,
+            CampaignName = string.IsNullOrWhiteSpace(req.CampaignName) ? null : req.CampaignName.Trim(),
+            Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim(),
+        };
+
+        _db.Donations.Add(donation);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = donation.DonationId }, donation);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] Donation donation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        if (donation.DonationId <= 0)
+        {
+            donation.DonationId = (await _db.Donations.Select(d => (int?)d.DonationId).MaxAsync() ?? 0) + 1;
+        }
         _db.Donations.Add(donation);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = donation.DonationId }, donation);
@@ -96,3 +139,12 @@ public class DonationsController : ControllerBase
         return NoContent();
     }
 }
+
+public record SelfDonationRequest(
+    string? DonationType,
+    decimal? Amount,
+    decimal? EstimatedValue,
+    string? ImpactUnit,
+    string? CampaignName,
+    string? Notes
+);
