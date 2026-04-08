@@ -10,6 +10,30 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendPolicy";
 const string DefaultFrontendUrl = "http://localhost:8080";
+
+static string? NormalizeOrigin(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return null;
+    }
+
+    var trimmed = value.Trim();
+
+    if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+    {
+        return null;
+    }
+
+    if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+    {
+        return null;
+    }
+
+    return uri.GetLeftPart(UriPartial.Authority);
+}
+
 var frontendUrl =
     builder.Configuration["Frontend:BaseUrl"] ??
     builder.Configuration["FrontendUrl"] ??
@@ -21,18 +45,23 @@ var configAllowedOrigins = builder.Configuration
 
 var allowedOrigins = new List<string>();
 
-if (!string.IsNullOrWhiteSpace(frontendUrl))
+var normalizedFrontendUrl = NormalizeOrigin(frontendUrl);
+
+if (!string.IsNullOrWhiteSpace(normalizedFrontendUrl))
 {
-    allowedOrigins.Add(frontendUrl);
+    allowedOrigins.Add(normalizedFrontendUrl);
 }
 
-allowedOrigins.AddRange(configAllowedOrigins);
+allowedOrigins.AddRange(configAllowedOrigins
+    .Select(NormalizeOrigin)
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))!
+    .Cast<string>());
 
 if (builder.Environment.IsDevelopment())
 {
     // Common local dev ports for Vite and alternate frontend hosts.
-    allowedOrigins.Add("http://localhost:5173");
-    allowedOrigins.Add("http://localhost:8080");
+    allowedOrigins.Add(NormalizeOrigin("http://localhost:5173")!);
+    allowedOrigins.Add(NormalizeOrigin("http://localhost:8080")!);
 }
 
 var dedupedOrigins = allowedOrigins
