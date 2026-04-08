@@ -35,10 +35,12 @@ function generateNextDisplayName(cases: ResidentCase[]): string {
   if (!cases.length) return "LS-0001";
 
   const numbers = cases
-    .map((c) => c.displayName)
-    .filter((name) => /^LS-\d+$/.test(name))
-    .map((name) => Number.parseInt(name.split("-")[1], 10))
+    .flatMap((c) => [c.displayName, c.id])
+    .filter((name) => /^LS-\d{4}$/.test(name))
+    .map((name) => Number(name.split("-")[1]))
     .filter((n) => Number.isFinite(n));
+
+  if (!numbers.length) return "LS-0001";
 
   const max = Math.max(...numbers, 0);
   const next = max + 1;
