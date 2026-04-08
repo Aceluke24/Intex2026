@@ -139,10 +139,29 @@ public class HomeVisitationsController : ControllerBase
         });
     }
 
-    /// <summary>Distinct intervention / follow-up tokens from all visitations (for form dropdowns).</summary>
+    /// <summary>
+    /// GET /api/visitations/field-options — residents plus intervention/follow-up token options for forms and filters.
+    /// </summary>
     [HttpGet("field-options")]
     public async Task<IActionResult> GetFieldOptions(CancellationToken ct)
     {
+        var residentRows = await _db.Residents.AsNoTracking()
+            .OrderBy(r => r.InternalCode)
+            .Select(r => new { r.ResidentId, r.InternalCode, r.CaseControlNo })
+            .ToListAsync(ct);
+        var residents = residentRows
+            .Select(r => new
+            {
+                id = r.ResidentId,
+                residentId = r.ResidentId,
+                name = string.IsNullOrWhiteSpace(r.InternalCode)
+                    ? $"Resident #{r.ResidentId}"
+                    : $"{r.InternalCode} ({r.CaseControlNo})",
+                internalCode = r.InternalCode ?? "",
+                caseControlNo = r.CaseControlNo
+            })
+            .ToList();
+
         var purposes = await _db.HomeVisitations.AsNoTracking()
             .Where(h => h.Purpose != null && h.Purpose != "")
             .Select(h => h.Purpose!)
@@ -179,7 +198,7 @@ public class HomeVisitationsController : ControllerBase
             .Select(label => new { value = TokenId(label), label })
             .ToList();
 
-        return Ok(new { interventionOptions, followUpOptions });
+        return Ok(new { residents, interventionOptions, followUpOptions });
     }
 
     [HttpGet("{id:int}")]
