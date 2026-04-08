@@ -114,6 +114,17 @@ if (connectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", StringComparison.O
 var authIdentityConnectionString =
     builder.Configuration.GetConnectionString("AuthIdentityConnection") ?? connectionString;
 
+static bool IsSqliteConnectionString(string value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return false;
+    }
+
+    return value.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
+        && value.Contains(".db", StringComparison.OrdinalIgnoreCase);
+}
+
 if (authIdentityConnectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", StringComparison.OrdinalIgnoreCase))
 {
     throw new InvalidOperationException(
@@ -123,14 +134,28 @@ if (authIdentityConnectionString.Contains("SET_VIA_ENVIRONMENT_VARIABLE", String
 
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddDbContext<AppDbContext>(options =>
-        options
-            .UseSqlite(connectionString)
-            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
-    builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
-        options
-            .UseSqlite(authIdentityConnectionString)
-            .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
+    if (IsSqliteConnectionString(connectionString) && IsSqliteConnectionString(authIdentityConnectionString))
+    {
+        builder.Services.AddDbContext<AppDbContext>(options =>
+            options
+                .UseSqlite(connectionString)
+                .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
+        builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+            options
+                .UseSqlite(authIdentityConnectionString)
+                .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
+    }
+    else
+    {
+        builder.Services.AddDbContext<AppDbContext>(options =>
+            options
+                .UseSqlServer(connectionString)
+                .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
+        builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+            options
+                .UseSqlServer(authIdentityConnectionString)
+                .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
+    }
 }
 else
 {
