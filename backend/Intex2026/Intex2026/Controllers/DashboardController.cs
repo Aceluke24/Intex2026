@@ -13,16 +13,23 @@ namespace Intex2026.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<DashboardController> _logger;
 
-    public DashboardController(AppDbContext db) => _db = db;
+    public DashboardController(AppDbContext db, ILogger<DashboardController> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
-        var activeResidents = await _db.Residents
-            .AsNoTracking()
-            .Where(r => r.CaseStatus == "Active")
-            .ToListAsync(ct);
+        try
+        {
+            var activeResidents = await _db.Residents
+                .AsNoTracking()
+                .Where(r => r.CaseStatus == "Active")
+                .ToListAsync(ct);
 
         var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
         var visitations = await _db.HomeVisitations.AsNoTracking().ToListAsync(ct);
@@ -213,19 +220,28 @@ public class DashboardController : ControllerBase
                 : "building your baseline",
             retPct.HasValue ? $"{retPct}%" : "—");
 
-        return Ok(new DashboardResponseDto(
-            primaryMetric,
-            supportingMetrics,
-            reintegrationMetric,
-            donationSpark,
-            residentSpark,
-            activityItems,
-            priorityCallouts,
-            liveContext,
-            donationActivity,
-            donationInsight,
-            residentsOverview,
-            insights));
+            return Ok(new DashboardResponseDto(
+                primaryMetric,
+                supportingMetrics,
+                reintegrationMetric,
+                donationSpark,
+                residentSpark,
+                activityItems,
+                priorityCallouts,
+                liveContext,
+                donationActivity,
+                donationInsight,
+                residentsOverview,
+                insights));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building dashboard payload");
+            return Problem(
+                title: "Dashboard data unavailable",
+                detail: "Live dashboard data could not be loaded from the database.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     private static string MapRiskToStatus(string? level)

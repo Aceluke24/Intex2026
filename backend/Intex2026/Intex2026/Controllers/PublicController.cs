@@ -32,7 +32,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching resident count");
-            return Ok(new { count = 0 });
+            return Problem(
+                title: "Resident count unavailable",
+                detail: "The resident count could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -70,13 +73,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching impact summary");
-            return Ok(new
-            {
-                survivors = 0,
-                totalDonations = 0m,
-                activePrograms = 0,
-                completionRate = 0
-            });
+            return Problem(
+                title: "Impact summary unavailable",
+                detail: "Impact summary data could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -104,7 +104,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching donations trend");
-            return Ok(Array.Empty<object>());
+            return Problem(
+                title: "Donations trend unavailable",
+                detail: "Donation trend data could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -154,13 +157,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching program outcomes");
-            return Ok(new
-            {
-                safeHousing = 0d,
-                education = 0d,
-                counseling = 0d,
-                interventionPlans = 0d
-            });
+            return Problem(
+                title: "Program outcomes unavailable",
+                detail: "Program outcome data could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -187,7 +187,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching campaigns");
-            return Ok(Array.Empty<object>());
+            return Problem(
+                title: "Campaign data unavailable",
+                detail: "Campaign data could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -226,7 +229,10 @@ public class PublicController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching allocation");
-            return Ok(new { direct = 0, outreach = 0, operations = 0 });
+            return Problem(
+                title: "Allocation data unavailable",
+                detail: "Donation allocation data could not be loaded.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 

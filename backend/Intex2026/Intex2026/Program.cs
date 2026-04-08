@@ -35,6 +35,28 @@ static string? NormalizeOrigin(string? value)
     return uri.GetLeftPart(UriPartial.Authority);
 }
 
+static bool IsAllowedCorsOrigin(string? origin, IReadOnlyCollection<string> explicitOrigins)
+{
+    var normalized = NormalizeOrigin(origin);
+    if (string.IsNullOrWhiteSpace(normalized))
+    {
+        return false;
+    }
+
+    if (explicitOrigins.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    // Allow Azure Static Web Apps frontends even when exact host is not pre-configured.
+    return uri.Host.EndsWith(".azurestaticapps.net", StringComparison.OrdinalIgnoreCase);
+}
+
 var frontendUrl =
     builder.Configuration["Frontend:BaseUrl"] ??
     builder.Configuration["FrontendUrl"] ??
@@ -159,7 +181,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
-        policy.WithOrigins(dedupedOrigins)
+        policy.SetIsOriginAllowed(origin => IsAllowedCorsOrigin(origin, dedupedOrigins))
             .AllowCredentials()
             .AllowAnyMethod()
             .AllowAnyHeader();

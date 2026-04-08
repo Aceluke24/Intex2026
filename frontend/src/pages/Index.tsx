@@ -101,17 +101,27 @@ const Index = () => {
     outreach: 0,
     operations: 0,
   });
+  const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/public/residents/count`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Residents API failed (${res.status})`);
+        return res.json();
+      })
       .then((data: { count?: number }) => setResidentCount(typeof data.count === "number" ? data.count : 0))
-      .catch(() => setResidentCount(0));
+      .catch((err) => {
+        console.error("[Index] residents/count", err);
+        setDataError("Live data is currently unavailable. Please try again shortly.");
+      });
   }, []);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/public/impact/summary`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Impact summary API failed (${res.status})`);
+        return res.json();
+      })
       .then((data: Partial<ImpactSummary>) =>
         setSummary({
           survivors: typeof data.survivors === "number" ? data.survivors : 0,
@@ -120,14 +130,18 @@ const Index = () => {
           completionRate: typeof data.completionRate === "number" ? data.completionRate : 0,
         })
       )
-      .catch(() =>
-        setSummary({ survivors: 0, totalDonations: 0, activePrograms: 0, completionRate: 0 })
-      );
+      .catch((err) => {
+        console.error("[Index] impact/summary", err);
+        setDataError("Live data is currently unavailable. Please try again shortly.");
+      });
   }, []);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/public/impact/allocation`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Allocation API failed (${res.status})`);
+        return res.json();
+      })
       .then((data: Partial<AllocationBreakdown>) =>
         setAllocation({
           direct: typeof data.direct === "number" ? data.direct : 0,
@@ -135,7 +149,10 @@ const Index = () => {
           operations: typeof data.operations === "number" ? data.operations : 0,
         })
       )
-      .catch(() => setAllocation({ direct: 0, outreach: 0, operations: 0 }));
+      .catch((err) => {
+        console.error("[Index] impact/allocation", err);
+        setDataError("Live data is currently unavailable. Please try again shortly.");
+      });
   }, []);
 
   const donationTotal = Math.max(0, Math.floor(Number(summary.totalDonations)));
@@ -160,6 +177,11 @@ const Index = () => {
           style={{ opacity: heroOpacity, scale: heroScale }}
           className="relative z-10 w-full max-w-5xl mx-auto text-center"
         >
+          {dataError && (
+            <div className="mx-auto mb-6 max-w-xl rounded-xl border border-terracotta/35 bg-terracotta/10 px-4 py-3 text-sm font-body text-navy-foreground">
+              {dataError}
+            </div>
+          )}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}

@@ -79,7 +79,7 @@
     --secondary-foreground: 36 25% 90%;
 
     --muted: 213 30% 16%;
-    --muted-foreground: 36 12% 58%;
+    --muted-foreground: 36 18% 72%;
 
     --accent: 10 55% 60%;
     --accent-foreground: 213 55% 7%;
@@ -107,7 +107,7 @@
     --ring: 10 55% 60%;
 
     --sidebar-background: 213 55% 5%;
-    --sidebar-foreground: 36 20% 80%;
+    --sidebar-foreground: 36 24% 88%;
     --sidebar-primary: 10 55% 60%;
     --sidebar-primary-foreground: 213 55% 5%;
     --sidebar-accent: 213 40% 12%;
@@ -158,11 +158,25 @@
       hsl(20 30% 93%) 100%
     );
   }
+  .dark .gradient-cream-warm {
+    background: linear-gradient(
+      180deg,
+      hsl(213 36% 12%) 0%,
+      hsl(213 32% 10%) 100%
+    );
+  }
   .gradient-section-blush {
     background: linear-gradient(
       180deg,
       hsl(10 40% 94%) 0%,
       hsl(36 33% 94%) 100%
+    );
+  }
+  .dark .gradient-section-blush {
+    background: linear-gradient(
+      180deg,
+      hsl(213 34% 13%) 0%,
+      hsl(213 30% 10%) 100%
     );
   }
   .gradient-navy-deep {

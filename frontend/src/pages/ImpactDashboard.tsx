@@ -50,6 +50,7 @@ type AllocationBreakdown = {
 
 const ImpactDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ImpactSummary>({
     survivors: 0,
     totalDonations: 0,
@@ -73,6 +74,7 @@ const ImpactDashboard = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        setLoadError(null);
         const [sRes, tRes, oRes, cRes, aRes] = await Promise.all([
           fetch(`${API_BASE}/api/public/impact/summary`),
           fetch(`${API_BASE}/api/public/impact/donations-trend`),
@@ -80,6 +82,11 @@ const ImpactDashboard = () => {
           fetch(`${API_BASE}/api/public/impact/campaigns`),
           fetch(`${API_BASE}/api/public/impact/allocation`),
         ]);
+
+        const failed = [sRes, tRes, oRes, cRes, aRes].find((r) => !r.ok);
+        if (failed) {
+          throw new Error(`Impact API request failed with status ${failed.status}`);
+        }
 
         const sJson = await sRes.json().catch(() => ({}));
         setSummary({
@@ -109,12 +116,9 @@ const ImpactDashboard = () => {
           outreach: typeof aJson.outreach === "number" ? aJson.outreach : 0,
           operations: typeof aJson.operations === "number" ? aJson.operations : 0,
         });
-      } catch {
-        setSummary({ survivors: 0, totalDonations: 0, activePrograms: 0, completionRate: 0 });
-        setTrend([]);
-        setOutcomes({ safeHousing: 0, education: 0, counseling: 0, interventionPlans: 0 });
-        setCampaigns([]);
-        setAllocation({ direct: 0, outreach: 0, operations: 0 });
+      } catch (err) {
+        console.error("[ImpactDashboard]", err);
+        setLoadError("Live impact data is unavailable right now. Please try again shortly.");
       } finally {
         setLoading(false);
       }
@@ -161,6 +165,11 @@ const ImpactDashboard = () => {
       {/* Hero intro */}
       <section className="pt-32 lg:pt-44 pb-20 gradient-cream-warm">
         <div className="max-w-5xl mx-auto px-6">
+          {loadError && (
+            <div className="mb-6 rounded-xl border border-terracotta/35 bg-terracotta/10 px-4 py-3 text-sm font-body text-foreground" role="alert">
+              {loadError}
+            </div>
+          )}
           <Reveal>
             <p className="font-body text-[11px] font-medium uppercase tracking-[0.3em] text-terracotta mb-6">
               Transparency report
