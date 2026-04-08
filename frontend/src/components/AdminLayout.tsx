@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { BrandLogo, BrandLockup } from "@/components/BrandLogo";
+import { BrandLogo } from "@/components/BrandLogo";
+import Header from "@/components/layout/Header";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetch } from "@/lib/apiFetch";
@@ -77,49 +78,42 @@ export const AdminLayout = ({
   return (
     <div className="min-h-screen flex bg-background">
       {/* ── Top header bar ────────────────────────────────────── */}
-      <header className={cn(
-        "fixed top-0 right-0 z-50 flex items-center h-14 px-4 bg-sidebar border-b border-sidebar-border transition-all duration-300",
-        collapsed ? "left-16" : "left-60"
-      )}>
-        <BrandLockup variant="nav" className="mr-auto text-sidebar-foreground" />
-
-        {header && (
-          <div className="hidden sm:flex flex-col items-center mx-auto">
-            <span className="font-display text-sm font-semibold text-sidebar-foreground leading-tight">
-              {header.title}
-            </span>
-            {header.subtitle && (
-              <span className="font-body text-[11px] text-sidebar-foreground/40 leading-tight">
-                {header.subtitle}
-              </span>
-            )}
-          </div>
+      <div
+        className={cn(
+          "fixed top-0 right-0 z-50 transition-all duration-300",
+          collapsed ? "left-16" : "left-60"
         )}
-
-        <div className="ml-auto flex items-center gap-1">
-          {user && (
-            <span className="hidden md:block font-body text-[12px] text-sidebar-foreground/50 mr-2 max-w-[160px] truncate">
-              {user.email}
-            </span>
-          )}
-          <button
-            onClick={toggle}
-            type="button"
-            className="p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all"
-            aria-label="Toggle theme"
-          >
-            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={handleLogout}
-            type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-body text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </button>
-        </div>
-      </header>
+      >
+        <Header
+          title={header?.title ?? "Dashboard"}
+          subtitle={header?.subtitle ?? null}
+          rightContent={
+            <>
+              {user && (
+                <span className="hidden max-w-[160px] truncate font-body text-sm text-gray-500 dark:text-gray-400 md:inline">
+                  {user.email}
+                </span>
+              )}
+              <button
+                onClick={toggle}
+                type="button"
+                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="Toggle theme"
+              >
+                {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={() => void handleLogout()}
+                type="button"
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-body text-sm text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white sm:px-3"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </>
+          }
+        />
+      </div>
 
       {/* ── Left sidebar ──────────────────────────────────────── */}
       <aside

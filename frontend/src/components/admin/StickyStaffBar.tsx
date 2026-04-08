@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 
 export function StickyStaffBar() {
-  const { header, openCommandPalette } = useAdminChrome();
+  const { openCommandPalette } = useAdminChrome();
 
   return (
     <motion.header
@@ -18,20 +18,12 @@ export function StickyStaffBar() {
       )}
     >
       <div className="flex flex-wrap items-center gap-4">
-        {header && (
-          <div className="min-w-0 max-w-full sm:max-w-[min(100%,14rem)] lg:max-w-xs">
-            <p className="truncate font-display text-sm font-semibold tracking-tight text-foreground">{header.title}</p>
-            {header.subtitle && (
-              <p className="truncate font-body text-[11px] text-muted-foreground">{header.subtitle}</p>
-            )}
-          </div>
-        )}
         <button
           type="button"
           onClick={openCommandPalette}
           className={cn(
-            "group flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-white/55 bg-white/60 px-4 py-2.5 text-left shadow-sm transition-all duration-200",
-            "hover:border-[hsl(340_35%_82%)] hover:bg-white/85 hover:shadow-md",
+            "group flex min-w-0 w-full flex-1 items-center gap-3 rounded-2xl border border-gray-200 bg-white/80 px-4 py-2.5 text-left shadow-sm transition-all duration-200",
+            "hover:border-[hsl(340_35%_82%)] hover:bg-white hover:shadow-md",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(340_35%_65%)]/30",
             "dark:border-white/10 dark:bg-white/[0.08] dark:hover:bg-white/[0.12]"
           )}

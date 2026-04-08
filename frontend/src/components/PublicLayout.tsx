@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import { Moon, Sun, Menu, X, Heart, LogOut } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { BrandLockup } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE } from "@/lib/apiBase";
+import Header from "@/components/layout/Header";
+import { primaryButtonClasses } from "@/lib/primaryButton";
 
 const baseNavItems = [
   { label: "Home", path: "/" },
@@ -32,7 +34,6 @@ const footerLegalLinks = [{ label: "Privacy Policy", path: "/privacy" }].filter(
 export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, isDonor, refetch } = useAuth();
@@ -49,85 +50,83 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
     ...(isDonor && !isAdmin ? [{ label: "My Donations", path: "/donor" }] : []),
   ];
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Floating nav — glass morphism */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled
-            ? "bg-background/70 backdrop-blur-xl shadow-sm"
-            : "bg-transparent"
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex items-center justify-between min-h-[4.25rem] h-[4.25rem] lg:min-h-[5rem] lg:h-[5rem]">
-            <BrandLockup variant="nav" className={scrolled ? "text-foreground" : "text-navy-foreground"} />
-
-            <nav className="hidden md:flex items-center gap-0.5">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`px-4 py-2 rounded-full text-[13px] font-body font-medium transition-all duration-300 ${
-                    scrolled
-                      ? location.pathname === item.path
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                      : location.pathname === item.path
-                        ? "text-navy-foreground"
-                        : "text-navy-foreground/70 hover:text-navy-foreground"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <div className={`w-px h-5 mx-3 ${scrolled ? "bg-foreground/10" : "bg-navy-foreground/20"}`} />
-              {isAuthenticated ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className={`font-body text-[13px] rounded-full gap-1.5 ${scrolled ? "text-muted-foreground hover:text-foreground" : "text-navy-foreground/70 hover:text-navy-foreground"}`}
-                >
-                  <LogOut className="w-3.5 h-3.5" /> Sign Out
-                </Button>
-              ) : (
-                <Link to="/login">
-                  <Button variant="ghost" size="sm" className={`font-body text-[13px] rounded-full ${scrolled ? "text-muted-foreground hover:text-foreground" : "text-navy-foreground/70 hover:text-navy-foreground"}`}>
-                    Sign In
+      <div className="fixed top-0 left-0 right-0 z-50 flex flex-col">
+        <Header
+          title="Safety, Healing, and Empowerment"
+          subtitle={null}
+          rightContent={
+            <>
+              <nav className="hidden md:flex max-w-[min(100%,28rem)] flex-wrap items-center justify-end gap-0.5">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`rounded-full px-3 py-1.5 font-body text-[13px] font-medium transition-colors ${
+                      location.pathname === item.path
+                        ? "text-gray-900 dark:text-white"
+                        : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+                <div className="mx-2 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-white/15 sm:block" aria-hidden />
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Sign Out
+                  </button>
+                ) : (
+                  <Link to="/login" className="shrink-0">
+                    <button type="button" className={primaryButtonClasses}>
+                      Sign In
+                    </button>
+                  </Link>
+                )}
+                <Link to="/donate" className="shrink-0">
+                  <Button
+                    size="sm"
+                    className="rounded-full bg-terracotta font-body text-[13px] font-medium text-terracotta-foreground hover:bg-terracotta/90 gap-1.5 px-4 transition-all hover:shadow-lg hover:shadow-terracotta/20"
+                  >
+                    <Heart className="h-3 w-3" /> Donate
                   </Button>
                 </Link>
-              )}
-              <Link to="/donate">
-                <Button size="sm" className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium text-[13px] px-5 gap-1.5 ml-1 transition-all duration-300 hover:shadow-lg hover:shadow-terracotta/20">
-                  <Heart className="w-3 h-3" /> Donate
-                </Button>
-              </Link>
-              <button
-                onClick={toggle}
-                className={`ml-3 p-2 rounded-full transition-colors ${scrolled ? "text-muted-foreground hover:text-foreground" : "text-navy-foreground/70 hover:text-navy-foreground"}`}
-                aria-label="Toggle theme"
-              >
-                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-              </button>
-            </nav>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="rounded-full p-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  aria-label="Toggle theme"
+                >
+                  {theme === "light" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+                </button>
+              </nav>
 
-            <div className="flex md:hidden items-center gap-1">
-              <button onClick={toggle} className={`p-2 rounded-full ${scrolled ? "text-muted-foreground" : "text-navy-foreground/70"}`} aria-label="Toggle theme">
-                {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-              </button>
-              <button onClick={() => setMobileOpen(!mobileOpen)} className={`p-2 rounded-full ${scrolled ? "text-foreground" : "text-navy-foreground"}`} aria-label="Menu">
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-        </div>
+              <div className="flex items-center gap-1 md:hidden">
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="rounded-full p-2 text-gray-600 dark:text-gray-400"
+                  aria-label="Toggle theme"
+                >
+                  {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(!mobileOpen)}
+                  className="rounded-full p-2 text-gray-900 dark:text-white"
+                  aria-label="Menu"
+                >
+                  {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+              </div>
+            </>
+          }
+        />
 
         <AnimatePresence>
           {mobileOpen && (
@@ -136,36 +135,41 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="md:hidden overflow-hidden bg-background/95 backdrop-blur-xl"
+              className="overflow-hidden border-b border-gray-200 bg-white dark:border-white/10 dark:bg-[#0B1D2A] md:hidden"
             >
-              <div className="px-6 py-6 space-y-1">
+              <div className="space-y-1 px-6 py-6">
                 {navItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
                     onClick={() => setMobileOpen(false)}
-                    className="block px-4 py-3 rounded-xl text-sm font-body font-medium text-foreground hover:bg-secondary/50 transition-colors"
+                    className="block rounded-xl px-4 py-3 font-body text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100 dark:text-white dark:hover:bg-white/10"
                   >
                     {item.label}
                   </Link>
                 ))}
-                <div className="pt-4 flex flex-col gap-2">
+                <div className="flex flex-col gap-2 pt-4">
                   {isAuthenticated ? (
                     <Button
                       variant="outline"
-                      onClick={() => { setMobileOpen(false); handleLogout(); }}
-                      className="w-full font-body rounded-xl border-0 bg-secondary/50 gap-1.5"
+                      onClick={() => {
+                        setMobileOpen(false);
+                        void handleLogout();
+                      }}
+                      className="w-full gap-1.5 rounded-xl border-gray-200 bg-gray-50 font-body dark:border-white/10 dark:bg-white/5"
                     >
-                      <LogOut className="w-3.5 h-3.5" /> Sign Out
+                      <LogOut className="h-3.5 w-3.5" /> Sign Out
                     </Button>
                   ) : (
-                    <Link to="/login" onClick={() => setMobileOpen(false)}>
-                      <Button variant="outline" className="w-full font-body rounded-xl border-0 bg-secondary/50">Sign In</Button>
+                    <Link to="/login" onClick={() => setMobileOpen(false)} className="block w-full">
+                      <button type="button" className={`${primaryButtonClasses} w-full`}>
+                        Sign In
+                      </button>
                     </Link>
                   )}
                   <Link to="/donate" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium gap-1.5 rounded-xl">
-                      <Heart className="w-3.5 h-3.5" /> Donate
+                    <Button className="w-full gap-1.5 rounded-xl bg-terracotta font-body font-medium text-terracotta-foreground hover:bg-terracotta/90">
+                      <Heart className="h-3.5 w-3.5" /> Donate
                     </Button>
                   </Link>
                 </div>
@@ -173,7 +177,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </header>
+      </div>
 
       <main className="flex-1">{children}</main>
 

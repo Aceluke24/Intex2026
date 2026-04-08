@@ -162,20 +162,16 @@ const DashboardPage = () => {
           </div>
         )}
 
-        <motion.header
+        <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease }}
           className="mb-14 max-w-2xl lg:mb-16"
         >
-          <p className="font-body text-sm font-medium text-[hsl(340,24%,42%)]">North Star Sanctuary</p>
-          <h1 className="mt-2 font-display text-[clamp(1.95rem,4vw,2.5rem)] font-bold tracking-tight text-foreground">
-            Command Center
-          </h1>
-          <p className="mt-4 font-body text-[15px] leading-relaxed text-muted-foreground">
+          <p className="font-body text-[15px] leading-relaxed text-muted-foreground">
             What needs attention today — data from your connected systems.
           </p>
-        </motion.header>
+        </motion.div>
 
         {loading || !primaryMetric || !reintegrationMetric || !liveContext ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/40 px-6 py-16">

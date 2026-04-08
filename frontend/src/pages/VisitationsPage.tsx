@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
+import { fetchFieldOptions, mapFieldOptionsResidentsToOptions } from "@/lib/visitationsFieldOptions";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -532,37 +533,32 @@ const VisitationsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selected, setSelected] = useState<VisitationRow | null>(null);
 
-  const [residents, setResidents] = useState<ResidentOption[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<{
+    residents: ResidentOption[];
+    interventionOptions: SelectOption[];
+    followUpOptions: SelectOption[];
+  }>({ residents: [], interventionOptions: [], followUpOptions: [] });
   const [selectedVisit, setSelectedVisit] = useState<VisitationRow | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [interventionOptions, setInterventionOptions] = useState<SelectOption[]>([]);
-  const [followUpOptions, setFollowUpOptions] = useState<SelectOption[]>([]);
 
   const ensureResidents = useCallback(async () => {
-    if (residents.length > 0) return;
-    const data = await apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`);
-    setResidents(data.items);
-  }, [residents.length]);
-
-  useEffect(() => {
-    void apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`)
-      .then((data) => setResidents(data.items))
-      .catch(() => {
-        /* filter dropdown optional */
-      });
-  }, []);
+    if ((fieldOptions.residents?.length ?? 0) > 0) return;
+    const data = await fetchFieldOptions();
+    setFieldOptions({
+      residents: mapFieldOptionsResidentsToOptions(data.residents),
+      interventionOptions: data.interventionOptions ?? [],
+      followUpOptions: data.followUpOptions ?? [],
+    });
+  }, [fieldOptions.residents?.length]);
 
   useEffect(() => {
     void (async () => {
-      try {
-        const data = await apiFetchJson<{ interventionOptions: SelectOption[]; followUpOptions: SelectOption[] }>(
-          `${API_PREFIX}/visitations/field-options`
-        );
-        setInterventionOptions(data.interventionOptions);
-        setFollowUpOptions(data.followUpOptions);
-      } catch (e) {
-        console.warn("visitations field-options:", e);
-      }
+      const data = await fetchFieldOptions();
+      setFieldOptions({
+        residents: mapFieldOptionsResidentsToOptions(data.residents),
+        interventionOptions: data.interventionOptions ?? [],
+        followUpOptions: data.followUpOptions ?? [],
+      });
     })();
   }, []);
 
@@ -773,7 +769,7 @@ const VisitationsPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all">All residents</SelectItem>
-                  {residents.map((r) => (
+                  {(fieldOptions?.residents ?? []).map((r) => (
                     <SelectItem key={r.residentId} value={String(r.residentId)}>
                       {r.internalCode || `Resident #${r.residentId}`}
                     </SelectItem>
@@ -950,18 +946,24 @@ const VisitationsPage = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         initialData={selectedVisit}
-        residents={residents}
-        interventionOptions={interventionOptions}
-        followUpOptions={followUpOptions}
+        residents={fieldOptions?.residents ?? []}
+        interventionOptions={fieldOptions?.interventionOptions ?? []}
+        followUpOptions={fieldOptions?.followUpOptions ?? []}
         onCreateIntervention={(name) =>
-          setInterventionOptions((prev) =>
-            prev.some((p) => p.value === tokenId(name)) ? prev : [...prev, { value: tokenId(name), label: name }]
-          )
+          setFieldOptions((prev) => ({
+            ...prev,
+            interventionOptions: prev.interventionOptions.some((p) => p.value === tokenId(name))
+              ? prev.interventionOptions
+              : [...prev.interventionOptions, { value: tokenId(name), label: name }],
+          }))
         }
         onCreateFollowUp={(name) =>
-          setFollowUpOptions((prev) =>
-            prev.some((p) => p.value === tokenId(name)) ? prev : [...prev, { value: tokenId(name), label: name }]
-          )
+          setFieldOptions((prev) => ({
+            ...prev,
+            followUpOptions: prev.followUpOptions.some((p) => p.value === tokenId(name))
+              ? prev.followUpOptions
+              : [...prev.followUpOptions, { value: tokenId(name), label: name }],
+          }))
         }
         onSave={handleModalSave}
       />
