@@ -71,7 +71,7 @@ export default function DonatePage() {
       <section className="relative min-h-screen pt-28 pb-20 sm:pt-32 sm:pb-24 overflow-hidden">
         <div className="absolute inset-0 gradient-cream-warm" />
 
-        <div className="relative max-w-2xl mx-auto px-6">
+        <div className="relative max-w-3xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -83,7 +83,7 @@ export default function DonatePage() {
                 Give Today
               </p>
             </div>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-3">
+            <h1 className="font-display text-5xl md:text-6xl font-semibold tracking-tight text-foreground mb-4">
               How Your Gift Makes an Impact
             </h1>
             <p className="font-body text-base text-muted-foreground leading-relaxed mb-10">
@@ -98,7 +98,7 @@ export default function DonatePage() {
               { title: "Health", text: "Counseling, trauma recovery, and medical coordination." },
               { title: "Expansion", text: "New regional partnerships and increased capacity." },
             ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div key={item.title} className="rounded-xl bg-background/70 p-5 transition-all duration-300 ease-out hover:-translate-y-1">
                 <h2 className="font-semibold text-foreground mb-1">{item.title}</h2>
                 <p className="text-sm text-muted-foreground">{item.text}</p>
               </div>
@@ -111,7 +111,7 @@ export default function DonatePage() {
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
-              className="bg-card border border-border rounded-2xl p-10 text-center"
+              className="bg-background/90 rounded-xl p-10 text-center"
             >
               <CheckCircle className="w-12 h-12 text-sage mx-auto mb-4" />
               <h2 className="font-display text-2xl font-semibold text-foreground mb-3">
@@ -127,7 +127,7 @@ export default function DonatePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
               onSubmit={handleSubmit}
-              className="bg-card border border-border rounded-2xl p-8 sm:p-10 space-y-6"
+              className="bg-background/90 rounded-xl p-8 sm:p-10 space-y-6 shadow-sm"
             >
               {/* Name row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -259,7 +259,7 @@ export default function DonatePage() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="w-full rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium h-11 gap-2"
+                className="w-full rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium h-11 gap-2 transition-all duration-300 ease-out hover:scale-[1.01]"
               >
                 <Heart className="w-4 h-4" />
                 {submitting ? "Submitting…" : "Submit Donation"}

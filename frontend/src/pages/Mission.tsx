@@ -16,7 +16,7 @@ export default function Mission() {
       <section className="pt-28 pb-16 sm:pt-32 lg:pt-36 gradient-cream-warm">
         <div className="max-w-5xl mx-auto px-6">
           <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-terracotta mb-4">Mission & Values</p>
-          <h1 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-bold text-foreground leading-[1.12] mb-5">
+          <h1 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold tracking-tight text-foreground leading-[1.12] mb-5">
             Mission
           </h1>
           <p className="text-muted-foreground leading-relaxed max-w-3xl">
@@ -27,10 +27,10 @@ export default function Mission() {
 
       <section className="py-16 lg:py-20 bg-background">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="font-display text-2xl lg:text-3xl font-bold text-foreground mb-6">Values</h2>
+          <h2 className="font-display text-2xl lg:text-3xl font-semibold tracking-tight text-foreground mb-6">Values</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {values.map((value) => (
-              <div key={value} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div key={value} className="rounded-xl bg-muted/40 p-5 transition-all duration-300 ease-out hover:-translate-y-1">
                 <p className="font-medium text-foreground">{value}</p>
               </div>
             ))}
