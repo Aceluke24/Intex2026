@@ -19,7 +19,8 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandLogo, BrandLockup } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_BASE } from "@/lib/apiBase";
+import { API_PREFIX } from "@/lib/apiBase";
+import { apiFetch } from "@/lib/apiFetch";
 import { useAdminChrome } from "@/contexts/AdminChromeContext";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
@@ -68,7 +69,7 @@ export const AdminLayout = ({
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+    await apiFetch(`${API_PREFIX}/auth/logout`, { method: "POST" });
     await refetch();
     navigate("/login");
   };

@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { EmotionalTag, ProcessSessionEntry } from "@/lib/processRecordingTypes";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, User } from "lucide-react";
+import { ChevronDown, Pencil, Trash2, User } from "lucide-react";
 import { useState } from "react";
 
 const emotionalStyles: Record<EmotionalTag, string> = {
@@ -18,9 +18,11 @@ const emotionalStyles: Record<EmotionalTag, string> = {
 type SessionTimelineProps = {
   entries: ProcessSessionEntry[];
   onSelect: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
 };
 
-export function SessionTimeline({ entries, onSelect }: SessionTimelineProps) {
+export function SessionTimeline({ entries, onSelect, onEdit, onDelete }: SessionTimelineProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggle = (id: string, e: React.MouseEvent) => {
@@ -115,6 +117,32 @@ export function SessionTimeline({ entries, onSelect }: SessionTimelineProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {onEdit && (
+                    <button
+                      type="button"
+                      aria-label="Edit entry"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(entry.id);
+                      }}
+                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/80 hover:text-foreground dark:hover:bg-white/10"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      aria-label="Delete entry"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(entry.id);
+                      }}
+                      className="rounded-lg p-1.5 text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                   <span className="font-mono text-[10px] text-muted-foreground/90">{entry.id}</span>
                   <button
                     type="button"

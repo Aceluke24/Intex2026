@@ -6,6 +6,7 @@ import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import {
   mapApiEmotionalState,
   type ProcessResidentOption,
@@ -96,8 +97,8 @@ const RecordingsPage = () => {
     setLoadError(null);
     try {
       const [recRes, resRes] = await Promise.all([
-        apiFetchJson<RecordingListResponse>("/api/recordings?page=1&pageSize=100"),
-        apiFetchJson<ResidentsResponse>("/api/residents?page=1&pageSize=500"),
+        apiFetchJson<RecordingListResponse>(`${API_PREFIX}/recordings?page=1&pageSize=100`),
+        apiFetchJson<ResidentsResponse>(`${API_PREFIX}/residents?page=1&pageSize=500`),
       ]);
       setSessions(recRes.items.map(mapListItemToEntry));
       setResidents(resRes.items.map(mapResident));
@@ -135,7 +136,7 @@ const RecordingsPage = () => {
     let cancelled = false;
     (async () => {
       try {
-        const r = await apiFetchJson<Record<string, unknown>>(`/api/recordings/${selectedEntryId}`);
+        const r = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/recordings/${selectedEntryId}`);
         if (cancelled) return;
         const narrative = typeof r.sessionNarrative === "string" ? r.sessionNarrative : base.narrativeFull;
         const emotional =
@@ -173,6 +174,37 @@ const RecordingsPage = () => {
   const openEntry = (id: string) => {
     setSelectedEntryId(id);
     setSheetOpen(true);
+  };
+
+  const handleEditEntry = async (id: string) => {
+    try {
+      const existing = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/recordings/${id}`);
+      const currentNarrative = String(existing.sessionNarrative ?? "");
+      const nextNarrative = window.prompt("Update session narrative", currentNarrative);
+      if (nextNarrative == null) return;
+      const body = { ...existing, recordingId: Number(id), sessionNarrative: nextNarrative.trim() || null };
+      const res = await apiFetch(`${API_PREFIX}/recordings/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Recording updated.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update recording.");
+    }
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    if (!window.confirm(`Delete recording ${id}?`)) return;
+    try {
+      const res = await apiFetch(`${API_PREFIX}/recordings/${id}?confirm=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      if (selectedEntryId === id) setSheetOpen(false);
+      toast.success("Recording deleted.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete recording.");
+    }
   };
 
   return (
@@ -241,7 +273,12 @@ const RecordingsPage = () => {
               ))}
             </div>
           ) : (
-            <SessionTimeline entries={filteredSessions} onSelect={openEntry} />
+            <SessionTimeline
+              entries={filteredSessions}
+              onSelect={openEntry}
+              onEdit={(id) => void handleEditEntry(id)}
+              onDelete={(id) => void handleDeleteEntry(id)}
+            />
           )}
         </section>
       </StaffPageShell>
@@ -298,7 +335,7 @@ const RecordingsPage = () => {
             referralMade: false,
           };
           try {
-            const res = await apiFetch("/api/recordings", {
+            const res = await apiFetch(`${API_PREFIX}/recordings`, {
               method: "POST",
               body: JSON.stringify(body),
             });

@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,7 +128,7 @@ const VisitationsPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetchJson<VisitationRow[]>("/api/visitations");
+      const data = await apiFetchJson<VisitationRow[]>(`${API_PREFIX}/visitations`);
       setRows(data);
     } catch (e) {
       console.error(e);
@@ -155,7 +156,7 @@ const VisitationsPage = () => {
     setLogDate(new Date().toISOString().slice(0, 10));
     if (logResidents.length === 0) {
       try {
-        const data = await apiFetchJson<{ items: ResidentOption[] }>("/api/residents?page=1&pageSize=500");
+        const data = await apiFetchJson<{ items: ResidentOption[] }>(`${API_PREFIX}/residents?page=1&pageSize=500`);
         setLogResidents(data.items);
         if (data.items.length > 0) setLogResidentId(String(data.items[0].residentId));
       } catch { /* non-fatal */ }
@@ -183,7 +184,7 @@ const VisitationsPage = () => {
         followUpNotes: logFollowUp ? logFollowUpNotes || null : null,
         visitOutcome: logOutcome,
       };
-      const res = await apiFetch("/api/visitations", { method: "POST", body: JSON.stringify(body) });
+      const res = await apiFetch(`${API_PREFIX}/visitations`, { method: "POST", body: JSON.stringify(body) });
       if (!res.ok) throw new Error(await res.text());
       setLogOpen(false);
       setLogObservations(""); setLogPurpose(""); setLogLocation(""); setLogFollowUpNotes(""); setLogWorker("");
@@ -193,6 +194,37 @@ const VisitationsPage = () => {
       setLogError(e instanceof Error ? e.message : "Failed to save.");
     } finally {
       setLogSubmitting(false);
+    }
+  };
+
+  const handleEditVisitation = async (id: number) => {
+    try {
+      const existing = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/visitations/${id}`);
+      const current = String(existing.observations ?? "");
+      const next = window.prompt("Update observations", current);
+      if (next == null) return;
+      const body = { ...existing, visitationId: id, observations: next.trim() || null };
+      const res = await apiFetch(`${API_PREFIX}/visitations/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Visit updated.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update visit.");
+    }
+  };
+
+  const handleDeleteVisitation = async (id: number) => {
+    if (!window.confirm(`Delete visitation ${id}?`)) return;
+    try {
+      const res = await apiFetch(`${API_PREFIX}/visitations/${id}?confirm=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      if (selected?.id === id) setSheetOpen(false);
+      toast.success("Visit deleted.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete visit.");
     }
   };
 
@@ -284,12 +316,20 @@ const VisitationsPage = () => {
                     <p className="mt-3 line-clamp-2 font-body text-sm text-foreground/85">{v.notes}</p>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/40 pt-3 dark:border-white/10">
                       <span className="font-body text-[11px] text-muted-foreground">{v.staffName}</span>
-                      {v.safetyFlag && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-[hsl(0_25%_96%)] px-2 py-0.5 font-body text-[10px] font-semibold text-[hsl(0_30%_36%)] dark:bg-[hsl(0_22%_18%)] dark:text-[hsl(0_25%_78%)]">
-                          <AlertTriangle className="h-3 w-3" />
-                          Safety
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Button type="button" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void handleEditVisitation(v.id); }}>
+                          Edit
+                        </Button>
+                        <Button type="button" size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); void handleDeleteVisitation(v.id); }}>
+                          Delete
+                        </Button>
+                        {v.safetyFlag && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[hsl(0_25%_96%)] px-2 py-0.5 font-body text-[10px] font-semibold text-[hsl(0_30%_36%)] dark:bg-[hsl(0_22%_18%)] dark:text-[hsl(0_25%_78%)]">
+                            <AlertTriangle className="h-3 w-3" />
+                            Safety
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </motion.button>
                 ))}
@@ -332,6 +372,14 @@ const VisitationsPage = () => {
                     <h3 className="mt-2 font-display text-lg font-semibold text-foreground">{v.residentName}</h3>
                     <p className="mt-2 font-body text-sm text-muted-foreground">{v.caseId}</p>
                     <p className="mt-4 line-clamp-3 font-body text-sm text-foreground/85">{v.notes}</p>
+                    <div className="mt-4 flex items-center gap-2">
+                      <Button type="button" size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); void handleEditVisitation(v.id); }}>
+                        Edit
+                      </Button>
+                      <Button type="button" size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); void handleDeleteVisitation(v.id); }}>
+                        Delete
+                      </Button>
+                    </div>
                   </motion.button>
                 ))}
                 {conferences.length === 0 && (

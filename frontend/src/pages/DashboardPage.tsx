@@ -11,6 +11,7 @@ import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -58,7 +59,7 @@ const DashboardPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetchJson<DashboardApiResponse>("/api/dashboard");
+      const data = await apiFetchJson<DashboardApiResponse>(`${API_PREFIX}/dashboard`);
       setPrimaryMetric(data.primaryMetric);
       setSupportingMetrics(data.supportingMetrics);
       setReintegrationMetric(data.reintegrationMetric);

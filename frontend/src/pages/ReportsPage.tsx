@@ -5,6 +5,7 @@ import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -68,7 +69,7 @@ const ReportsPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetchJson<ReportsAnalytics>("/api/reports");
+      const data = await apiFetchJson<ReportsAnalytics>(`${API_PREFIX}/reports`);
       setAnalytics(data);
     } catch (e) {
       console.error(e);

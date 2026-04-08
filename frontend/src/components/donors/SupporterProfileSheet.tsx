@@ -25,6 +25,7 @@ type SupporterProfileSheetProps = {
   onNotesChange: (v: string) => void;
   onMarkInactive: () => void;
   onEdit: () => void;
+  onDelete?: () => void;
 };
 
 const timelineIcon = (kind: TimelineEntry["kind"]) => {
@@ -55,6 +56,7 @@ export function SupporterProfileSheet({
   onNotesChange,
   onMarkInactive,
   onEdit,
+  onDelete,
 }: SupporterProfileSheetProps) {
   const b = supporter.breakdown ?? defaultBreakdown();
 
@@ -191,6 +193,16 @@ export function SupporterProfileSheet({
           >
             Edit profile
           </Button>
+          {onDelete && (
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-xl font-body sm:px-6"
+              onClick={onDelete}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { AIInsightCard } from "@/components/AIInsightCard";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import { Brain } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -44,8 +45,8 @@ const InsightsPage = () => {
     setLoadError(null);
     try {
       const [c, r] = await Promise.all([
-        apiFetchJson<DonorChurnRow[]>("/api/insights/donor-churn"),
-        apiFetchJson<ResidentRiskRow[]>("/api/insights/resident-risk"),
+        apiFetchJson<DonorChurnRow[]>(`${API_PREFIX}/insights/donor-churn`),
+        apiFetchJson<ResidentRiskRow[]>(`${API_PREFIX}/insights/resident-risk`),
       ]);
       setChurn(c);
       setResidentRisk(r);

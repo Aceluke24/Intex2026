@@ -1,10 +1,4 @@
-import { API_BASE } from "@/lib/apiBase";
-
-function resolveUrl(path: string): string {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  if (!API_BASE) return p;
-  return `${API_BASE}${p}`;
-}
+import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
 function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -14,7 +8,7 @@ function getBearerToken(): string | null {
 async function clearSessionAndRedirectLogin(): Promise<void> {
   if (typeof window === "undefined") return;
   try {
-    await fetch(resolveUrl("/api/auth/logout"), {
+    await fetch(apiUrl(`${API_PREFIX}/auth/logout`), {
       method: "POST",
       credentials: "include",
     });
@@ -33,13 +27,13 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(resolveUrl(path), {
+  const res = await fetch(apiUrl(path), {
     ...init,
     credentials: "include",
     headers,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     void clearSessionAndRedirectLogin();
   }
 

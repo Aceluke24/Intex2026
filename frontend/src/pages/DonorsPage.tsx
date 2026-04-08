@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import type {
   ApiSupporterRow,
   ContributionBreakdown,
@@ -114,8 +115,8 @@ const DonorsPage = () => {
     setLoadError(null);
     try {
       const [dashRaw, housesRaw] = await Promise.all([
-        apiFetchJson<unknown>("/api/donors"),
-        apiFetchJson<unknown>("/api/safehouses"),
+        apiFetchJson<unknown>(`${API_PREFIX}/donors`),
+        apiFetchJson<unknown>(`${API_PREFIX}/safehouses`),
       ]);
       const dash = normalizeDonorsPayload(dashRaw);
       const mapped: Supporter[] = dash.supporters.map(mapSupporterRow);
@@ -210,10 +211,56 @@ const DonorsPage = () => {
     setSheetOpen(true);
   };
 
-  const handleMarkInactive = () => {
-    toast.message("Status update", {
-      description: "Supporter status is managed in the central database. Use your admin tools to change records.",
+  const updateSupporter = useCallback(async (supporterId: string, patch: Record<string, unknown>) => {
+    const id = Number(supporterId);
+    if (!Number.isFinite(id)) throw new Error("Invalid supporter ID.");
+    const existing = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/supporters/${id}`);
+    const body = { ...existing, ...patch, supporterId: id };
+    const res = await apiFetch(`${API_PREFIX}/supporters/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
     });
+    if (!res.ok) throw new Error(await res.text());
+  }, []);
+
+  const handleEditSupporter = useCallback(async (supporter: Supporter) => {
+    const displayName = window.prompt("Supporter display name", supporter.name)?.trim();
+    if (!displayName) return;
+    const email = window.prompt("Supporter email", supporter.email)?.trim() ?? supporter.email;
+    try {
+      await updateSupporter(supporter.id, { displayName, email: email || null });
+      toast.success("Supporter updated.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update supporter.");
+    }
+  }, [load, updateSupporter]);
+
+  const handleDeleteSupporter = useCallback(async (supporter: Supporter) => {
+    if (!window.confirm(`Delete ${supporter.name}? This cannot be undone.`)) return;
+    try {
+      const res = await apiFetch(`${API_PREFIX}/supporters/${supporter.id}?confirm=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      setSheetOpen(false);
+      toast.success("Supporter deleted.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete supporter.");
+    }
+  }, [load]);
+
+  const handleMarkInactive = async () => {
+    if (!selected) return;
+    try {
+      await updateSupporter(selected.id, { status: "Inactive" });
+      toast.success("Supporter marked inactive.");
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update supporter status.");
+    }
   };
 
   const handleExport = () => {
@@ -242,7 +289,7 @@ const DonorsPage = () => {
         status: newSupporterStatus,
         relationshipType: "Local",
       };
-      const res = await apiFetch("/api/supporters", {
+      const res = await apiFetch(`${API_PREFIX}/supporters`, {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -535,9 +582,7 @@ const DonorsPage = () => {
                         index={i}
                         supporter={s}
                         onOpen={() => openProfile(s.id)}
-                        onEdit={() =>
-                          toast.message("Edit supporter", { description: "Opens full profile editor (demo)." })
-                        }
+                        onEdit={() => void handleEditSupporter(s)}
                       />
                     ))}
                   </AnimatePresence>
@@ -552,9 +597,7 @@ const DonorsPage = () => {
                       key={s.id}
                       supporter={s}
                       onOpen={() => openProfile(s.id)}
-                      onEdit={() =>
-                        toast.message("Edit supporter", { description: "Opens full profile editor (demo)." })
-                      }
+                      onEdit={() => void handleEditSupporter(s)}
                     />
                   ))}
                   {filtered.length === 0 && (
@@ -591,9 +634,8 @@ const DonorsPage = () => {
             notes={notesById[selected.id] ?? ""}
             onNotesChange={(v) => setNotesById((prev) => ({ ...prev, [selected.id]: v }))}
             onMarkInactive={handleMarkInactive}
-            onEdit={() =>
-              toast.message("Edit profile", { description: "Profile updates are synced from your supporter database." })
-            }
+            onEdit={() => void handleEditSupporter(selected)}
+            onDelete={() => void handleDeleteSupporter(selected)}
           />
         )}
       </SlideOverPanel>
@@ -628,7 +670,7 @@ const DonorsPage = () => {
             body.estimatedValue = parseFloat(amount) || null;
           }
           try {
-            const res = await apiFetch("/api/donations", {
+            const res = await apiFetch(`${API_PREFIX}/donations`, {
               method: "POST",
               body: JSON.stringify(body),
             });

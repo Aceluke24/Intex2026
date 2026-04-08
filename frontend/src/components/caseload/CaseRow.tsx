@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ResidentCase } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
@@ -11,6 +11,7 @@ type CaseRowProps = {
   residentCase: ResidentCase;
   onView: () => void;
   onEdit: () => void;
+  onDelete?: () => void;
   index?: number;
 };
 
@@ -25,7 +26,7 @@ function initials(name: string) {
     .toUpperCase() || "••";
 }
 
-export function CaseRow({ residentCase: c, onView, onEdit, index = 0 }: CaseRowProps) {
+export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }: CaseRowProps) {
   const [barW, setBarW] = useState(0);
   useEffect(() => {
     const t = requestAnimationFrame(() => setBarW(c.reintegrationProgress));
@@ -184,6 +185,20 @@ export function CaseRow({ residentCase: c, onView, onEdit, index = 0 }: CaseRowP
             >
               <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
             </Button>
+            {onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-destructive/80 hover:bg-destructive/10 hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+              </Button>
+            )}
           </div>
         </div>
 

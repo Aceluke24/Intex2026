@@ -19,6 +19,7 @@ import {
 } from "@/lib/caseloadTypes";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { API_PREFIX } from "@/lib/apiBase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
@@ -162,8 +163,8 @@ const CaseloadPage = () => {
     setLoadError(null);
     try {
       const [caseRows, houses] = await Promise.all([
-        apiFetchJson<CaseApiRow[]>("/api/cases"),
-        apiFetchJson<SafehouseApi[]>("/api/safehouses"),
+        apiFetchJson<CaseApiRow[]>(`${API_PREFIX}/cases`),
+        apiFetchJson<SafehouseApi[]>(`${API_PREFIX}/safehouses`),
       ]);
       const mapped = caseRows.map(mapCaseRow);
       setCases(mapped);
@@ -282,11 +283,11 @@ const CaseloadPage = () => {
     const residentId = residentIdMap[c.id];
     try {
       const res = residentId
-        ? await apiFetch(`/api/residents/${residentId}`, {
+        ? await apiFetch(`${API_PREFIX}/residents/${residentId}`, {
             method: "PUT",
             body: JSON.stringify({ residentId, ...body }),
           })
-        : await apiFetch("/api/residents", { method: "POST", body: JSON.stringify(body) });
+        : await apiFetch(`${API_PREFIX}/residents`, { method: "POST", body: JSON.stringify(body) });
 
       if (!res.ok) throw new Error(await res.text());
       toast.success(residentId ? "Case record updated." : "Case record created.");
@@ -294,6 +295,25 @@ const CaseloadPage = () => {
       void load();
     } catch (e) {
       toast.error("Save failed: " + (e instanceof Error ? e.message : "Unknown error"));
+    }
+  };
+
+  const handleDeleteCase = async (c: ResidentCase) => {
+    const residentId = residentIdMap[c.id];
+    if (!residentId) {
+      toast.error("Unable to resolve resident ID.");
+      return;
+    }
+    if (!window.confirm(`Delete case ${c.id}? This cannot be undone.`)) return;
+    try {
+      const res = await apiFetch(`${API_PREFIX}/residents/${residentId}?confirm=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Case deleted.");
+      if (selectedId === c.id) setSheetOpen(false);
+      await load();
+    } catch (e) {
+      console.error(e);
+      toast.error("Delete failed.");
     }
   };
 
@@ -513,6 +533,7 @@ const CaseloadPage = () => {
                         setEditing(c);
                         setFormOpen(true);
                       }}
+                      onDelete={() => void handleDeleteCase(c)}
                     />
                   ))}
                 </AnimatePresence>
