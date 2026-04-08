@@ -93,7 +93,8 @@ def normalize_supporters(cur):
         ("Phone", "nvarchar(max) NULL"),
         ("Status", "nvarchar(max) NOT NULL"),
         ("AcquisitionChannel", "nvarchar(max) NULL"),
-        ("CreatedAt", "nvarchar(max) NOT NULL"),
+        ("CreatedAt", "datetime2 NOT NULL"),
+        ("FirstDonationDate", "nvarchar(max) NULL"),  # Keep as text; converting existing data is risky
     ]:
         alter_column(cur, "Supporters", col[0], col[1])
 
@@ -108,6 +109,7 @@ def normalize_donations(cur):
         ("ImpactUnit", "nvarchar(max) NULL"),
         ("CampaignName", "nvarchar(max) NULL"),
         ("Notes", "nvarchar(max) NULL"),
+        ("DonationDate", "nvarchar(max) NOT NULL"),  # Keep as text; converting existing data is risky
     ]:
         alter_column(cur, "Donations", col[0], col[1])
     alter_column(cur, "Donations", "IsRecurring", "bit NOT NULL")
