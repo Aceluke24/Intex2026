@@ -114,11 +114,20 @@ function deriveResidentPrimaryLabel(row: CaseApiRow): string {
   return residentName;
 }
 
+/** API uses "Resident {InternalCode}" — form and filters use the code alone (e.g. LS-0067). */
+function residentDisplayCodeFromApiLabel(label: string): string {
+  const t = (label ?? "").trim();
+  if (!t) return "";
+  const m = /^resident\s+/i.exec(t);
+  if (m) return t.slice(m[0].length).trim();
+  return t;
+}
+
 function mapCaseRow(row: CaseApiRow): ResidentCase {
   const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
   return {
     id: row.caseId || `R-${row.residentId}`,
-    displayName: deriveResidentPrimaryLabel(row),
+    displayName: residentDisplayCodeFromApiLabel(deriveResidentPrimaryLabel(row)),
     anonymized: true,
     age: 0,
     ageUponAdmission: row.ageUponAdmission ?? "",
@@ -216,6 +225,7 @@ const CaseloadPage = () => {
   const [sortKey, setSortKey] = useState<SortKey>("admission");
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [suggestedNextDisplayName, setSuggestedNextDisplayName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -236,6 +246,10 @@ const CaseloadPage = () => {
         idMap[`R-${r.residentId}`] = r.residentId;
       });
       setResidentIdMap(idMap);
+
+      void apiFetchJson<{ displayName: string }>(`${API_PREFIX}/residents/next-display-name`)
+        .then((r) => setSuggestedNextDisplayName(r.displayName))
+        .catch(() => setSuggestedNextDisplayName("LS-0001"));
     } catch (e) {
       console.error(e);
       setLoadError(e instanceof Error ? e.message : "Failed to load caseload.");
@@ -364,6 +378,9 @@ const CaseloadPage = () => {
     const subFlags = mapSubcategoryFlags(c.category, c.subcategory ?? "");
     const normalizedSex = c.gender?.toLowerCase().startsWith("m") ? "M" : "F";
 
+    const trimmedDisplay = c.displayName.trim();
+    const internalCode = /^LS-\d+$/i.test(trimmedDisplay) ? trimmedDisplay : undefined;
+
     const body = {
       safehouseId,
       caseStatus: apiStatus,
@@ -401,6 +418,7 @@ const CaseloadPage = () => {
       hasSpecialNeeds: !!c.disability,
       specialNeedsDiagnosis: c.disability || null,
       notesRestricted: c.caseNotes !== "—" ? c.caseNotes : null,
+      ...(internalCode ? { internalCode } : {}),
     };
 
     try {
@@ -411,6 +429,10 @@ const CaseloadPage = () => {
           })
         : await apiFetch(`${API_PREFIX}/residents`, { method: "POST", body: JSON.stringify(body) });
 
+      if (res.status === 409) {
+        toast.error("That display code is already in use. Choose another.");
+        return;
+      }
       if (!res.ok) throw new Error(await res.text());
       toast.success(residentId ? "Case record updated." : "Case record created.");
       setEditing(null);
@@ -514,6 +536,7 @@ const CaseloadPage = () => {
                 <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
                   <Button
                     type="button"
+                    disabled={loading}
                     onClick={() => {
                       setEditing(null);
                       setFormOpen(true);
@@ -719,8 +742,7 @@ const CaseloadPage = () => {
         onSave={handleSaveCase}
         safehouseOptions={shForUi.length ? shForUi : ["—"]}
         workerOptions={workersForUi}
-        existingCases={cases}
-        existingCasesLoaded={!loading}
+        suggestedNextDisplayName={suggestedNextDisplayName}
       />
     </AdminLayout>
   );

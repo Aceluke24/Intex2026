@@ -17,7 +17,7 @@ import { caseCategories, reintegrationPhases } from "@/lib/caseloadTypes";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const STEPS = ["Profile", "Case classification", "Family context", "Admission & assignment"] as const;
 
@@ -28,23 +28,9 @@ type AddEditCaseDialogProps = {
   onSave: (c: ResidentCase) => void;
   safehouseOptions: string[];
   workerOptions: string[];
-  existingCases: ResidentCase[];
-  existingCasesLoaded: boolean;
+  /** From GET /api/residents/next-display-name; null until first successful prefetch. */
+  suggestedNextDisplayName: string | null;
 };
-
-function generateNextDisplayName(cases: ResidentCase[]): string {
-  if (!cases.length) return "LS-0001";
-
-  const max = Math.max(
-    ...cases
-      .map((c) => c.displayName)
-      .filter((name) => /^LS-\d{4}$/.test(name))
-      .map((name) => Number(name.split("-")[1]))
-  );
-
-  const next = (max || 0) + 1;
-  return `LS-${String(next).padStart(4, "0")}`;
-}
 
 const emptySocio: SocioDemoProfile = {
   fourPsBeneficiary: false,
@@ -160,8 +146,7 @@ export function AddEditCaseDialog({
   onSave,
   safehouseOptions,
   workerOptions,
-  existingCases,
-  existingCasesLoaded,
+  suggestedNextDisplayName,
 }: AddEditCaseDialogProps) {
   const shOpts = useMemo(
     () => (safehouseOptions.length ? safehouseOptions : ["—"]),
@@ -170,19 +155,21 @@ export function AddEditCaseDialog({
   const wOpts = useMemo(() => (workerOptions.length ? workerOptions : ["—"]), [workerOptions]);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(() => toFormState(null, ["—"], ["—"]));
+  const displayNameEditedRef = useRef(false);
 
   useEffect(() => {
     if (open) {
       setStep(0);
+      displayNameEditedRef.current = false;
       setForm(toFormState(editing, shOpts, wOpts));
     }
   }, [open, editing, shOpts, wOpts]);
 
   useEffect(() => {
-    if (open && !editing && existingCasesLoaded) {
-      setForm((f) => ({ ...f, displayName: generateNextDisplayName(existingCases) }));
+    if (open && !editing && suggestedNextDisplayName && !displayNameEditedRef.current) {
+      setForm((f) => ({ ...f, displayName: suggestedNextDisplayName }));
     }
-  }, [open, editing, existingCases, existingCasesLoaded]);
+  }, [open, editing, suggestedNextDisplayName]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -304,7 +291,10 @@ export function AddEditCaseDialog({
                   <Input
                     id="displayName"
                     value={form.displayName}
-                    onChange={(e) => setField("displayName", e.target.value)}
+                    onChange={(e) => {
+                      displayNameEditedRef.current = true;
+                      setField("displayName", e.target.value);
+                    }}
                     readOnly={!editing}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     placeholder="e.g. Resident A."

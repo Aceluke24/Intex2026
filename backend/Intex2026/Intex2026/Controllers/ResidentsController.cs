@@ -1,3 +1,4 @@
+using System.Globalization;
 using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,55 @@ public class ResidentsController : ControllerBase
 
     private static string GenerateCaseControlNo() => $"CC-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
     private static string GenerateInternalCode(int safehouseId) => $"SH{safehouseId:D2}-{DateTime.UtcNow:HHmmssfff}";
+
+    /// <summary>Parses LS-#### style codes stored in <see cref="Resident.InternalCode"/>.</summary>
+    private static bool TryParseLsSequence(string? code, out int num)
+    {
+        num = 0;
+        if (string.IsNullOrWhiteSpace(code)) return false;
+        var t = code.Trim();
+        if (!t.StartsWith("LS-", StringComparison.OrdinalIgnoreCase)) return false;
+        var rest = t.AsSpan(3).Trim();
+        return int.TryParse(rest, NumberStyles.None, CultureInfo.InvariantCulture, out num) && num >= 0;
+    }
+
+    /// <summary>Next anonymized display code: max(latest valid + 1, global max + 1, 1), formatted LS-0000.</summary>
+    private static string ComputeNextLsDisplayName(string? latestInternalCode, IReadOnlyList<string> allInternalCodes)
+    {
+        var maxParsed = 0;
+        foreach (var c in allInternalCodes)
+        {
+            if (TryParseLsSequence(c, out var n))
+                maxParsed = Math.Max(maxParsed, n);
+        }
+
+        var nextFromLatest = 0;
+        if (TryParseLsSequence(latestInternalCode, out var latestNum))
+            nextFromLatest = latestNum + 1;
+
+        var next = Math.Max(1, Math.Max(maxParsed + 1, nextFromLatest));
+        return $"LS-{next.ToString("D4", CultureInfo.InvariantCulture)}";
+    }
+
+    // GET /api/residents/next-display-name — suggested next LS-#### from DB (by CreatedAt + global max)
+    [HttpGet("next-display-name")]
+    public async Task<IActionResult> GetNextDisplayName(CancellationToken ct)
+    {
+        var count = await _db.Residents.AsNoTracking().CountAsync(ct);
+        if (count == 0)
+            return Ok(new { displayName = "LS-0001" });
+
+        var latestCode = await _db.Residents.AsNoTracking()
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => r.InternalCode)
+            .FirstOrDefaultAsync(ct);
+
+        var allCodes = await _db.Residents.AsNoTracking()
+            .Select(r => r.InternalCode)
+            .ToListAsync(ct);
+
+        return Ok(new { displayName = ComputeNextLsDisplayName(latestCode, allCodes) });
+    }
 
     // GET /api/residents?caseStatus=Active&safehouseId=1&caseCategory=Neglected&search=foo&page=1&pageSize=25
     [HttpGet]
@@ -71,13 +121,25 @@ public class ResidentsController : ControllerBase
 
     // POST /api/residents
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ResidentUpsertRequest req)
+    public async Task<IActionResult> Create([FromBody] ResidentUpsertRequest req, CancellationToken ct)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        string internalCode;
+        if (!string.IsNullOrWhiteSpace(req.InternalCode))
+        {
+            internalCode = req.InternalCode.Trim();
+            var taken = await _db.Residents.AnyAsync(r => r.InternalCode == internalCode, ct);
+            if (taken)
+                return Conflict(new { message = "That display code is already in use." });
+        }
+        else
+            internalCode = GenerateInternalCode(req.SafehouseId);
+
         var resident = new Resident
         {
             CaseControlNo = GenerateCaseControlNo(),
-            InternalCode = GenerateInternalCode(req.SafehouseId),
+            InternalCode = internalCode,
             SafehouseId = req.SafehouseId,
             CaseStatus = req.CaseStatus,
             Sex = string.IsNullOrWhiteSpace(req.Sex) ? "F" : req.Sex,
@@ -132,11 +194,20 @@ public class ResidentsController : ControllerBase
 
     // PUT /api/residents/{id}
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] ResidentUpsertRequest req)
+    public async Task<IActionResult> Update(int id, [FromBody] ResidentUpsertRequest req, CancellationToken ct)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         var resident = await _db.Residents.FirstOrDefaultAsync(r => r.ResidentId == id);
         if (resident == null) return NotFound();
+
+        if (!string.IsNullOrWhiteSpace(req.InternalCode))
+        {
+            var trimmed = req.InternalCode.Trim();
+            var taken = await _db.Residents.AnyAsync(r => r.InternalCode == trimmed && r.ResidentId != id, ct);
+            if (taken)
+                return Conflict(new { message = "That display code is already in use." });
+            resident.InternalCode = trimmed;
+        }
 
         resident.SafehouseId = req.SafehouseId;
         resident.CaseStatus = req.CaseStatus;
@@ -247,5 +318,6 @@ public record ResidentUpsertRequest(
     bool HasSpecialNeeds,
     string? SpecialNeedsDiagnosis,
     DateOnly? DateClosed,
-    string? NotesRestricted
+    string? NotesRestricted,
+    string? InternalCode = null
 );
