@@ -252,20 +252,60 @@ const InsightsPage = () => {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
-              aria-labelledby="top-risk-donors-heading"
+              aria-labelledby="donor-list-heading"
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 id="top-risk-donors-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
-                    Top At-Risk Donors
+                  <h2 
+                    id="donor-list-heading" 
+                    className="font-display text-lg font-semibold tracking-tight text-foreground"
+                  >
+                    {donorViewMode === "at-risk" 
+                      ? "At-Risk Donors" 
+                      : donorViewMode === "recoverable" 
+                      ? "Recovery Candidates" 
+                      : "Loyal Supporters"}
                   </h2>
                   <p className="font-body text-xs text-muted-foreground">
-                    Ranked by predicted churn risk{avgRepeatProbability !== null ? ` • Avg repeat probability: ${(avgRepeatProbability * 100).toFixed(0)}%` : ""}
+                    {donorViewMode === "at-risk"
+                      ? "Donors with high churn risk needing immediate attention"
+                      : donorViewMode === "recoverable"
+                      ? "High-risk donors with potential to donate again"
+                      : "Repeat donors with strong loyalty signals"}
                   </p>
                 </div>
-                <span className="rounded-full border border-[hsl(340_26%_78%)] bg-[hsl(340_32%_94%)] px-3 py-1 font-body text-xs text-[hsl(340_35%_38%)]">
-                  {donorScoreSource === "ml" ? "ML ranked" : "Rule-based ranked"}
-                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setDonorViewMode("at-risk")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      donorViewMode === "at-risk"
+                        ? "border border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    At-Risk
+                  </button>
+                  <button
+                    onClick={() => setDonorViewMode("recoverable")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      donorViewMode === "recoverable"
+                        ? "border border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    Recoverable
+                  </button>
+                  <button
+                    onClick={() => setDonorViewMode("loyal")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      donorViewMode === "loyal"
+                        ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    Loyal
+                  </button>
+                </div>
               </div>
 
                 <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
@@ -316,7 +356,11 @@ const InsightsPage = () => {
                     {!topAtRiskDonors.length && (
                       <tr>
                         <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={6}>
-                          No donor risk rows available.
+                          {donorViewMode === "at-risk"
+                            ? "No high-risk donors found"
+                            : donorViewMode === "recoverable"
+                            ? "No recovery candidates found"
+                            : "No loyal supporters found"}
                         </td>
                       </tr>
                     )}
