@@ -63,7 +63,7 @@ const Index = () => {
   }, []);
 
   return (
-    <PublicLayout>
+    <PublicLayout overlayHeader>
       <section className="relative overflow-hidden gradient-hero text-navy-foreground pt-0 pb-24 sm:pb-28 lg:pb-32">
         <div
           className="absolute inset-0 opacity-20"
@@ -72,7 +72,7 @@ const Index = () => {
               "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.18), transparent 40%), radial-gradient(circle at 80% 70%, rgba(239,125,92,0.22), transparent 45%)",
           }}
         />
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-6xl mx-auto px-6 pt-28 sm:pt-32 lg:pt-36">
           {dataError && (
             <div className="mb-8 rounded-xl border border-navy-foreground/25 bg-navy-foreground/10 px-4 py-3 text-sm">
               {dataError}

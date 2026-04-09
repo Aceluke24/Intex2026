@@ -28,7 +28,13 @@ const footerLegalLinks = [{ label: "Privacy Policy", path: "/privacy" }].filter(
   (item) => item.path && item.path.trim().length > 0
 );
 
-export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
+export const PublicLayout = ({
+  children,
+  overlayHeader = false,
+}: {
+  children: React.ReactNode;
+  overlayHeader?: boolean;
+}) => {
   const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -57,21 +63,19 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
     ...(isDonor && !isAdmin ? [{ label: "My Donations", path: "/donor" }] : []),
   ];
 
-  const iconBtnClass =
-    "rounded-full p-2 text-[rgba(230,237,243,0.75)] hover:text-[#E6EDF3] transition-colors duration-200";
+  const iconBtnClass = "rounded-full p-2 text-white/75 hover:text-white/80 transition-colors duration-200";
 
   const headerBaseClass =
-    "fixed top-0 left-0 w-full z-50 border-b border-white/10 transition-[background-color,box-shadow,backdrop-filter] duration-300 ease-in-out";
-  const headerTopClass =
-    "bg-[linear-gradient(to_bottom,rgba(10,25,47,0.85),rgba(10,25,47,0.6))]";
+    "fixed top-0 left-0 w-full z-50 transition-all duration-300 ease-in-out";
+  const headerTopClass = "bg-transparent";
   const headerScrolledClass =
-    "bg-[rgba(10,25,47,0.95)] backdrop-blur-[10px] shadow-[0_4px_20px_rgba(0,0,0,0.25)]";
+    "bg-gradient-to-r from-[#0B1E3A]/80 to-[#0A1930]/90 backdrop-blur-md border-b border-white/10 shadow-sm dark:from-[#08172E]/85 dark:to-[#071427]/90";
 
   return (
     <div className="min-h-screen flex flex-col">
       <>
         <header className={`${headerBaseClass} ${scrolled ? headerScrolledClass : headerTopClass}`}>
-          <div className="relative z-10 mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-5 px-6 md:px-10">
+          <div className="relative z-10 mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-5 px-6 lg:px-12">
             <Link
               to="/"
               className="flex shrink-0 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
@@ -91,7 +95,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                   className={`shrink-0 font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${
                     location.pathname === item.path
                       ? "text-[#E6EDF3]"
-                      : "text-[rgba(230,237,243,0.75)] hover:text-[#E6EDF3]"
+                      : "text-white/75 hover:text-white/80"
                   }`}
                 >
                   {item.label}
@@ -105,14 +109,14 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
-                    className="font-body text-[14px] font-medium tracking-[0.2px] text-[rgba(230,237,243,0.75)] transition-colors duration-200 hover:text-[#E6EDF3]"
+                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white/75 transition-colors duration-200 hover:text-white/80"
                   >
                     Sign Out
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    className="font-body text-[14px] font-medium tracking-[0.2px] text-[rgba(230,237,243,0.75)] transition-colors duration-200 hover:text-[#E6EDF3]"
+                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white/75 transition-colors duration-200 hover:text-white/80"
                   >
                     Sign In
                   </Link>
@@ -205,7 +209,7 @@ export const PublicLayout = ({ children }: { children: React.ReactNode }) => {
         </AnimatePresence>
       </>
 
-      <main className="flex-1 pt-[88px]">{children}</main>
+      <main className={`flex-1 ${overlayHeader ? "pt-0" : "pt-[88px]"}`}>{children}</main>
 
       {/* Footer — minimal, editorial */}
       <footer className="gradient-navy-deep text-navy-foreground">
