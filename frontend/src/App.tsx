@@ -34,6 +34,7 @@ import OutreachPage from "./pages/OutreachPage.tsx";
 import MfaSetup from "./pages/MfaSetup.tsx";
 import GoogleCallback from "./pages/GoogleCallback.tsx";
 import Unauthorized from "./pages/Unauthorized.tsx";
+import StaffManagement from "./pages/StaffManagement.tsx";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,7 @@ const App = () => (
                   <Route path="/dashboard/finance" element={<FinanceDashboardPage />} />
                   <Route path="/dashboard/expenses" element={<ExpensesPage />} />
                   <Route path="/dashboard/outreach" element={<OutreachPage />} />
+                  <Route path="/dashboard/staff" element={<StaffManagement />} />
                   <Route path="/dashboard/social-media" element={<Navigate to="/dashboard/outreach" replace />} />
                   <Route path="/dashboard/social" element={<Navigate to="/dashboard/outreach" replace />} />
                 </Route>

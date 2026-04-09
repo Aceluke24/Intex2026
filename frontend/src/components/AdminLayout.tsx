@@ -17,6 +17,7 @@ import {
   Receipt,
   Megaphone,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,12 @@ const navGroups = [
     label: "Outreach",
     items: [
       { label: "Social Media", path: "/dashboard/outreach", icon: Megaphone },
+    ],
+  },
+  {
+    label: "Settings & Administration",
+    items: [
+      { label: "Staff & Users", path: "/dashboard/staff", icon: Users },
     ],
   },
   {

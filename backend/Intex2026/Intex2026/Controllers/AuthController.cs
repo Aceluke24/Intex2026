@@ -13,6 +13,7 @@ namespace Intex2026.Controllers;
 public record CustomLoginRequest(string Email, string Password, string? MfaCode = null);
 public record MfaCodeRequest(string Code);
 public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
+public record AssignRoleRequest(string Email);
 
 [ApiController]
 [Route("api/auth")]
@@ -395,6 +396,28 @@ public class AuthController(
         await userManager.SetTwoFactorEnabledAsync(user, false);
         await userManager.ResetAuthenticatorKeyAsync(user);
         return Ok(new { message = "Two-factor authentication disabled." });
+    }
+
+    [HttpPost("admin/assign-donor-role")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AssignDonorRole([FromBody] AssignRoleRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email))
+            return BadRequest(new { message = "Email is required." });
+
+        var user = await FindUserByEmailAsync(req.Email);
+        if (user is null)
+            return NotFound(new { message = "User not found." });
+
+        var isInRole = await userManager.IsInRoleAsync(user, AuthRoles.Donor);
+        if (isInRole)
+            return BadRequest(new { message = "User already has the donor role." });
+
+        var result = await userManager.AddToRoleAsync(user, AuthRoles.Donor);
+        if (!result.Succeeded)
+            return BadRequest(new { message = "Failed to assign role: " + string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        return Ok(new { message = $"Donor role assigned to {user.Email}." });
     }
 
     private bool IsGoogleConfigured()
