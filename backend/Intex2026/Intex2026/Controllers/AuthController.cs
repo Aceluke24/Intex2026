@@ -255,6 +255,7 @@ public class AuthController(
     {
         if (!string.IsNullOrWhiteSpace(remoteError))
         {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             return Redirect(BuildFrontendErrorUrl("External login failed.", frontendBase));
         }
 
@@ -262,6 +263,7 @@ public class AuthController(
 
         if (info is null)
         {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             return Redirect(BuildFrontendErrorUrl("External login information was unavailable.", frontendBase));
         }
 
@@ -273,6 +275,7 @@ public class AuthController(
 
         if (signInResult.Succeeded)
         {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             return Redirect(BuildFrontendSuccessUrl(returnPath, frontendBase));
         }
 
@@ -281,6 +284,7 @@ public class AuthController(
 
         if (string.IsNullOrWhiteSpace(externalEmail))
         {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             return Redirect(BuildFrontendErrorUrl("The external provider did not return an email address.", frontendBase));
         }
 
@@ -300,6 +304,7 @@ public class AuthController(
 
             if (!createUserResult.Succeeded)
             {
+                await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 return Redirect(BuildFrontendErrorUrl("Unable to create a local account for the external login.", frontendBase));
             }
         }
@@ -315,10 +320,12 @@ public class AuthController(
 
         if (!addLoginResult.Succeeded)
         {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             return Redirect(BuildFrontendErrorUrl("Unable to associate the external login with the local account.", frontendBase));
         }
 
         await signInManager.SignInAsync(user, isPersistent: false, info.LoginProvider);
+        await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         return Redirect(BuildFrontendSuccessUrl(returnPath, frontendBase));
     }
 

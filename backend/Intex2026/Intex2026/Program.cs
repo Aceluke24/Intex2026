@@ -193,17 +193,6 @@ if (!string.IsNullOrWhiteSpace(googleClientId) &&
         {
             options.ClientId = googleClientId;
             options.ClientSecret = googleClientSecret;
-            options.Events.OnRemoteFailure = context =>
-            {
-                var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
-                var logger = loggerFactory.CreateLogger("GoogleOAuth");
-                logger.LogWarning(context.Failure, "Google OAuth remote failure at callback path {Path}", context.Request.Path);
-
-                // Route failures through our existing external callback error handler.
-                context.Response.Redirect("/api/auth/external-callback?remoteError=External%20login%20failed");
-                context.HandleResponse();
-                return Task.CompletedTask;
-            };
         });
 }
 
