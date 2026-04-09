@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
+import { exportToCSV } from "@/lib/exportToCSV";
 import type {
   ApiSupporterRow,
   ContributionBreakdown,
@@ -168,6 +169,7 @@ const DonorsPage = () => {
   const [newSupporterEmail, setNewSupporterEmail] = useState("");
   const [newSupporterStatus, setNewSupporterStatus] = useState("Active");
   const [supporterSaving, setSupporterSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
 
@@ -263,8 +265,19 @@ const DonorsPage = () => {
     }
   };
 
-  const handleExport = () => {
-    toast.success("Export queued", { description: "You will receive a CSV link when the export service is enabled." });
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await exportToCSV(`${API_PREFIX}/donors/export`, {}, { defaultFilename: "donors_export.csv" });
+    } catch (e) {
+      console.error(e);
+      toast.error("Export failed", {
+        description: e instanceof Error ? e.message : "Could not download CSV.",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleAddSupporter = () => {
@@ -397,7 +410,9 @@ const DonorsPage = () => {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={handleExport}
+                    onClick={() => void handleExport()}
+                    disabled={exporting || loading}
+                    aria-busy={exporting}
                     className="h-12 rounded-2xl border border-white/50 bg-white/55 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.06)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/85 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
                   >
                     <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />

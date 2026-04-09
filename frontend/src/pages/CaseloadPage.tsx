@@ -19,6 +19,7 @@ import {
 } from "@/lib/caseloadTypes";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
+import { exportToCSV } from "@/lib/exportToCSV";
 import { API_PREFIX } from "@/lib/apiBase";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -214,6 +215,7 @@ const CaseloadPage = () => {
   const [editing, setEditing] = useState<ResidentCase | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("admission");
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -298,8 +300,37 @@ const CaseloadPage = () => {
     setSheetOpen(true);
   };
 
-  const handleExport = () => {
-    toast.success("Export queued", { description: "Your browser will download CSV when the export service is enabled." });
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const from = filters.dateRange?.from ? format(filters.dateRange.from, "yyyy-MM-dd") : undefined;
+      const to = filters.dateRange?.to
+        ? format(filters.dateRange.to, "yyyy-MM-dd")
+        : filters.dateRange?.from
+          ? format(filters.dateRange.from, "yyyy-MM-dd")
+          : undefined;
+      await exportToCSV(
+        `${API_PREFIX}/cases/export`,
+        {
+          status: filters.status,
+          safehouse: filters.safehouse,
+          category: filters.category,
+          worker: filters.worker,
+          search: filters.search.trim() || undefined,
+          admissionFrom: from,
+          admissionTo: to,
+        },
+        { defaultFilename: "caseload_export.csv" }
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error("Export failed", {
+        description: e instanceof Error ? e.message : "Could not download CSV.",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleSaveCase = async (c: ResidentCase) => {
@@ -500,7 +531,9 @@ const CaseloadPage = () => {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={handleExport}
+                    onClick={() => void handleExport()}
+                    disabled={exporting || loading}
+                    aria-busy={exporting}
                     className="h-12 rounded-2xl border border-white/50 bg-white/50 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.05)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/82 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
                   >
                     <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
+import { exportToCSV } from "@/lib/exportToCSV";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -65,6 +66,7 @@ const ReportsPage = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState("9m");
   const [analytics, setAnalytics] = useState<ReportsAnalytics | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +128,21 @@ const ReportsPage = () => {
   const donationsThisMonth = analytics?.donationTrends?.length
     ? analytics.donationTrends[analytics.donationTrends.length - 1]?.total ?? 0
     : 0;
+
+  const handleExportCsv = async () => {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      await exportToCSV(`${API_PREFIX}/reports/export`, { range }, { defaultFilename: "reports_export.csv" });
+    } catch (e) {
+      console.error(e);
+      toast.error("Export failed", {
+        description: e instanceof Error ? e.message : "Could not download CSV.",
+      });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const annualBlocks = useMemo(() => {
     if (!analytics) {
@@ -207,9 +224,9 @@ const ReportsPage = () => {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() =>
-                  toast.success("CSV queued", { description: "Tabular export will run when the service is connected." })
-                }
+                onClick={() => void handleExportCsv()}
+                disabled={exportingCsv || loading}
+                aria-busy={exportingCsv}
                 className="h-11 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
                 <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />

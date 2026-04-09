@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -105,6 +106,66 @@ public class DonorsController : ControllerBase
             (double)inKindValue);
 
         return Ok(new DonorsDashboardDto(items, feed, metrics, allocation));
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportCsv(CancellationToken ct)
+    {
+        var supporters = await _db.Supporters.AsNoTracking().OrderBy(s => s.DisplayName).ToListAsync(ct);
+        var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
+        var donationBySup = donations.GroupBy(d => d.SupporterId).ToDictionary(g => g.Key, g => g.ToList());
+
+        static decimal MoneyValue(Donation d)
+        {
+            if (d.DonationType == "Monetary") return d.Amount ?? 0;
+            if (d.DonationType == "InKind") return d.EstimatedValue ?? d.Amount ?? 0;
+            if (d.DonationType == "Time") return d.Amount ?? 0;
+            return d.Amount ?? d.EstimatedValue ?? 0;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Join(",",
+            CsvCell("Supporter ID"),
+            CsvCell("Name"),
+            CsvCell("Email"),
+            CsvCell("Phone"),
+            CsvCell("Type"),
+            CsvCell("Status"),
+            CsvCell("Total Contributions"),
+            CsvCell("Last Activity")));
+
+        foreach (var s in supporters)
+        {
+            var ds = donationBySup.GetValueOrDefault(s.SupporterId) ?? new List<Donation>();
+            var total = ds.Sum(MoneyValue);
+            var last = ds.Count > 0 ? ds.Max(d => d.DonationDate) : s.FirstDonationDate;
+            var lastActivity = last.HasValue
+                ? last.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : (s.CreatedAt != default ? s.CreatedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "");
+
+            sb.AppendLine(string.Join(",",
+                CsvCell(s.SupporterId.ToString(CultureInfo.InvariantCulture)),
+                CsvCell(s.DisplayName),
+                CsvCell(s.Email ?? ""),
+                CsvCell(s.Phone ?? ""),
+                CsvCell(MapKind(s.SupporterType)),
+                CsvCell(s.Status == "Active" ? "Active" : "Inactive"),
+                CsvCell(total.ToString(CultureInfo.InvariantCulture)),
+                CsvCell(lastActivity)));
+        }
+
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", "donors_export.csv");
+    }
+
+    private static string CsvCell(string? value)
+    {
+        var v = value ?? "";
+        if (v.Contains('"', StringComparison.Ordinal))
+            v = v.Replace("\"", "\"\"", StringComparison.Ordinal);
+        if (v.IndexOfAny([',', '"', '\r', '\n']) >= 0)
+            return $"\"{v}\"";
+        return v;
     }
 
     private async Task<List<AllocationSliceDto>> BuildAllocationAsync(CancellationToken ct)
