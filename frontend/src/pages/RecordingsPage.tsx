@@ -1,3 +1,4 @@
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
@@ -130,6 +131,7 @@ const RecordingsPage = () => {
     interventions: "",
     followUp: "",
   });
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -257,19 +259,32 @@ const RecordingsPage = () => {
     }
   };
 
-  const handleDeleteEntry = async (id: string) => {
-    if (!window.confirm(`Delete recording ${id}?`)) return;
+  const confirmDeleteRecording = async (): Promise<boolean> => {
+    if (!deleteTargetId) return false;
+    const id = deleteTargetId;
     try {
       const res = await apiFetch(`${API_PREFIX}/recordings/${id}?confirm=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       if (selectedEntryId === id) setSheetOpen(false);
       toast.success("Recording deleted.");
       await load();
+      return true;
     } catch (e) {
       console.error(e);
       toast.error("Failed to delete recording.");
+      return false;
     }
   };
+
+  const deleteDetailLines = useMemo(() => {
+    if (!deleteTargetId) return undefined;
+    const entry = sessions.find((s) => s.id === deleteTargetId);
+    const lines: { label: string; value: string }[] = [{ label: "Recording ID", value: deleteTargetId }];
+    if (entry?.residentDisplayName?.trim()) {
+      lines.push({ label: "Resident", value: entry.residentDisplayName });
+    }
+    return lines;
+  }, [deleteTargetId, sessions]);
 
   const handleSaveEditor = async () => {
     const emotionalMap: Record<EmotionalTag, string> = {
@@ -419,7 +434,7 @@ const RecordingsPage = () => {
               entries={filteredSessions}
               onSelect={openEntry}
               onEdit={(id) => void handleEditEntry(id)}
-              onDelete={(id) => void handleDeleteEntry(id)}
+              onDelete={(id) => setDeleteTargetId(id)}
             />
           )}
         </section>
@@ -446,6 +461,15 @@ const RecordingsPage = () => {
       >
         <Plus className="h-6 w-6" strokeWidth={2} />
       </motion.button>
+
+      <ConfirmDeleteModal
+        open={deleteTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetId(null);
+        }}
+        detailLines={deleteDetailLines}
+        onConfirm={confirmDeleteRecording}
+      />
 
       <Dialog open={editor.open} onOpenChange={(open) => setEditor((e) => ({ ...e, open }))}>
         <DialogContent className="max-h-[90vh] max-w-[min(100%,34rem)] overflow-y-auto">

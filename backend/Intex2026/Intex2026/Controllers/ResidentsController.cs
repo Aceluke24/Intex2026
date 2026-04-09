@@ -49,7 +49,13 @@ public class ResidentsController : ControllerBase
 
     // GET /api/residents/next-display-name — suggested next LS-#### from DB (by CreatedAt + global max)
     [HttpGet("next-display-name")]
-    public async Task<IActionResult> GetNextDisplayName(CancellationToken ct)
+    public Task<IActionResult> GetNextDisplayName(CancellationToken ct) => GetNextDisplayNameCore(ct);
+
+    /// <summary>Legacy/clients expecting <c>/api/next-display-name</c> (same payload as residents route).</summary>
+    [HttpGet("~/api/next-display-name")]
+    public Task<IActionResult> GetNextDisplayNameRootAlias(CancellationToken ct) => GetNextDisplayNameCore(ct);
+
+    private async Task<IActionResult> GetNextDisplayNameCore(CancellationToken ct)
     {
         var count = await _db.Residents.AsNoTracking().CountAsync(ct);
         if (count == 0)

@@ -1,3 +1,4 @@
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import {
   AddEditCaseDialog,
@@ -178,6 +179,29 @@ const defaultFilters: CaseloadFilters = {
   dateRange: undefined,
 };
 
+/** Calendar YYYY-MM-DD for comparisons; strips time and avoids lexicographic bugs (e.g. "2024-01-15T00:00:00Z" > "2024-01-15"). */
+function normalizeAdmissionDateToIso(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const t = value.trim();
+  if (!t) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(t);
+  if (m) return m[1]!;
+  const ms = Date.parse(t);
+  if (Number.isNaN(ms)) return null;
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${mo}-${day}`;
+}
+
+/** Inclusive local calendar bounds from the date picker (single-day range when `to` is missing). */
+function inclusiveLocalIsoRange(from: Date, to: Date): { start: string; end: string } {
+  const a = format(from, "yyyy-MM-dd");
+  const b = format(to, "yyyy-MM-dd");
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
 function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
   const q = f.search.toLowerCase().trim();
   if (q) {
@@ -191,9 +215,31 @@ function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
   if (f.category !== "All" && c.category !== f.category) return false;
   if (f.worker !== "All" && c.assignedWorker !== f.worker) return false;
   if (f.dateRange?.from) {
-    const fromStr = format(f.dateRange.from, "yyyy-MM-dd");
-    const toStr = f.dateRange.to ? format(f.dateRange.to, "yyyy-MM-dd") : fromStr;
-    if (c.admissionDate < fromStr || c.admissionDate > toStr) return false;
+    const { start, end } = inclusiveLocalIsoRange(f.dateRange.from, f.dateRange.to ?? f.dateRange.from);
+    const adm = normalizeAdmissionDateToIso(c.admissionDate);
+    if (!adm) {
+      console.debug("[Caseload admission filter] case", {
+        caseId: c.id,
+        admissionRaw: c.admissionDate,
+        normalizedAdmission: null,
+        start,
+        end,
+        inRange: false,
+        excludeReason: "missing_or_invalid_admission_date",
+      });
+      return false;
+    }
+    const inRange = adm >= start && adm <= end;
+    console.debug("[Caseload admission filter] case", {
+      caseId: c.id,
+      admissionRaw: c.admissionDate,
+      normalizedAdmission: adm,
+      start,
+      end,
+      inRange,
+      ...(!inRange && { excludeReason: adm < start ? "before_start" : "after_end" }),
+    });
+    if (!inRange) return false;
   }
   return true;
 }
@@ -226,6 +272,7 @@ const CaseloadPage = () => {
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const [suggestedNextDisplayName, setSuggestedNextDisplayName] = useState<string | null>(null);
+  const [deleteTargetCase, setDeleteTargetCase] = useState<ResidentCase | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -282,7 +329,16 @@ const CaseloadPage = () => {
   const shForUi = safehouseNames.length > 0 ? safehouseNames : Array.from(new Set(cases.map((c) => c.safehouse))).filter(Boolean);
   const workersForUi = workerOptions.length > 0 ? workerOptions : ["—"];
 
-  const filtered = useMemo(() => cases.filter((c) => matchesFilters(c, filters)), [cases, filters]);
+  const filtered = useMemo(() => {
+    if (filters.dateRange?.from) {
+      const { start, end } = inclusiveLocalIsoRange(
+        filters.dateRange.from,
+        filters.dateRange.to ?? filters.dateRange.from
+      );
+      console.debug("[Caseload admission filter] inclusive range (applied)", { start, end, caseCount: cases.length });
+    }
+    return cases.filter((c) => matchesFilters(c, filters));
+  }, [cases, filters]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -442,22 +498,33 @@ const CaseloadPage = () => {
     }
   };
 
-  const handleDeleteCase = async (c: ResidentCase) => {
+  const caseDeleteDetailLines = useMemo(() => {
+    if (!deleteTargetCase) return undefined;
+    return [
+      { label: "Case ID", value: deleteTargetCase.id },
+      { label: "Resident", value: deleteTargetCase.displayName },
+    ];
+  }, [deleteTargetCase]);
+
+  const confirmDeleteCase = async (): Promise<boolean> => {
+    if (!deleteTargetCase) return false;
+    const c = deleteTargetCase;
     const residentId = residentIdMap[c.id];
     if (!residentId) {
       toast.error("Unable to resolve resident ID.");
-      return;
+      return false;
     }
-    if (!window.confirm(`Delete case ${c.id}? This cannot be undone.`)) return;
     try {
       const res = await apiFetch(`${API_PREFIX}/residents/${residentId}?confirm=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       toast.success("Case deleted.");
       if (selectedId === c.id) setSheetOpen(false);
       await load();
+      return true;
     } catch (e) {
       console.error(e);
       toast.error("Delete failed.");
+      return false;
     }
   };
 
@@ -680,7 +747,7 @@ const CaseloadPage = () => {
                         setEditing(c);
                         setFormOpen(true);
                       }}
-                      onDelete={() => void handleDeleteCase(c)}
+                      onDelete={() => setDeleteTargetCase(c)}
                     />
                   ))}
                 </AnimatePresence>
@@ -743,6 +810,16 @@ const CaseloadPage = () => {
         safehouseOptions={shForUi.length ? shForUi : ["—"]}
         workerOptions={workersForUi}
         suggestedNextDisplayName={suggestedNextDisplayName}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteTargetCase !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetCase(null);
+        }}
+        title="Delete case?"
+        detailLines={caseDeleteDetailLines}
+        onConfirm={confirmDeleteCase}
       />
     </AdminLayout>
   );

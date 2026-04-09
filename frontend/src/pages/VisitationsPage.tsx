@@ -1,3 +1,4 @@
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
@@ -543,6 +544,7 @@ const VisitationsPage = () => {
   }>({ residents: [], interventionOptions: [], followUpOptions: [] });
   const [selectedVisit, setSelectedVisit] = useState<VisitationRow | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteVisitTarget, setDeleteVisitTarget] = useState<{ id: number; residentName: string } | null>(null);
 
   const ensureResidents = useCallback(async () => {
     if ((fieldOptions.residents?.length ?? 0) > 0) return;
@@ -698,17 +700,28 @@ const VisitationsPage = () => {
     }
   };
 
-  const handleDeleteVisitation = async (id: number) => {
-    if (!window.confirm(`Delete visitation ${id}?`)) return;
+  const visitDeleteDetailLines = useMemo(() => {
+    if (!deleteVisitTarget) return undefined;
+    return [
+      { label: "Visitation ID", value: String(deleteVisitTarget.id) },
+      { label: "Resident", value: deleteVisitTarget.residentName },
+    ];
+  }, [deleteVisitTarget]);
+
+  const confirmDeleteVisitation = async (): Promise<boolean> => {
+    if (!deleteVisitTarget) return false;
+    const id = deleteVisitTarget.id;
     try {
       const res = await apiFetch(`${API_PREFIX}/visitations/${id}?confirm=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       if (selected?.id === id) setSheetOpen(false);
       toast.success("Visit deleted.");
       await load();
+      return true;
     } catch (e) {
       console.error(e);
       toast.error("Failed to delete visit.");
+      return false;
     }
   };
 
@@ -850,7 +863,7 @@ const VisitationsPage = () => {
                       kindLabel={v.visitType === "CaseConference" ? "Case Conference" : "Home Visit"}
                       onView={() => openRow(v)}
                       onEdit={() => void handleEditVisitation(v)}
-                      onDelete={() => void handleDeleteVisitation(v.id)}
+                      onDelete={() => setDeleteVisitTarget({ id: v.id, residentName: v.residentName })}
                     />
                   ))}
                   {rows.length === 0 && (
@@ -908,7 +921,7 @@ const VisitationsPage = () => {
                       kindLabel="Case Conference"
                       onView={() => openRow(v)}
                       onEdit={() => void handleEditVisitation(v)}
-                      onDelete={() => void handleDeleteVisitation(v.id)}
+                      onDelete={() => setDeleteVisitTarget({ id: v.id, residentName: v.residentName })}
                     />
                   ))}
                   {rows.length === 0 && (
@@ -982,6 +995,16 @@ const VisitationsPage = () => {
           }))
         }
         onSave={handleModalSave}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteVisitTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteVisitTarget(null);
+        }}
+        title="Delete visitation?"
+        detailLines={visitDeleteDetailLines}
+        onConfirm={confirmDeleteVisitation}
       />
     </AdminLayout>
   );

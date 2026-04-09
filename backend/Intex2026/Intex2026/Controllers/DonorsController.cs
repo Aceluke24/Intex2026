@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -108,12 +109,53 @@ public class DonorsController : ControllerBase
         return Ok(new DonorsDashboardDto(items, feed, metrics, allocation));
     }
 
+    /// <summary>CSV export; optional <paramref name="search"/>, <paramref name="kind"/>, <paramref name="status"/> match Donors page filters.</summary>
     [HttpGet("export")]
-    public async Task<IActionResult> ExportCsv(CancellationToken ct)
+    public async Task<IActionResult> ExportCsv(
+        [FromQuery] string? search,
+        [FromQuery] string? kind,
+        [FromQuery] string? status,
+        CancellationToken ct)
     {
         var supporters = await _db.Supporters.AsNoTracking().OrderBy(s => s.DisplayName).ToListAsync(ct);
         var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
         var donationBySup = donations.GroupBy(d => d.SupporterId).ToDictionary(g => g.Key, g => g.ToList());
+
+        static string DigitsOnly(string? value) =>
+            string.IsNullOrEmpty(value) ? "" : Regex.Replace(value, @"\D", "");
+
+        var q = search?.Trim() ?? "";
+        var qLower = q.ToLowerInvariant();
+        var digitQuery = DigitsOnly(q);
+        if (!string.IsNullOrEmpty(status))
+        {
+            var wantActive = string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
+            supporters = supporters
+                .Where(s => (s.Status == "Active") == wantActive)
+                .ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(kind))
+        {
+            supporters = supporters
+                .Where(s => string.Equals(MapKind(s.SupporterType), kind, StringComparison.Ordinal))
+                .ToList();
+        }
+
+        // Same OR logic as Donors page: name, email, or phone digits contain query.
+        if (!string.IsNullOrEmpty(q))
+        {
+            supporters = supporters.Where(s =>
+            {
+                var name = (s.DisplayName ?? "").ToLowerInvariant();
+                var email = (s.Email ?? "").ToLowerInvariant();
+                var phoneDigits = DigitsOnly(s.Phone);
+                var phoneMatch = digitQuery.Length > 0 && phoneDigits.Contains(digitQuery, StringComparison.Ordinal);
+                return name.Contains(qLower, StringComparison.Ordinal)
+                    || email.Contains(qLower, StringComparison.Ordinal)
+                    || phoneMatch;
+            }).ToList();
+        }
 
         static decimal MoneyValue(Donation d)
         {

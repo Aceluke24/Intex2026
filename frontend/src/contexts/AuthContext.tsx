@@ -29,7 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMe = async (): Promise<User | null> => {
     try {
-      const res = await fetch(apiUrl(`${API_PREFIX}/auth/me`), { credentials: "include" });
+      const headers = new Headers();
+      const token =
+        typeof window !== "undefined" ? window.localStorage.getItem("nss_access_token") : null;
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      const res = await fetch(apiUrl(`${API_PREFIX}/auth/me`), {
+        credentials: "include",
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
         setUser(data);

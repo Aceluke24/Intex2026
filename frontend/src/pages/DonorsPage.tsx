@@ -1,3 +1,4 @@
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
@@ -170,6 +171,7 @@ const DonorsPage = () => {
   const [newSupporterStatus, setNewSupporterStatus] = useState("Active");
   const [supporterSaving, setSupporterSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
 
@@ -239,19 +241,30 @@ const DonorsPage = () => {
     }
   }, [load, updateSupporter]);
 
-  const handleDeleteSupporter = useCallback(async (supporter: Supporter) => {
-    if (!window.confirm(`Delete ${supporter.name}? This cannot be undone.`)) return;
+  const supporterDeleteDetailLines = useMemo(() => {
+    if (!deleteSupporterTarget) return undefined;
+    return [
+      { label: "Supporter", value: deleteSupporterTarget.name },
+      { label: "ID", value: deleteSupporterTarget.id },
+    ];
+  }, [deleteSupporterTarget]);
+
+  const confirmDeleteSupporter = async (): Promise<boolean> => {
+    if (!deleteSupporterTarget) return false;
+    const supporter = deleteSupporterTarget;
     try {
       const res = await apiFetch(`${API_PREFIX}/supporters/${supporter.id}?confirm=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       setSheetOpen(false);
       toast.success("Supporter deleted.");
       await load();
+      return true;
     } catch (e) {
       console.error(e);
       toast.error("Failed to delete supporter.");
+      return false;
     }
-  }, [load]);
+  };
 
   const handleMarkInactive = async () => {
     if (!selected) return;
@@ -269,7 +282,11 @@ const DonorsPage = () => {
     if (exporting) return;
     setExporting(true);
     try {
-      await exportToCSV(`${API_PREFIX}/donors/export`, {}, { defaultFilename: "donors_export.csv" });
+      await exportToCSV(`${API_PREFIX}/donors/export`, {
+        search: search.trim() || undefined,
+        kind: typeFilter === "All" ? undefined : typeFilter,
+        status: statusFilter === "All" ? undefined : statusFilter,
+      }, { defaultFilename: "donors_export.csv" });
     } catch (e) {
       console.error(e);
       toast.error("Export failed", {
@@ -598,7 +615,7 @@ const DonorsPage = () => {
                         supporter={s}
                         onOpen={() => openProfile(s.id)}
                         onEdit={() => void handleEditSupporter(s)}
-                        onDelete={() => void handleDeleteSupporter(s)}
+                        onDelete={() => setDeleteSupporterTarget(s)}
                       />
                     ))}
                   </AnimatePresence>
@@ -614,7 +631,7 @@ const DonorsPage = () => {
                       supporter={s}
                       onOpen={() => openProfile(s.id)}
                       onEdit={() => void handleEditSupporter(s)}
-                      onDelete={() => void handleDeleteSupporter(s)}
+                      onDelete={() => setDeleteSupporterTarget(s)}
                     />
                   ))}
                   {filtered.length === 0 && (
@@ -652,7 +669,7 @@ const DonorsPage = () => {
             onNotesChange={(v) => setNotesById((prev) => ({ ...prev, [selected.id]: v }))}
             onMarkInactive={handleMarkInactive}
             onEdit={() => void handleEditSupporter(selected)}
-            onDelete={() => void handleDeleteSupporter(selected)}
+            onDelete={() => selected && setDeleteSupporterTarget(selected)}
           />
         )}
       </SlideOverPanel>
@@ -777,6 +794,16 @@ const DonorsPage = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        open={deleteSupporterTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteSupporterTarget(null);
+        }}
+        title="Delete supporter?"
+        detailLines={supporterDeleteDetailLines}
+        onConfirm={confirmDeleteSupporter}
+      />
     </AdminLayout>
   );
 };

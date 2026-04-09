@@ -14,8 +14,13 @@ namespace Intex2026.Controllers;
 public class CasesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<CasesController> _logger;
 
-    public CasesController(AppDbContext db) => _db = db;
+    public CasesController(AppDbContext db, ILogger<CasesController> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     /// <summary>GET /api/cases — full caseload for admin inventory (same auth as residents).</summary>
     [HttpGet]
@@ -50,11 +55,20 @@ public class CasesController : ControllerBase
             .ToListAsync(ct);
 
         var items = rows.Select(MapToDto)
-            .Where(dto => MatchesExportFilters(dto, status, safehouse, category, worker, search, admissionFrom, admissionTo))
+            .Where(dto => MatchesExportFilters(dto, status, safehouse, category, worker, search, admissionFrom, admissionTo, _logger))
             .ToList();
         var csv = BuildCaseloadCsv(items);
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
         return File(bytes, "text/csv", "caseload_export.csv");
+    }
+
+    private static bool TryParseAdmissionDateOnly(string? s, out DateOnly date)
+    {
+        date = default;
+        var t = (s ?? "").Trim();
+        if (t.Length >= 10)
+            t = t[..10];
+        return DateOnly.TryParse(t, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
     }
 
     private static bool MatchesExportFilters(
@@ -65,7 +79,8 @@ public class CasesController : ControllerBase
         string? worker,
         string? search,
         string? admissionFrom,
-        string? admissionTo)
+        string? admissionTo,
+        ILogger<CasesController> logger)
     {
         if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status.Trim(), "All", StringComparison.OrdinalIgnoreCase))
         {
@@ -102,20 +117,48 @@ public class CasesController : ControllerBase
                 return false;
         }
 
-        if (DateOnly.TryParse((admissionFrom ?? "").Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDt))
-        {
-            if (!DateOnly.TryParse(dto.AdmissionDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var admDt))
-                return false;
-            if (admDt < fromDt)
-                return false;
-        }
+        var fromTrim = (admissionFrom ?? "").Trim();
+        var toTrim = (admissionTo ?? "").Trim();
+        DateOnly fromDt = default;
+        DateOnly toDt = default;
+        var hasFrom = !string.IsNullOrEmpty(fromTrim) &&
+                        DateOnly.TryParse(fromTrim.Length >= 10 ? fromTrim[..10] : fromTrim, CultureInfo.InvariantCulture, DateTimeStyles.None, out fromDt);
+        var hasTo = !string.IsNullOrEmpty(toTrim) &&
+                      DateOnly.TryParse(toTrim.Length >= 10 ? toTrim[..10] : toTrim, CultureInfo.InvariantCulture, DateTimeStyles.None, out toDt);
 
-        if (DateOnly.TryParse((admissionTo ?? "").Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var toDt))
+        if (hasFrom && hasTo && fromDt > toDt)
+            (fromDt, toDt) = (toDt, fromDt);
+
+        if (hasFrom || hasTo)
         {
-            if (!DateOnly.TryParse(dto.AdmissionDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var admDt))
+            if (!TryParseAdmissionDateOnly(dto.AdmissionDate, out var admDt))
+            {
+                logger.LogDebug(
+                    "Caseload export excluded case {CaseId}: admission date missing or unparseable (raw={Raw})",
+                    dto.CaseId,
+                    dto.AdmissionDate);
                 return false;
-            if (admDt > toDt)
+            }
+
+            if (hasFrom && admDt < fromDt)
+            {
+                logger.LogDebug(
+                    "Caseload export excluded case {CaseId}: admission {Admission} before range start {Start}",
+                    dto.CaseId,
+                    admDt,
+                    fromDt);
                 return false;
+            }
+
+            if (hasTo && admDt > toDt)
+            {
+                logger.LogDebug(
+                    "Caseload export excluded case {CaseId}: admission {Admission} after range end {End}",
+                    dto.CaseId,
+                    admDt,
+                    toDt);
+                return false;
+            }
         }
 
         return true;
