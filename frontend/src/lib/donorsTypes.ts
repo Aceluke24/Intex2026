@@ -41,6 +41,8 @@ export interface FeedEntry {
   amount?: number | null;
   hours?: number | null;
   description: string;
+  /** Donation / activity time; use for sorting when present */
+  createdAt?: string;
   at: string;
 }
 

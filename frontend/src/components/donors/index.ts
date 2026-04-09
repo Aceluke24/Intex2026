@@ -6,4 +6,5 @@ export { ContributionItem } from "./ContributionItem";
 export { AllocationVisualization } from "./AllocationVisualization";
 export { ImpactOverview } from "./ImpactOverview";
 export { AddContributionDialog } from "./AddContributionDialog";
+export { EditSupporterModal } from "./EditSupporterModal";
 export { SupporterProfileSheet } from "./SupporterProfileSheet";

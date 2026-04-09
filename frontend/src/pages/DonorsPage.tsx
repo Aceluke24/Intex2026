@@ -5,6 +5,7 @@ import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
+  EditSupporterModal,
   FilterBar,
   ImpactOverview,
   SlideOverPanel,
@@ -98,6 +99,14 @@ function donorInitials(name: string | undefined) {
     .toUpperCase();
 }
 
+const CONTRIBUTION_TIMELINE_MAX = 10;
+
+function feedEntryTimestampMs(entry: FeedEntry): number {
+  const raw = entry.createdAt ?? entry.at;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
 const DonorsPage = () => {
   usePageHeader("Donors & Contributions", "Supporter relationship management");
 
@@ -172,8 +181,21 @@ const DonorsPage = () => {
   const [supporterSaving, setSupporterSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
+  const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
+
+  /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
+  const contributionTimelineFeed = useMemo(() => {
+    return [...feed]
+      .sort((a, b) => {
+        const db = feedEntryTimestampMs(b);
+        const da = feedEntryTimestampMs(a);
+        if (db !== da) return db - da;
+        return String(b.id).localeCompare(String(a.id));
+      })
+      .slice(0, CONTRIBUTION_TIMELINE_MAX);
+  }, [feed]);
 
   const timelineForSelected = useMemo((): TimelineEntry[] => {
     if (!selected) return [];
@@ -227,19 +249,24 @@ const DonorsPage = () => {
     if (!res.ok) throw new Error(await res.text());
   }, []);
 
-  const handleEditSupporter = useCallback(async (supporter: Supporter) => {
-    const displayName = window.prompt("Supporter display name", supporter.name)?.trim();
-    if (!displayName) return;
-    const email = window.prompt("Supporter email", supporter.email)?.trim() ?? supporter.email;
-    try {
-      await updateSupporter(supporter.id, { displayName, email: email || null });
-      toast.success("Supporter updated.");
-      await load();
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to update supporter.");
-    }
-  }, [load, updateSupporter]);
+  const handleSaveSupporterDisplayName = useCallback(
+    async (displayName: string) => {
+      if (!editSupporterTarget) return;
+      const id = editSupporterTarget.id;
+      const previousName = editSupporterTarget.name;
+      setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: displayName } : s)));
+      try {
+        await updateSupporter(id, { displayName });
+        toast.success("Display name updated");
+        void load();
+      } catch (e) {
+        console.error(e);
+        setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: previousName } : s)));
+        throw e instanceof Error ? e : new Error("Failed to update supporter.");
+      }
+    },
+    [editSupporterTarget, load, updateSupporter],
+  );
 
   const supporterDeleteDetailLines = useMemo(() => {
     if (!deleteSupporterTarget) return undefined;
@@ -556,7 +583,7 @@ const DonorsPage = () => {
           )}
 
           {/* Impact overview — timeline + allocation */}
-          {!loading && <ImpactOverview feed={feed} allocation={allocationByDestination} />}
+          {!loading && <ImpactOverview feed={contributionTimelineFeed} allocation={allocationByDestination} />}
 
           {/* Directory */}
           <section className="mb-8 mt-8">
@@ -614,7 +641,7 @@ const DonorsPage = () => {
                         index={i}
                         supporter={s}
                         onOpen={() => openProfile(s.id)}
-                        onEdit={() => void handleEditSupporter(s)}
+                        onEdit={() => setEditSupporterTarget(s)}
                         onDelete={() => setDeleteSupporterTarget(s)}
                       />
                     ))}
@@ -630,7 +657,7 @@ const DonorsPage = () => {
                       key={s.id}
                       supporter={s}
                       onOpen={() => openProfile(s.id)}
-                      onEdit={() => void handleEditSupporter(s)}
+                      onEdit={() => setEditSupporterTarget(s)}
                       onDelete={() => setDeleteSupporterTarget(s)}
                     />
                   ))}
@@ -668,7 +695,7 @@ const DonorsPage = () => {
             notes={notesById[selected.id] ?? ""}
             onNotesChange={(v) => setNotesById((prev) => ({ ...prev, [selected.id]: v }))}
             onMarkInactive={handleMarkInactive}
-            onEdit={() => void handleEditSupporter(selected)}
+            onEdit={() => setEditSupporterTarget(selected)}
             onDelete={() => selected && setDeleteSupporterTarget(selected)}
           />
         )}
@@ -794,6 +821,15 @@ const DonorsPage = () => {
           </div>
         </div>
       )}
+
+      <EditSupporterModal
+        open={editSupporterTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditSupporterTarget(null);
+        }}
+        supporter={editSupporterTarget}
+        onSave={handleSaveSupporterDisplayName}
+      />
 
       <ConfirmDeleteModal
         open={deleteSupporterTarget !== null}
