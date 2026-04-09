@@ -24,7 +24,6 @@ import {
   type SchemaRiskLevel,
 } from "@/lib/caseloadTypes";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
-import { exportToCSV } from "@/lib/exportToCSV";
 import { API_PREFIX } from "@/lib/apiBase";
 import { endOfDay, format, isValid, startOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -35,7 +34,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Download,
   FolderOpen,
   Plus,
   UserCheck,
@@ -319,7 +317,6 @@ const CaseloadPage = () => {
   const [editing, setEditing] = useState<ResidentCase | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("admission");
   const [page, setPage] = useState(1);
-  const [exporting, setExporting] = useState(false);
   const [suggestedNextDisplayName, setSuggestedNextDisplayName] = useState<string | null>(null);
   const [deleteTargetCase, setDeleteTargetCase] = useState<ResidentCase | null>(null);
 
@@ -408,39 +405,6 @@ const CaseloadPage = () => {
   const openCase = (id: string) => {
     setSelectedId(id);
     setSheetOpen(true);
-  };
-
-  const handleExport = async () => {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      const from = filters.dateRange?.from ? format(filters.dateRange.from, "yyyy-MM-dd") : undefined;
-      const to = filters.dateRange?.to
-        ? format(filters.dateRange.to, "yyyy-MM-dd")
-        : filters.dateRange?.from
-          ? format(filters.dateRange.from, "yyyy-MM-dd")
-          : undefined;
-      await exportToCSV(
-        `${API_PREFIX}/cases/export`,
-        {
-          status: filters.status,
-          safehouse: filters.safehouse,
-          category: filters.category,
-          worker: filters.worker,
-          search: filters.search.trim() || undefined,
-          admissionFrom: from,
-          admissionTo: to,
-        },
-        { defaultFilename: "caseload_export.csv" }
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("Export failed", {
-        description: e instanceof Error ? e.message : "Could not download CSV.",
-      });
-    } finally {
-      setExporting(false);
-    }
   };
 
   const handleSaveCase = async (c: ResidentCase) => {
@@ -554,38 +518,23 @@ const CaseloadPage = () => {
         title="Caseload Inventory"
         description="Manage resident cases, track progress, and support reintegration."
         actions={
-          <>
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
-              <Button
-                type="button"
-                disabled={loading}
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.32)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.42)]"
-              >
-                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
-                <span className="relative z-[1] flex items-center">
-                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                  Add Case
-                </span>
-              </Button>
-            </motion.div>
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void handleExport()}
-                disabled={exporting || loading}
-                aria-busy={exporting}
-                className="h-12 rounded-2xl border border-white/50 bg-white/50 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.05)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/82 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
-              >
-                <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
-                Export Records
-              </Button>
-            </motion.div>
-          </>
+          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
+            <Button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+              className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.32)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.42)]"
+            >
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
+              <span className="relative z-[1] flex items-center">
+                <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                Add Case
+              </span>
+            </Button>
+          </motion.div>
         }
       >
         {loadError && (
