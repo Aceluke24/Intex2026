@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { clearLoginRedirect, getLoginRedirect, resolvePostLoginPath } from "@/lib/loginRedirect";
 
 const GoogleCallback = () => {
   const { refetch, user, loading } = useAuth();
@@ -12,14 +13,17 @@ const GoogleCallback = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Once loading settles, redirect based on role
+  // Once loading settles, redirect based on origin/role
   useEffect(() => {
     if (loading) return;
     if (!user) {
       navigate("/login?externalError=Sign+in+failed", { replace: true });
       return;
     }
-    navigate("/donate", { replace: true });
+    const redirect = getLoginRedirect();
+    const targetPath = resolvePostLoginPath(user.roles, redirect);
+    clearLoginRedirect();
+    navigate(targetPath, { replace: true });
   }, [loading, user, navigate]);
 
   return (

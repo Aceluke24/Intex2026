@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<PartnerAssignment> PartnerAssignments => Set<PartnerAssignment>();
     public DbSet<Supporter> Supporters => Set<Supporter>();
     public DbSet<Donation> Donations => Set<Donation>();
+    public DbSet<DonationType> DonationTypes => Set<DonationType>();
     public DbSet<InKindDonationItem> InKindDonationItems => Set<InKindDonationItem>();
     public DbSet<DonationAllocation> DonationAllocations => Set<DonationAllocation>();
     public DbSet<DonorAnalytics> DonorAnalytics => Set<DonorAnalytics>();
@@ -56,6 +57,17 @@ public class AppDbContext : DbContext
             .HasForeignKey(d => d.SupporterId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Donation>()
+            .HasOne(d => d.DonationTypeRef)
+            .WithMany()
+            .HasForeignKey(d => d.DonationTypeId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<DonationType>()
+            .HasIndex(dt => dt.Name)
+            .IsUnique();
 
         // IncidentReport: Resident and Safehouse — restrict to avoid cycles
         builder.Entity<IncidentReport>()

@@ -26,6 +26,9 @@ public class Donation
     public string? ImpactUnit { get; set; } // pesos | items | hours | campaigns
     public bool IsRecurring { get; set; }
     public string? CampaignName { get; set; }
+    public int? DonationTypeId { get; set; }
+    [ForeignKey(nameof(DonationTypeId))]
+    public DonationType? DonationTypeRef { get; set; }
     public string? Notes { get; set; }
     public int? CreatedByPartnerId { get; set; }
     public int? ReferralPostId { get; set; }

@@ -326,6 +326,43 @@ using (var scope = app.Services.CreateScope())
                 );
                 CREATE INDEX IF NOT EXISTS "IX_OrganizationalGoals_SafehouseId" ON "OrganizationalGoals" ("SafehouseId");
                 """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "DonationTypes" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "Name" TEXT NOT NULL,
+                    "IsActive" INTEGER NOT NULL DEFAULT 1
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_DonationTypes_Name" ON "DonationTypes" ("Name");
+                """);
+
+            try
+            {
+                await appDb.Database.ExecuteSqlRawAsync("""
+                    ALTER TABLE "Donations" ADD COLUMN "DonationTypeId" INTEGER NULL;
+                    """);
+            }
+            catch (Exception ex)
+            {
+                if (!ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw;
+                }
+            }
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_Donations_DonationTypeId" ON "Donations" ("DonationTypeId");
+                """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                INSERT OR IGNORE INTO "DonationTypes" ("Name", "IsActive") VALUES
+                    ('Event donation', 1),
+                    ('Community outreach support', 1),
+                    ('In support of safehouse operations', 1),
+                    ('Campaign support', 1),
+                    ('Recurring gift', 1),
+                    ('Monthly contribution', 1);
+                """);
         }
         else
         {
@@ -369,6 +406,54 @@ using (var scope = app.Services.CreateScope())
                     );
                     CREATE INDEX [IX_OrganizationalGoals_SafehouseId] ON [OrganizationalGoals] ([SafehouseId]);
                 END
+                """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DonationTypes')
+                BEGIN
+                    CREATE TABLE [DonationTypes] (
+                        [Id] int NOT NULL IDENTITY(1,1),
+                        [Name] nvarchar(200) NOT NULL,
+                        [IsActive] bit NOT NULL DEFAULT 1,
+                        CONSTRAINT [PK_DonationTypes] PRIMARY KEY ([Id])
+                    );
+                    CREATE UNIQUE INDEX [IX_DonationTypes_Name] ON [DonationTypes] ([Name]);
+                END
+                """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                IF COL_LENGTH('Donations', 'DonationTypeId') IS NULL
+                BEGIN
+                    ALTER TABLE [Donations] ADD [DonationTypeId] int NULL;
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Donations_DonationTypeId' AND object_id = OBJECT_ID('Donations'))
+                BEGIN
+                    CREATE INDEX [IX_Donations_DonationTypeId] ON [Donations] ([DonationTypeId]);
+                END
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.foreign_keys
+                    WHERE name = 'FK_Donations_DonationTypes_DonationTypeId'
+                )
+                BEGIN
+                    ALTER TABLE [Donations]
+                    ADD CONSTRAINT [FK_Donations_DonationTypes_DonationTypeId]
+                    FOREIGN KEY ([DonationTypeId]) REFERENCES [DonationTypes]([Id]) ON DELETE SET NULL;
+                END
+                """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                MERGE [DonationTypes] AS target
+                USING (VALUES
+                    ('Event donation', CAST(1 AS bit)),
+                    ('Community outreach support', CAST(1 AS bit)),
+                    ('In support of safehouse operations', CAST(1 AS bit)),
+                    ('Campaign support', CAST(1 AS bit)),
+                    ('Recurring gift', CAST(1 AS bit)),
+                    ('Monthly contribution', CAST(1 AS bit))
+                ) AS source ([Name], [IsActive])
+                ON target.[Name] = source.[Name]
+                WHEN NOT MATCHED BY TARGET THEN
+                    INSERT ([Name], [IsActive]) VALUES (source.[Name], source.[IsActive]);
                 """);
         }
 

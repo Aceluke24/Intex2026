@@ -42,12 +42,38 @@ public class DonationsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
-        var query = _db.Donations.AsQueryable();
+        var query = _db.Donations
+            .AsNoTracking()
+            .Include(d => d.DonationTypeRef)
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(donationType)) query = query.Where(d => d.DonationType == donationType);
         if (!string.IsNullOrWhiteSpace(campaignName)) query = query.Where(d => d.CampaignName == campaignName);
         if (supporterId.HasValue) query = query.Where(d => d.SupporterId == supporterId.Value);
         var total = await query.CountAsync();
-        var items = await query.OrderByDescending(d => d.DonationDate).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var items = await query
+            .OrderByDescending(d => d.DonationDate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(d => new
+            {
+                d.DonationId,
+                d.SupporterId,
+                d.DonationType,
+                d.DonationDate,
+                d.ChannelSource,
+                d.CurrencyCode,
+                d.Amount,
+                d.EstimatedValue,
+                d.ImpactUnit,
+                d.IsRecurring,
+                d.CampaignName,
+                d.Notes,
+                d.CreatedByPartnerId,
+                d.ReferralPostId,
+                d.DonationTypeId,
+                donationTypeName = d.DonationTypeRef != null ? d.DonationTypeRef.Name : null
+            })
+            .ToListAsync();
         return Ok(new { total, page, pageSize, items });
     }
 
@@ -55,7 +81,10 @@ public class DonationsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetById(int id)
     {
-        var d = await _db.Donations.Include(x => x.Supporter).FirstOrDefaultAsync(x => x.DonationId == id);
+        var d = await _db.Donations
+            .Include(x => x.Supporter)
+            .Include(x => x.DonationTypeRef)
+            .FirstOrDefaultAsync(x => x.DonationId == id);
         return d == null ? NotFound() : Ok(d);
     }
 
@@ -86,8 +115,25 @@ public class DonationsController : ControllerBase
         if (user.SupporterId == null) return Ok(Array.Empty<object>());
 
         var donations = await _db.Donations
+            .AsNoTracking()
+            .Include(d => d.DonationTypeRef)
             .Where(d => d.SupporterId == user.SupporterId)
             .OrderByDescending(d => d.DonationDate)
+            .Select(d => new
+            {
+                d.DonationId,
+                d.DonationType,
+                d.DonationDate,
+                d.Amount,
+                d.EstimatedValue,
+                d.ImpactUnit,
+                d.CampaignName,
+                d.ChannelSource,
+                d.IsRecurring,
+                d.Notes,
+                d.DonationTypeId,
+                donationTypeName = d.DonationTypeRef != null ? d.DonationTypeRef.Name : null
+            })
             .ToListAsync();
         return Ok(donations);
     }
@@ -110,6 +156,16 @@ public class DonationsController : ControllerBase
             _ => "Monetary"
         };
 
+        if (req.DonationTypeId.HasValue)
+        {
+            var typeExists = await _db.DonationTypes
+                .AnyAsync(dt => dt.Id == req.DonationTypeId.Value && dt.IsActive);
+            if (!typeExists)
+            {
+                return BadRequest(new { message = "Donation type id is invalid." });
+            }
+        }
+
         var donation = new Donation
         {
             SupporterId = user.SupporterId.Value,
@@ -121,6 +177,7 @@ public class DonationsController : ControllerBase
             EstimatedValue = req.EstimatedValue,
             ImpactUnit = donationType != "Monetary" ? req.ImpactUnit ?? "hours" : null,
             IsRecurring = false,
+            DonationTypeId = req.DonationTypeId,
             CampaignName = string.IsNullOrWhiteSpace(req.CampaignName) ? null : req.CampaignName.Trim(),
             Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim(),
         };
@@ -176,6 +233,7 @@ public record SelfDonationRequest(
     decimal? Amount,
     decimal? EstimatedValue,
     string? ImpactUnit,
+    int? DonationTypeId,
     string? CampaignName,
     string? Notes
 );

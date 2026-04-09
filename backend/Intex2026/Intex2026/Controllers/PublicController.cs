@@ -402,9 +402,14 @@ public partial class PublicController : ControllerBase
     [HttpPost("donations")]
     public async Task<IActionResult> SubmitDonation([FromBody] PublicDonationRequest req)
     {
-        if (!req.Amount.HasValue || req.Amount.Value <= 0)
+        if (!req.Amount.HasValue
+            || req.Amount.Value < 1
+            || decimal.Round(req.Amount.Value, 2) != req.Amount.Value)
         {
-            return BadRequest(new { error = "Donation amount must be greater than zero." });
+            return BadRequest(new
+            {
+                error = "Invalid amount. Must be a valid currency value with max 2 decimal places."
+            });
         }
 
         int? supporterId = null;
@@ -447,6 +452,18 @@ public partial class PublicController : ControllerBase
             supporterId = supporter.SupporterId;
         }
 
+        int? donationTypeId = null;
+        if (req.DonationTypeId.HasValue)
+        {
+            var typeExists = await _db.DonationTypes
+                .AnyAsync(dt => dt.Id == req.DonationTypeId.Value && dt.IsActive);
+            if (!typeExists)
+            {
+                return BadRequest(new { error = "Selected donation type is invalid." });
+            }
+            donationTypeId = req.DonationTypeId.Value;
+        }
+
         var donation = new Donation
         {
             SupporterId = supporterId,
@@ -456,6 +473,7 @@ public partial class PublicController : ControllerBase
             CurrencyCode = "USD",
             Amount = req.Amount,
             EstimatedValue = null,
+            DonationTypeId = donationTypeId,
             CampaignName = req.CampaignName?.Trim(),
             Notes = req.Notes?.Trim(),
             IsRecurring = false,
@@ -500,6 +518,7 @@ public class PublicDonationRequest
     public string? Email { get; set; }
     public decimal? Amount { get; set; }
     public bool IsAnonymous { get; set; }
+    public int? DonationTypeId { get; set; }
     public string? CampaignName { get; set; }
     public string? Notes { get; set; }
 }

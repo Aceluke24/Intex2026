@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BrandLockup } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE } from "@/lib/apiBase";
+import { setLoginRedirect } from "@/lib/loginRedirect";
 
 const baseNavItems = [
   { label: "Home", path: "/" },
@@ -55,6 +56,10 @@ export const PublicLayout = ({
     await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
     await refetch();
     navigate("/");
+  };
+
+  const handleLoginIntent = () => {
+    setLoginRedirect(location.pathname);
   };
 
   const navItems = [
@@ -128,6 +133,7 @@ export const PublicLayout = ({
                 ) : (
                   <Link
                     to="/login"
+                    onClick={handleLoginIntent}
                     className="font-body text-[14px] font-medium tracking-[0.2px] text-white transition-colors duration-200 hover:text-gray-200"
                   >
                     Sign In
@@ -200,7 +206,10 @@ export const PublicLayout = ({
                   ) : (
                     <Link
                       to="/login"
-                      onClick={() => setMobileOpen(false)}
+                      onClick={() => {
+                        handleLoginIntent();
+                        setMobileOpen(false);
+                      }}
                       className="block rounded-xl px-4 py-3 font-body text-[14px] font-medium tracking-[0.2px] text-[rgba(230,237,243,0.75)] transition-colors duration-200 hover:bg-white/10 hover:text-[#E6EDF3]"
                     >
                       Sign In

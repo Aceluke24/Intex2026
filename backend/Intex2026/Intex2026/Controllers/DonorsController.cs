@@ -21,6 +21,9 @@ public class DonorsController : ControllerBase
     {
         var supporters = await _db.Supporters.AsNoTracking().OrderBy(s => s.DisplayName).ToListAsync(ct);
         var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
+        var donationTypeNames = await _db.DonationTypes
+            .AsNoTracking()
+            .ToDictionaryAsync(dt => dt.Id, dt => dt.Name, ct);
         var donationBySup = donations.GroupBy(d => d.SupporterId).ToDictionary(g => g.Key, g => g.ToList());
 
         var today = DateTime.Today;
@@ -73,7 +76,7 @@ public class DonorsController : ControllerBase
             .Select(d =>
             {
                 var name = supporters.FirstOrDefault(x => x.SupporterId == d.SupporterId)?.DisplayName ?? "Supporter";
-                var (kind, desc, amt, hrs) = MapFeed(d);
+                var (kind, desc, amt, hrs) = MapFeed(d, donationTypeNames);
                 return new FeedEntryDto(
                     d.DonationId.ToString(CultureInfo.InvariantCulture),
                     name,
@@ -170,15 +173,21 @@ public class DonorsController : ControllerBase
         _ => "Monetary"
     };
 
-    private static (string kind, string desc, double? amount, double? hours) MapFeed(Donation d)
+    private static (string kind, string desc, double? amount, double? hours) MapFeed(
+        Donation d,
+        IReadOnlyDictionary<int, string> donationTypeNames)
     {
+        var donationTypeName = d.DonationTypeId.HasValue && donationTypeNames.TryGetValue(d.DonationTypeId.Value, out var resolvedName)
+            ? resolvedName
+            : null;
+
         return d.DonationType switch
         {
-            "Monetary" => ("monetary", d.Notes ?? d.CampaignName ?? "Monetary gift", (double)(d.Amount ?? 0), null),
+            "Monetary" => ("monetary", d.Notes ?? donationTypeName ?? d.CampaignName ?? "Monetary gift", (double)(d.Amount ?? 0), null),
             "InKind" => ("in-kind", d.Notes ?? "In-kind contribution", (double)(d.EstimatedValue ?? d.Amount ?? 0), null),
             "Time" => ("volunteer", d.Notes ?? "Volunteer time", null, (double)(d.Amount ?? 0)),
             "Skills" => ("skills", d.Notes ?? "Skills contribution", null, null),
-            _ => ("social", d.Notes ?? d.DonationType, null, null)
+            _ => ("social", d.Notes ?? donationTypeName ?? d.DonationType, null, null)
         };
     }
 

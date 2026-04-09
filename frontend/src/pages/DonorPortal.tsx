@@ -10,6 +10,8 @@ import { formatUSD } from "@/lib/currency";
 interface Donation {
   donationId: number;
   donationType: string;
+  donationTypeId: number | null;
+  donationTypeName: string | null;
   donationDate: string;
   amount: number | null;
   estimatedValue: number | null;
@@ -176,6 +178,11 @@ export default function DonorPortal() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-body font-medium ${typeColors[d.donationType] ?? "bg-secondary text-foreground"}`}>
                       {d.donationType}
                     </span>
+                    {d.donationTypeName && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-body font-medium bg-secondary text-foreground">
+                        {d.donationTypeName}
+                      </span>
+                    )}
                     {d.isRecurring && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-body font-medium bg-secondary text-muted-foreground">
                         Recurring

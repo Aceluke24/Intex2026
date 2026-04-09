@@ -14,9 +14,9 @@ export default function DonatePage() {
   const [email, setEmail] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [amount, setAmount] = useState("");
-  const [campaign, setCampaign] = useState("");
-  const [campaigns, setCampaigns] = useState<string[]>([]);
-  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [donationTypeId, setDonationTypeId] = useState("");
+  const [donationTypes, setDonationTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [donationTypesLoading, setDonationTypesLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,23 +37,35 @@ export default function DonatePage() {
   }, [isAuthenticated, user]);
 
   useEffect(() => {
-    const loadCampaigns = async () => {
-      setCampaignsLoading(true);
+    const loadDonationTypes = async () => {
+      setDonationTypesLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/api/campaigns`);
+        const res = await fetch(`${API_BASE}/api/donation-types`);
         if (!res.ok) {
-          throw new Error("Unable to load campaigns right now.");
+          throw new Error("Unable to load donation types right now.");
         }
         const data: unknown = await res.json();
-        setCampaigns(Array.isArray(data) ? data.filter((x): x is string => typeof x === "string") : []);
+        setDonationTypes(
+          Array.isArray(data)
+            ? data
+                .filter(
+                  (x): x is { id: number; name: string } =>
+                    typeof x === "object" &&
+                    x !== null &&
+                    typeof (x as { id?: unknown }).id === "number" &&
+                    typeof (x as { name?: unknown }).name === "string",
+                )
+                .map((x) => ({ id: x.id, name: x.name }))
+            : [],
+        );
       } catch {
-        setCampaigns([]);
+        setDonationTypes([]);
       } finally {
-        setCampaignsLoading(false);
+        setDonationTypesLoading(false);
       }
     };
 
-    loadCampaigns();
+    loadDonationTypes();
   }, []);
 
   const canEditIdentity = useMemo(
@@ -66,9 +78,13 @@ export default function DonatePage() {
     setSubmitting(true);
     setError(null);
 
-    const parsed = parseFloat(amount);
-    if (!parsed || parsed <= 0) {
-      setError("Please enter a valid donation amount.");
+    const parsedAmount = parseFloat(amount);
+    if (
+      Number.isNaN(parsedAmount) ||
+      parsedAmount < 1 ||
+      !/^\d+(\.\d{1,2})?$/.test(amount)
+    ) {
+      setError("Enter a valid amount (minimum $1, max 2 decimal places)");
       setSubmitting(false);
       return;
     }
@@ -80,8 +96,9 @@ export default function DonatePage() {
       displayName: !canEditIdentity ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email : null,
       isAnonymous: anonymous,
       donationType: "Monetary",
-      amount: parsed,
-      campaignName: campaign.trim() || null,
+      amount: parsedAmount,
+      donationTypeId: donationTypeId ? Number(donationTypeId) : null,
+      campaignName: null,
       notes: notes.trim() || null,
     };
 
@@ -238,11 +255,33 @@ export default function DonatePage() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-body text-sm text-muted-foreground">$</span>
                   <input
-                    type="text"
+                    type="number"
+                    step="0.01"
+                    min="1"
                     inputMode="decimal"
-                    pattern="[0-9]*[.]?[0-9]*"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      // Allow empty input
+                      if (value === "") {
+                        setAmount("");
+                        return;
+                      }
+
+                      // Numbers with up to 2 decimal places
+                      const regex = /^\d+(\.\d{0,2})?$/;
+
+                      if (regex.test(value)) {
+                        setAmount(value);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (amount) {
+                        const formatted = parseFloat(amount).toFixed(2);
+                        setAmount(formatted);
+                      }
+                    }}
                     required
                     className="w-full rounded-xl border border-input bg-background py-2.5 pl-8 pr-4 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="100.00"
@@ -250,23 +289,23 @@ export default function DonatePage() {
                 </div>
               </div>
 
-              {/* Campaign */}
+              {/* Donation type */}
               <div>
                 <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  Campaign / Program (optional)
+                  Donation Type (optional)
                 </label>
                 <select
-                  value={campaign}
-                  onChange={(e) => setCampaign(e.target.value)}
+                  value={donationTypeId}
+                  onChange={(e) => setDonationTypeId(e.target.value)}
                   className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Select a campaign (optional)</option>
-                  {campaigns.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  <option value="">Select a donation type (optional)</option>
+                  {donationTypes.map((type) => (
+                    <option key={type.id} value={String(type.id)}>{type.name}</option>
                   ))}
                 </select>
-                {campaignsLoading && (
-                  <p className="mt-1 font-body text-xs text-muted-foreground">Loading campaigns…</p>
+                {donationTypesLoading && (
+                  <p className="mt-1 font-body text-xs text-muted-foreground">Loading donation types…</p>
                 )}
               </div>
 

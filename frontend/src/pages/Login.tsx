@@ -11,6 +11,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE } from "@/lib/apiBase";
+import { clearLoginRedirect, getLoginRedirect, resolvePostLoginPath } from "@/lib/loginRedirect";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -54,7 +55,10 @@ const Login = () => {
         return;
       }
       await refetch();
-      navigate("/donate");
+      const redirect = getLoginRedirect();
+      const targetPath = resolvePostLoginPath(data.roles, redirect);
+      clearLoginRedirect();
+      navigate(targetPath);
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {

@@ -77,6 +77,7 @@ const App = () => (
               {/* Donor-only route */}
               <Route element={<ProtectedRoute requiredRole="Donor" />}>
                 <Route path="/donor" element={<DonorPortal />} />
+                <Route path="/donor-dashboard" element={<Navigate to="/donor" replace />} />
               </Route>
 
               {/* Admin-only routes */}

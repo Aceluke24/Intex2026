@@ -141,7 +141,22 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 5. Donations ──────────────────────────────────────────────────────
+        // ── 5. Donation Types ─────────────────────────────────────────────────
+        if (!await context.DonationTypes.AnyAsync())
+        {
+            context.DonationTypes.AddRange(new[]
+            {
+                new DonationType { Name = "Event donation", IsActive = true },
+                new DonationType { Name = "Community outreach support", IsActive = true },
+                new DonationType { Name = "In support of safehouse operations", IsActive = true },
+                new DonationType { Name = "Campaign support", IsActive = true },
+                new DonationType { Name = "Recurring gift", IsActive = true },
+                new DonationType { Name = "Monthly contribution", IsActive = true },
+            });
+            await context.SaveChangesAsync();
+        }
+
+        // ── 6. Donations ──────────────────────────────────────────────────────
         if (!await context.Donations.AnyAsync())
         {
             var records = ReadCsv<DonationCsv>(csvBase, "donations.csv", cfg);
@@ -164,7 +179,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 6. In-Kind Donation Items ─────────────────────────────────────────
+        // ── 7. In-Kind Donation Items ─────────────────────────────────────────
         if (!await context.InKindDonationItems.AnyAsync())
         {
             var records = ReadCsv<InKindItemCsv>(csvBase, "in_kind_donation_items.csv", cfg);
@@ -183,7 +198,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 7. Donation Allocations ───────────────────────────────────────────
+        // ── 8. Donation Allocations ───────────────────────────────────────────
         if (!await context.DonationAllocations.AnyAsync())
         {
             var records = ReadCsv<DonationAllocationCsv>(csvBase, "donation_allocations.csv", cfg);
@@ -200,7 +215,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 8. Residents ──────────────────────────────────────────────────────
+        // ── 9. Residents ──────────────────────────────────────────────────────
         if (!await context.Residents.AnyAsync())
         {
             var records = ReadCsv<ResidentCsv>(csvBase, "residents.csv", cfg);
@@ -259,7 +274,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 9. Process Recordings ─────────────────────────────────────────────
+        // ── 10. Process Recordings ────────────────────────────────────────────
         if (!await context.ProcessRecordings.AnyAsync())
         {
             var records = ReadCsv<ProcessRecordingCsv>(csvBase, "process_recordings.csv", cfg);
@@ -284,7 +299,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 10. Home Visitations ──────────────────────────────────────────────
+        // ── 11. Home Visitations ──────────────────────────────────────────────
         if (!await context.HomeVisitations.AnyAsync())
         {
             var records = ReadCsv<HomeVisitationCsv>(csvBase, "home_visitations.csv", cfg);
@@ -310,7 +325,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 11. Education Records ─────────────────────────────────────────────
+        // ── 12. Education Records ─────────────────────────────────────────────
         if (!await context.EducationRecords.AnyAsync())
         {
             var records = ReadCsv<EducationRecordCsv>(csvBase, "education_records.csv", cfg);
@@ -330,7 +345,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 12. Health & Wellbeing Records ────────────────────────────────────
+        // ── 13. Health & Wellbeing Records ────────────────────────────────────
         if (!await context.HealthWellbeingRecords.AnyAsync())
         {
             var records = ReadCsv<HealthRecordCsv>(csvBase, "health_wellbeing_records.csv", cfg);
@@ -354,7 +369,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 13. Intervention Plans ────────────────────────────────────────────
+        // ── 14. Intervention Plans ────────────────────────────────────────────
         if (!await context.InterventionPlans.AnyAsync())
         {
             var records = ReadCsv<InterventionPlanCsv>(csvBase, "intervention_plans.csv", cfg);
@@ -375,7 +390,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 14. Incident Reports ──────────────────────────────────────────────
+        // ── 15. Incident Reports ──────────────────────────────────────────────
         if (!await context.IncidentReports.AnyAsync())
         {
             var records = ReadCsv<IncidentReportCsv>(csvBase, "incident_reports.csv", cfg);
@@ -397,7 +412,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 15. Social Media Posts ────────────────────────────────────────────
+        // ── 16. Social Media Posts ────────────────────────────────────────────
         if (!await context.SocialMediaPosts.AnyAsync())
         {
             var records = ReadCsv<SocialMediaPostCsv>(csvBase, "social_media_posts.csv", cfg);
@@ -446,7 +461,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 16. Safehouse Monthly Metrics ─────────────────────────────────────
+        // ── 17. Safehouse Monthly Metrics ─────────────────────────────────────
         if (!await context.SafehouseMonthlyMetrics.AnyAsync())
         {
             var records = ReadCsv<SafehouseMonthlyMetricCsv>(csvBase, "safehouse_monthly_metrics.csv", cfg);
@@ -467,7 +482,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // ── 17. Public Impact Snapshots ───────────────────────────────────────
+        // ── 18. Public Impact Snapshots ───────────────────────────────────────
         if (!await context.PublicImpactSnapshots.AnyAsync())
         {
             var records = ReadCsv<PublicImpactSnapshotCsv>(csvBase, "public_impact_snapshots.csv", cfg);
