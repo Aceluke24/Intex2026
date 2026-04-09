@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import QRCode from "react-qr-code";
+import { QRCode } from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
