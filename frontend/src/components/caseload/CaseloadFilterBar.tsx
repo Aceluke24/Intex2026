@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { CaseCategory, CaseStatus } from "@/lib/caseloadTypes";
+import type { CaseStatus, SchemaCaseCategory } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarIcon, Search, SlidersHorizontal, X } from "lucide-react";
@@ -14,7 +14,7 @@ export type CaseloadFilters = {
   search: string;
   status: CaseStatus | "All";
   safehouse: string | "All";
-  category: CaseCategory | "All";
+  category: SchemaCaseCategory | "All";
   worker: string | "All";
   dateRange: DateRange | undefined;
 };
@@ -78,19 +78,19 @@ export function CaseloadFilterBar({
         "dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_8px_40px_rgba(0,0,0,0.35)]"
       )}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-5">
-        <div className="relative min-w-0 flex-1">
+      <div className="flex w-full min-w-0 flex-col gap-4">
+        <div className="relative w-full min-w-0">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
           <Input
             value={filters.search}
             onChange={(e) => set({ search: e.target.value })}
             placeholder="Search name, case ID, or keywords…"
-            className="h-11 rounded-xl border-0 bg-white/70 pl-10 font-body text-sm shadow-inner dark:bg-white/10"
+            className="h-11 w-full min-w-0 rounded-xl border-0 bg-white/70 pl-10 font-body text-sm shadow-inner dark:bg-white/10"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-1.5 text-muted-foreground/80">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground/80">
             <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
             <span className="font-body text-[10px] font-semibold uppercase tracking-[0.16em]">Filters</span>
           </div>
@@ -124,7 +124,7 @@ export function CaseloadFilterBar({
             </SelectContent>
           </Select>
 
-          <Select value={filters.category} onValueChange={(v) => set({ category: v as CaseCategory | "All" })}>
+          <Select value={filters.category} onValueChange={(v) => set({ category: v as SchemaCaseCategory | "All" })}>
             <SelectTrigger className="h-10 w-[168px] rounded-xl border-white/50 bg-white/60 font-body text-xs dark:border-white/10 dark:bg-white/10">
               <SelectValue placeholder="Category" />
             </SelectTrigger>

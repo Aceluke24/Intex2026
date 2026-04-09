@@ -3,7 +3,6 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
@@ -19,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { exportToCSV } from "@/lib/exportToCSV";
 import type {
   ApiSupporterRow,
   ContributionBreakdown,
@@ -32,7 +30,7 @@ import type {
 } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Download, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
+import { Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -110,8 +108,6 @@ function feedEntryTimestampMs(entry: FeedEntry): number {
 }
 
 const DonorsPage = () => {
-  usePageHeader("Donors & Contributions", "Supporter relationship management");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -182,7 +178,6 @@ const DonorsPage = () => {
   const [newSupporterEmail, setNewSupporterEmail] = useState("");
   const [newSupporterStatus, setNewSupporterStatus] = useState("Active");
   const [supporterSaving, setSupporterSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
 
@@ -308,25 +303,6 @@ const DonorsPage = () => {
     }
   };
 
-  const handleExport = async () => {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      await exportToCSV(`${API_PREFIX}/donors/export`, {
-        search: search.trim() || undefined,
-        kind: typeFilter === "All" ? undefined : typeFilter,
-        status: statusFilter === "All" ? undefined : statusFilter,
-      }, { defaultFilename: "donors_export.csv" });
-    } catch (e) {
-      console.error(e);
-      toast.error("Export failed", {
-        description: e instanceof Error ? e.message : "Could not download CSV.",
-      });
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const handleAddSupporter = () => {
     setNewSupporterName("");
     setNewSupporterType("MonetaryDonor");
@@ -367,40 +343,22 @@ const DonorsPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Philanthropy"
-        eyebrowIcon={<HeartHandshake className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Donors & Contributions"
         description="Manage supporters and track impact across programs."
         actions={
-          <>
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
-              <Button
-                type="button"
-                onClick={handleAddSupporter}
-                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-              >
-                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-                <span className="relative z-[1] flex items-center">
-                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                  Add supporter
-                </span>
-              </Button>
-            </motion.div>
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void handleExport()}
-                disabled={exporting || loading}
-                aria-busy={exporting}
-                className="h-12 rounded-2xl border border-white/50 bg-white/55 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.06)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/85 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
-              >
-                <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
-                Export data
-              </Button>
-            </motion.div>
-          </>
+          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
+            <Button
+              type="button"
+              onClick={handleAddSupporter}
+              className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+            >
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+              <span className="relative z-[1] flex items-center">
+                <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                Add supporter
+              </span>
+            </Button>
+          </motion.div>
         }
       >
         {loadError ? (

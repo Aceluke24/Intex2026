@@ -14,7 +14,6 @@ import {
   dashboardTableShellClass,
 } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import {
@@ -116,8 +115,6 @@ function GoalBar({ goal, label }: { goal: NonNullable<GoalInfo>; label: string }
 const PERIOD_LABELS: Record<string, string> = { month: "This Month", quarter: "This Quarter", year: "This Year" };
 
 export default function FinanceDashboardPage() {
-  usePageHeader("Finance Dashboard", "Donations & spending overview");
-
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<FinanceData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -141,9 +138,6 @@ export default function FinanceDashboardPage() {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Finance & contributions"
-        eyebrowIcon={<DollarSign className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Finance Dashboard"
         description="Donations, spending, and donor concentration for the selected period."
       >

@@ -14,7 +14,6 @@ import {
   dashboardTableShellClass,
 } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import {
@@ -27,7 +26,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import { Eye, TrendingUp, Gift, Megaphone, Share2, ExternalLink } from "lucide-react";
+import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { OutreachStatCard } from "@/components/outreach/OutreachStatCard";
 import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
@@ -189,8 +188,6 @@ const PLATFORM_COLORS: Record<string, string> = {
 };
 
 export default function OutreachPage() {
-  usePageHeader("Social Media & Outreach", "Campaign engagement & donation referrals");
-
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<OutreachData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -255,9 +252,6 @@ export default function OutreachPage() {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Outreach"
-        eyebrowIcon={<Megaphone className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Social Media & Outreach"
         description="Campaign reach, engagement, and estimated donation impact from social channels."
       >

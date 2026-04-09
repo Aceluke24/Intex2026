@@ -24,11 +24,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { AlertCircle, CheckCircle, Heart, Mail, Search, Shield, UserCog, Users, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Heart, Mail, Search, Shield, Users, Loader2, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -50,7 +49,6 @@ interface DeleteUserResponse {
 type Status = "idle" | "loading" | "success" | "error";
 
 export const StaffManagement = () => {
-  usePageHeader("Staff & Users", "Manage user roles and permissions");
   const { user: currentUser } = useAuth();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -178,9 +176,6 @@ export const StaffManagement = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Settings & administration"
-        eyebrowIcon={<UserCog className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Staff & Users"
         description="Manage roles, access, and two-factor status for organization accounts."
       >

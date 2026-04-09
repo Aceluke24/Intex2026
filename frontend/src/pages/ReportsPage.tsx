@@ -1,6 +1,5 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +21,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  BarChart3,
   GraduationCap,
   HeartHandshake,
   LineChart as LineChartIcon,
@@ -57,8 +55,6 @@ type ReportsAnalytics = {
 };
 
 const ReportsPage = () => {
-  usePageHeader("Reports & Analytics", "Impact & performance");
-
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metricsData, setMetricsData] = useState<ReportsAnalytics | null>(null);
@@ -221,8 +217,6 @@ const ReportsPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        eyebrow="Impact intelligence"
-        eyebrowIcon={<BarChart3 className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Reports & Analytics"
         description="Track impact, outcomes, and organizational performance."
       >

@@ -1,7 +1,6 @@
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
@@ -22,7 +21,7 @@ import {
   type SessionType,
 } from "@/lib/processRecordingTypes";
 import { motion } from "framer-motion";
-import { PenLine, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -108,8 +107,6 @@ function mapResident(r: ResidentApi): ProcessResidentOption {
 }
 
 const RecordingsPage = () => {
-  usePageHeader("Process Recordings", "Clinical session documentation");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ProcessSessionEntry[]>([]);
@@ -368,9 +365,6 @@ const RecordingsPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Clinical documentation"
-        eyebrowIcon={<PenLine className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Process Recording"
         description="Document and review resident counseling sessions."
         actions={
@@ -400,7 +394,7 @@ const RecordingsPage = () => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.05 }}
-          className="mb-10 max-w-xl"
+          className="mb-6 max-w-xl"
         >
           {loading ? (
             <Skeleton className="h-[120px] rounded-[1.15rem] bg-white/45" />

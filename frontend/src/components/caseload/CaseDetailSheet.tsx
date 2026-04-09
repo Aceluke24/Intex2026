@@ -23,6 +23,12 @@ function yesNo(v: boolean) {
   return v ? "Yes" : "No";
 }
 
+function fmtDate(iso: string | null | undefined) {
+  if (!iso?.trim()) return "—";
+  const d = new Date(iso.slice(0, 10));
+  return Number.isNaN(d.getTime()) ? iso : format(d, "MMMM d, yyyy");
+}
+
 function SectionTitle({ icon: Icon, children }: { icon: ElementType; children: React.ReactNode }) {
   return (
     <h3 className="mb-4 flex items-center gap-2 font-display text-lg font-semibold tracking-[-0.02em] text-foreground">
@@ -49,6 +55,8 @@ export function CaseDetailSheet({ c }: CaseDetailSheetProps) {
     done: i < c.phaseIndex,
     current: i === c.phaseIndex,
   }));
+
+  const sexLabel = c.sex === "M" ? "M" : c.sex === "F" ? "F" : c.sex || "—";
 
   return (
     <div className="flex h-full flex-col">
@@ -82,11 +90,18 @@ export function CaseDetailSheet({ c }: CaseDetailSheetProps) {
           >
             <SectionTitle icon={User}>Resident overview</SectionTitle>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Display name" value={c.displayName} />
-              <Field label="Age / gender" value={`${c.age} · ${c.gender}`} />
-              <Field label="Category" value={c.category} />
-              <Field label="Subcategory" value={c.subcategory} />
-              <Field label="Disability & accessibility" value={c.disability ?? "None recorded"} />
+              <Field label="Display name (internal code)" value={c.displayName} />
+              <Field label="Date of birth · sex" value={`${fmtDate(c.dateOfBirth)} · ${sexLabel}`} />
+              <Field label="Birth status" value={c.birthStatus ?? "—"} />
+              <Field label="Religion" value={c.religion ?? "—"} />
+              <Field label="Place of birth" value={c.placeOfBirth ?? "—"} />
+              <Field label="Case status (stored)" value={c.caseStatus} />
+              <Field label="Case category" value={c.caseCategory} />
+              <Field label="Subcategory flags" value={c.subcategory} />
+              <Field label="PWD" value={yesNo(c.isPwd)} />
+              <Field label="PWD type" value={c.pwdType ?? "—"} />
+              <Field label="Special needs" value={yesNo(c.hasSpecialNeeds)} />
+              <Field label="Special needs diagnosis" value={c.specialNeedsDiagnosis ?? "—"} />
             </div>
           </motion.section>
 
@@ -97,13 +112,11 @@ export function CaseDetailSheet({ c }: CaseDetailSheetProps) {
           >
             <SectionTitle icon={Users}>Family socio-demographic profile</SectionTitle>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="4Ps beneficiary" value={yesNo(c.socio.fourPsBeneficiary)} />
-              <Field label="Solo parent household" value={yesNo(c.socio.soloParentHousehold)} />
-              <Field
-                label="Indigenous group"
-                value={c.socio.indigenousGroup ?? "Not indicated"}
-              />
-              <Field label="Informal settler status" value={yesNo(c.socio.informalSettler)} />
+              <Field label="4Ps beneficiary" value={yesNo(c.familyIs4ps)} />
+              <Field label="Solo parent household" value={yesNo(c.familySoloParent)} />
+              <Field label="Indigenous" value={yesNo(c.familyIndigenous)} />
+              <Field label="Informal settler" value={yesNo(c.familyInformalSettler)} />
+              <Field label="Parent/guardian with disability" value={yesNo(c.familyParentPwd)} />
             </div>
           </motion.section>
 
@@ -114,9 +127,14 @@ export function CaseDetailSheet({ c }: CaseDetailSheetProps) {
           >
             <SectionTitle icon={Calendar}>Admission & referral</SectionTitle>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Admission date" value={format(new Date(c.admissionDate), "MMMM d, yyyy")} />
-              <Field label="Referral source" value={c.referralSource} />
-              <Field label="Origin location" value={c.originLocation} />
+              <Field label="Admission date" value={fmtDate(c.admissionDate)} />
+              <Field label="Date enrolled" value={fmtDate(c.dateEnrolled)} />
+              <Field label="Referral source" value={c.referralSource ?? "—"} />
+              <Field label="Referring agency person" value={c.referringAgencyPerson ?? "—"} />
+              <Field label="Date COLB registered" value={fmtDate(c.dateColbRegistered)} />
+              <Field label="Date COLB obtained" value={fmtDate(c.dateColbObtained)} />
+              <Field label="Date case study prepared" value={fmtDate(c.dateCaseStudyPrepared)} />
+              <Field label="Date closed" value={fmtDate(c.dateClosed)} />
             </div>
           </motion.section>
 
@@ -129,12 +147,26 @@ export function CaseDetailSheet({ c }: CaseDetailSheetProps) {
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Assigned social worker" value={c.assignedWorker} />
               <Field label="Safehouse" value={c.safehouse} />
+              <Field label="Initial risk level" value={c.initialRiskLevel} />
+              <Field label="Current risk level" value={c.currentRiskLevel} />
+              <Field label="Reintegration type" value={c.reintegrationType ?? "—"} />
+              <Field label="Reintegration status" value={c.reintegrationStatus ?? "—"} />
             </div>
             <div className="mt-5 rounded-[1rem] bg-white/55 p-4 dark:bg-white/[0.06]">
               <p className="font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75">
-                Notes & updates
+                Initial case assessment
               </p>
-              <p className="mt-2 font-body text-sm leading-relaxed text-foreground/90">{c.caseNotes}</p>
+              <p className="mt-2 font-body text-sm leading-relaxed text-foreground/90">
+                {c.initialCaseAssessment ?? "—"}
+              </p>
+            </div>
+            <div className="mt-5 rounded-[1rem] bg-white/55 p-4 dark:bg-white/[0.06]">
+              <p className="font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75">
+                Notes (restricted)
+              </p>
+              <p className="mt-2 font-body text-sm leading-relaxed text-foreground/90">
+                {c.notesRestricted ?? "—"}
+              </p>
             </div>
           </motion.section>
 
