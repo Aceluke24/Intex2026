@@ -193,6 +193,18 @@ if (!string.IsNullOrWhiteSpace(googleClientId) &&
         {
             options.ClientId = googleClientId;
             options.ClientSecret = googleClientSecret;
+            options.Events.OnTicketReceived = context =>
+            {
+                var redirectUri = context.Properties?.RedirectUri;
+                if (string.IsNullOrWhiteSpace(redirectUri))
+                {
+                    redirectUri = "/api/auth/external-callback";
+                }
+
+                context.Response.Redirect(redirectUri);
+                context.HandleResponse();
+                return Task.CompletedTask;
+            };
             options.Events.OnRemoteFailure = context =>
             {
                 var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
