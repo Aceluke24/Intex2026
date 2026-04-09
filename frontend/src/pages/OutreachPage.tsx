@@ -14,7 +14,7 @@ import {
   Legend,
 } from "recharts";
 import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { OutreachStatCard } from "@/components/outreach/OutreachStatCard";
 import type { OutreachStatTrend } from "@/components/outreach/OutreachStatCard";
 import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
@@ -66,6 +66,7 @@ type Post = {
   postType: string;
   mediaType: string | null;
   date: string;
+  createdAt?: string;
   reach: number;
   likes: number;
   comments: number;
@@ -111,6 +112,62 @@ function monthOverMonthTrend(current: number, previous: number): OutreachStatTre
   };
 }
 
+function parsePostCreatedAt(p: Post): Date {
+  const raw = p.createdAt ?? p.date;
+  const dayPart = String(raw).split("T")[0] ?? "";
+  const [y, m, d] = dayPart.split("-").map((v) => parseInt(v, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return new Date(NaN);
+  return new Date(y, m - 1, Number.isFinite(d) ? d : 1);
+}
+
+function computeOutreachKpisFromPosts(posts: Post[]) {
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth();
+  const prevAnchor = new Date(cy, cm, 1);
+  prevAnchor.setMonth(prevAnchor.getMonth() - 1);
+  const py = prevAnchor.getFullYear();
+  const pm = prevAnchor.getMonth();
+
+  const inMonth = (p: Post, year: number, month: number) => {
+    const d = parsePostCreatedAt(p);
+    return !Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month;
+  };
+
+  const thisMonth = posts.filter((p) => inMonth(p, cy, cm));
+  const prevMonth = posts.filter((p) => inMonth(p, py, pm));
+
+  const reach = thisMonth.reduce((sum, p) => sum + (p.reach || 0), 0);
+  const engagementRate =
+    thisMonth.length > 0
+      ? thisMonth.reduce((sum, p) => sum + Number(p.engagementRate || 0), 0) / thisMonth.length
+      : 0;
+  const referrals = thisMonth.reduce((sum, p) => sum + (p.donationReferrals || 0), 0);
+  const donationValue = thisMonth.reduce(
+    (sum, p) => sum + Number(p.estimatedDonationValuePhp || 0),
+    0
+  );
+
+  return {
+    reach,
+    engagementRate,
+    referrals,
+    donationValue,
+    previous: {
+      reach: prevMonth.reduce((sum, p) => sum + (p.reach || 0), 0),
+      engagementRate:
+        prevMonth.length > 0
+          ? prevMonth.reduce((sum, p) => sum + Number(p.engagementRate || 0), 0) / prevMonth.length
+          : 0,
+      referrals: prevMonth.reduce((sum, p) => sum + (p.donationReferrals || 0), 0),
+      donationValue: prevMonth.reduce(
+        (sum, p) => sum + Number(p.estimatedDonationValuePhp || 0),
+        0
+      ),
+    },
+  };
+}
+
 const PLATFORM_COLORS: Record<string, string> = {
   Facebook: "#1877f2",
   Instagram: "#e1306c",
@@ -150,10 +207,15 @@ export default function OutreachPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const kpiFromPosts = useMemo(
+    () => (data ? computeOutreachKpisFromPosts(data.posts) : null),
+    [data]
+  );
+
   return (
     <AdminLayout contentClassName="max-w-7xl">
       <div className="space-y-8">
-        {/* KPI Cards — aggregates from SocialMediaPosts (calendar month); not filtered by table filters */}
+        {/* KPI Cards — computed client-side from posts (calendar month); not filtered by table filters */}
         <section className="space-y-3">
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <motion.div
@@ -166,13 +228,10 @@ export default function OutreachPage() {
               label="Reach This Month"
               icon={Eye}
               loading={loading}
-              value={data ? data.kpis.totalReachThisMonth.toLocaleString("en-US") : ""}
+              value={kpiFromPosts ? kpiFromPosts.reach.toLocaleString("en-US") : "0"}
               trend={
-                data
-                  ? monthOverMonthTrend(
-                      data.kpis.totalReachThisMonth,
-                      data.previousMonthKpis?.totalReach ?? 0
-                    )
+                kpiFromPosts
+                  ? monthOverMonthTrend(kpiFromPosts.reach, kpiFromPosts.previous.reach)
                   : null
               }
             />
@@ -180,12 +239,14 @@ export default function OutreachPage() {
               label="Avg Engagement Rate"
               icon={TrendingUp}
               loading={loading}
-              value={data ? `${(data.kpis.avgEngagementRateThisMonth * 100).toFixed(2)}%` : ""}
+              value={
+                kpiFromPosts ? `${(kpiFromPosts.engagementRate * 100).toFixed(2)}%` : "0.00%"
+              }
               trend={
-                data
+                kpiFromPosts
                   ? monthOverMonthTrend(
-                      data.kpis.avgEngagementRateThisMonth,
-                      data.previousMonthKpis?.avgEngagementRate ?? 0
+                      kpiFromPosts.engagementRate,
+                      kpiFromPosts.previous.engagementRate
                     )
                   : null
               }
@@ -194,13 +255,10 @@ export default function OutreachPage() {
               label="Donation Referrals"
               icon={Share2}
               loading={loading}
-              value={data ? data.kpis.donationReferralsThisMonth.toLocaleString("en-US") : ""}
+              value={kpiFromPosts ? kpiFromPosts.referrals.toLocaleString("en-US") : "0"}
               trend={
-                data
-                  ? monthOverMonthTrend(
-                      data.kpis.donationReferralsThisMonth,
-                      data.previousMonthKpis?.donationReferrals ?? 0
-                    )
+                kpiFromPosts
+                  ? monthOverMonthTrend(kpiFromPosts.referrals, kpiFromPosts.previous.referrals)
                   : null
               }
             />
@@ -208,12 +266,12 @@ export default function OutreachPage() {
               label="Est. Donation Value"
               icon={Gift}
               loading={loading}
-              value={data ? formatUSD(Number(data.kpis.estimatedDonationValueThisMonth)) : ""}
+              value={kpiFromPosts ? formatUSD(kpiFromPosts.donationValue) : formatUSD(0)}
               trend={
-                data
+                kpiFromPosts
                   ? monthOverMonthTrend(
-                      Number(data.kpis.estimatedDonationValueThisMonth),
-                      Number(data.previousMonthKpis?.estimatedDonationValue ?? 0)
+                      kpiFromPosts.donationValue,
+                      kpiFromPosts.previous.donationValue
                     )
                   : null
               }
