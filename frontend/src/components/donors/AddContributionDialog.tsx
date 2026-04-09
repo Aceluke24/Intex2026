@@ -1,12 +1,5 @@
 import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ContributionKind } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const DEFAULT_PROGRAMS = ["General operations", "Safe housing", "Counseling", "Education", "Outreach"];
 
@@ -71,12 +64,26 @@ const TEXTAREA_FIELD_CLASS = cn(
 
 const LABEL_CLASS = "mb-1.5 block font-body text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground";
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 type AddContributionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   supporterOptions: { id: string; name: string }[];
   safehouses: string[];
   programAreas?: string[];
+  /** When set after a supporter is created, selects that id once it appears in `supporterOptions`. */
+  pendingSelectSupporterId?: string | null;
+  onPendingSelectConsumed?: () => void;
+  /** Opens the add-supporter flow (parent keeps this dialog open). */
+  onRequestAddSupporter?: () => void;
   onSubmit?: (payload: {
     supporterId: string;
     kind: ContributionKind;
@@ -102,10 +109,15 @@ export function AddContributionDialog({
   supporterOptions,
   safehouses,
   programAreas = DEFAULT_PROGRAMS,
+  pendingSelectSupporterId = null,
+  onPendingSelectConsumed,
+  onRequestAddSupporter,
   onSubmit,
 }: AddContributionDialogProps) {
   const [supporterId, setSupporterId] = useState("");
   const [supporterOpen, setSupporterOpen] = useState(false);
+  const [supporterSearch, setSupporterSearch] = useState("");
+  const debouncedSupporterSearch = useDebouncedValue(supporterSearch, 300);
   const [kind, setKind] = useState<ContributionKind>("monetary");
   const [amount, setAmount] = useState("");
   const [hours, setHours] = useState("");
@@ -115,15 +127,46 @@ export function AddContributionDialog({
 
   const selectedSupporter = supporterOptions.find((s) => s.id === supporterId);
 
+  const filteredSupporterOptions = useMemo(() => {
+    const q = debouncedSupporterSearch.trim().toLowerCase();
+    if (!q) return supporterOptions;
+    return supporterOptions.filter((s) => {
+      const name = (s.name ?? "").toLowerCase();
+      const id = String(s.id ?? "").toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [supporterOptions, debouncedSupporterSearch]);
+
   useEffect(() => {
     if (!open) return;
-    const firstS = supporterOptions[0]?.id ?? "";
-    const firstSh = safehouses[0] ?? "";
-    const firstP = programAreas[0] ?? DEFAULT_PROGRAMS[0];
-    setSupporterId(firstS);
-    setSafehouse(firstSh);
-    setProgram(firstP);
-  }, [open, supporterOptions, safehouses, programAreas]);
+    setSafehouse(safehouses[0] ?? "");
+    setProgram(programAreas[0] ?? DEFAULT_PROGRAMS[0]);
+  }, [open, safehouses, programAreas]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (pendingSelectSupporterId) return;
+    const valid = supporterOptions.some((s) => s.id === supporterId);
+    if (!valid && supporterOptions.length > 0) {
+      setSupporterId(supporterOptions[0].id);
+    }
+    if (supporterOptions.length === 0) {
+      setSupporterId("");
+    }
+  }, [open, supporterOptions, supporterId, pendingSelectSupporterId]);
+
+  useEffect(() => {
+    if (!open || !pendingSelectSupporterId) return;
+    const ok = supporterOptions.some((s) => s.id === pendingSelectSupporterId);
+    if (ok) {
+      setSupporterId(pendingSelectSupporterId);
+      onPendingSelectConsumed?.();
+    }
+  }, [open, pendingSelectSupporterId, supporterOptions, onPendingSelectConsumed]);
+
+  useEffect(() => {
+    if (!supporterOpen) setSupporterSearch("");
+  }, [supporterOpen]);
 
   useEffect(() => {
     if (kind === "monetary") setHours("");
@@ -139,10 +182,14 @@ export function AddContributionDialog({
     setSafehouse(safehouses[0] ?? "");
     setProgram(programAreas[0] ?? DEFAULT_PROGRAMS[0]);
     setSupporterOpen(false);
+    setSupporterSearch("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supporterId.trim()) {
+      return;
+    }
     try {
       await onSubmit?.({
         supporterId,
@@ -209,12 +256,10 @@ export function AddContributionDialog({
                     role="combobox"
                     aria-expanded={supporterOpen}
                     aria-haspopup="listbox"
-                    disabled={supporterOptions.length === 0}
                     className={cn(
                       supporterTriggerClass,
                       "inline-flex justify-between font-body transition-[transform,background-color,box-shadow] duration-200 ease-out",
                       "hover:bg-[hsl(36_30%_97%)] active:scale-[0.995] dark:hover:bg-[hsl(213_30%_15%)]",
-                      "disabled:pointer-events-none disabled:opacity-45",
                     )}
                   >
                     <span className="truncate">{selectedSupporter?.name ?? "Choose supporter"}</span>
@@ -223,45 +268,102 @@ export function AddContributionDialog({
                 </PopoverTrigger>
                 <PopoverContent
                   className={cn(
-                    "w-[var(--radix-popover-trigger-width)] max-w-[min(100vw-2rem,520px)] rounded-[14px] border border-[hsl(36_18%_86%)] bg-[hsl(36_32%_99%)]/98 p-0 shadow-[0_20px_56px_rgba(45,35,48,0.14)] backdrop-blur-xl",
+                    "flex w-[var(--radix-popover-trigger-width)] max-h-[min(400px,calc(100vh-7rem))] max-w-[min(100vw-2rem,520px)] flex-col overflow-hidden rounded-[14px] border border-[hsl(36_18%_86%)] bg-[hsl(36_32%_99%)]/98 p-0 shadow-[0_20px_56px_rgba(45,35,48,0.14)] backdrop-blur-xl",
                     "dark:border-[hsl(213_28%_22%)] dark:bg-[hsl(213_32%_13%)]/98 dark:shadow-[0_20px_56px_rgba(0,0,0,0.5)]",
                     "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
                   )}
                   align="start"
                 >
-                  <Command className="rounded-[14px] bg-transparent" shouldFilter>
-                    <CommandInput
-                      placeholder="Search supporters…"
-                      className="h-11 border-b border-[hsl(36_18%_88%)] font-body text-sm dark:border-white/10"
-                    />
-                    <CommandList className="max-h-[220px]">
-                      <CommandEmpty className="py-8 text-center font-body text-sm text-muted-foreground">
-                        No supporters match your search.
-                      </CommandEmpty>
-                      <CommandGroup className="p-1">
-                        {supporterOptions.map((s) => (
-                          <CommandItem
-                            key={s.id}
-                            value={`${s.name} ${s.id}`}
-                            onSelect={() => {
-                              setSupporterId(s.id);
-                              setSupporterOpen(false);
-                            }}
-                            className="rounded-[10px] font-body text-sm data-[selected=true]:bg-[#E8AEB7]/14 aria-selected:bg-[#E8AEB7]/14"
-                          >
-                            <Check
-                              className={cn("mr-2 h-4 w-4 shrink-0", supporterId === s.id ? "opacity-100" : "opacity-0")}
-                            />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                  <Command shouldFilter={false} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] bg-transparent">
+                    <div className="sticky top-0 z-10 shrink-0 rounded-t-[14px] bg-[hsl(36_32%_99%)] dark:bg-[hsl(213_32%_13%)]">
+                      <CommandInput
+                        placeholder="Search supporters…"
+                        value={supporterSearch}
+                        onValueChange={setSupporterSearch}
+                        className="h-11 border-b border-[hsl(36_18%_88%)] font-body text-sm dark:border-white/10"
+                      />
+                    </div>
+                    <CommandList
+                      className={cn(
+                        "max-h-[280px] min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain",
+                        "[scrollbar-gutter:stable]",
+                      )}
+                    >
+                      {filteredSupporterOptions.length === 0 ? (
+                        <div className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
+                          <p>No supporters match your search.</p>
+                          {onRequestAddSupporter ? (
+                            <button
+                              type="button"
+                              className="mt-3 font-medium text-[hsl(340_32%_38%)] underline underline-offset-2 hover:opacity-90 dark:text-[hsl(340_35%_78%)]"
+                              onClick={() => {
+                                setSupporterOpen(false);
+                                onRequestAddSupporter();
+                              }}
+                            >
+                              Add a new supporter
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <CommandGroup className="overflow-visible p-1">
+                          {filteredSupporterOptions.map((s) => (
+                            <CommandItem
+                              key={s.id}
+                              value={s.id}
+                              keywords={[s.name, s.id]}
+                              onSelect={() => {
+                                setSupporterId(s.id);
+                                setSupporterOpen(false);
+                              }}
+                              className="rounded-[10px] font-body text-sm data-[selected=true]:bg-[#E8AEB7]/14 aria-selected:bg-[#E8AEB7]/14"
+                            >
+                              <Check
+                                className={cn("mr-2 h-4 w-4 shrink-0", supporterId === s.id ? "opacity-100" : "opacity-0")}
+                              />
+                              {s.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
                     </CommandList>
                   </Command>
+                  <div className="shrink-0 border-t border-[hsl(36_18%_88%)] bg-[hsl(36_32%_99%)] px-3 py-2.5 text-center dark:border-white/10 dark:bg-[hsl(213_32%_13%)]">
+                    <p className="font-body text-[11px] text-muted-foreground">
+                      Can&apos;t find a supporter?{" "}
+                      {onRequestAddSupporter ? (
+                        <button
+                          type="button"
+                          className="font-semibold text-[hsl(340_32%_38%)] underline underline-offset-2 hover:opacity-90 dark:text-[hsl(340_35%_78%)]"
+                          onClick={() => {
+                            setSupporterOpen(false);
+                            onRequestAddSupporter();
+                          }}
+                        >
+                          Add one
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">Use Add supporter in the header.</span>
+                      )}
+                    </p>
+                  </div>
                 </PopoverContent>
               </Popover>
               {supporterOptions.length === 0 ? (
-                <p className="mt-2 font-body text-xs text-muted-foreground/90">Add supporters before logging contributions.</p>
+                <p className="mt-2 font-body text-xs text-muted-foreground/90">
+                  No supporters yet.{" "}
+                  {onRequestAddSupporter ? (
+                    <button
+                      type="button"
+                      className="font-semibold text-[hsl(340_32%_38%)] underline underline-offset-2 dark:text-[hsl(340_35%_78%)]"
+                      onClick={onRequestAddSupporter}
+                    >
+                      Add a supporter
+                    </button>
+                  ) : (
+                    "Add supporters before logging contributions."
+                  )}
+                </p>
               ) : null}
             </div>
 
@@ -384,12 +486,14 @@ export function AddContributionDialog({
             </Button>
             <Button
               type="submit"
+              disabled={!supporterId.trim()}
               className={cn(
                 "rounded-[14px] px-7 font-body text-sm font-medium text-white shadow-[0_8px_24px_rgba(232,174,183,0.35)]",
                 "bg-gradient-to-r from-[#E8AEB7] via-[hsl(345_42%_72%)] to-[hsl(10_48%_62%)]",
                 "transition-[transform,box-shadow,filter] duration-200 ease-out",
                 "hover:shadow-[0_12px_32px_rgba(232,174,183,0.42)] hover:brightness-[1.03]",
                 "active:scale-[0.98] active:shadow-[0_4px_16px_rgba(232,174,183,0.28)]",
+                "disabled:pointer-events-none disabled:opacity-45",
               )}
             >
               Save contribution
