@@ -1,0 +1,52 @@
+name: Deploy Backend App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - .github/workflows/deploy-backend-appservice.yml
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore backend/Intex2026/Intex2026/Intex2026.csproj
+
+      - name: Build
+        run: dotnet build backend/Intex2026/Intex2026/Intex2026.csproj --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish backend/Intex2026/Intex2026/Intex2026.csproj --configuration Release --no-build --output backend-publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: intex-backend-fmb8dnaxb0dkd8gv
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_INTEX_BACKEND }}
+          package: backend-publish
+
+      - name: Smoke test admin route shape
+        run: |
+          set -e
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://intex-backend-fmb8dnaxb0dkd8gv.francecentral-01.azurewebsites.net/api/auth/admin/users)
+          # Expected in production without auth: 401/403. 404 indicates route mismatch or stale deployment.
+          if [ "$STATUS" = "404" ]; then
+            echo "Smoke test failed: /api/auth/admin/users returned 404"
+            exit 1
+          fi
+          echo "Smoke test status: $STATUS"

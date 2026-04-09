@@ -19,9 +19,28 @@ jobs:
         with:
           submodules: true
           lfs: false
+      - name: Validate production API base URL (main only)
+        if: github.event_name == 'push'
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        run: |
+          if [ -z "${VITE_API_BASE_URL}" ]; then
+            echo "VITE_API_BASE_URL secret is missing."
+            exit 1
+          fi
+
+          case "${VITE_API_BASE_URL}" in
+            http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*)
+              echo "VITE_API_BASE_URL points to localhost, which is invalid for production."
+              exit 1
+              ;;
+          esac
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_PROD_API_BASE_URL: ${{ secrets.VITE_PROD_API_BASE_URL }}
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_RED_POND_0CEF4041E }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
