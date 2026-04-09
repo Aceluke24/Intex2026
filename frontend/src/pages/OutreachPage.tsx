@@ -14,9 +14,8 @@ import {
   Legend,
 } from "recharts";
 import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { OutreachStatCard } from "@/components/outreach/OutreachStatCard";
-import type { OutreachStatTrend } from "@/components/outreach/OutreachStatCard";
 import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
 
 const softTooltip = {
@@ -86,7 +85,7 @@ type FilterOptions = {
 };
 
 type OutreachData = {
-  kpis: Kpis;
+  kpis?: Kpis;
   /** Omitted on older API builds; trends default to no baseline. */
   previousMonthKpis?: PreviousMonthKpis;
   byPlatform: PlatformRow[];
@@ -95,44 +94,73 @@ type OutreachData = {
   filterOptions: FilterOptions;
 };
 
-function monthOverMonthTrend(current: number, previous: number): OutreachStatTrend | null {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0) {
-    return current > 0 ? { label: "↑ new vs last month", direction: "up" } : null;
-  }
-  const pct = ((current - previous) / previous) * 100;
-  if (Math.abs(pct) < 0.05) {
-    return { label: "→ 0% vs last month", direction: "flat" };
-  }
-  const arrow = pct > 0 ? "↑" : "↓";
-  const sign = pct > 0 ? "+" : "";
-  return {
-    label: `${arrow} ${sign}${pct.toFixed(1)}% vs last month`,
-    direction: pct > 0 ? "up" : "down",
-  };
+type HeadlineStats = {
+  reach: number;
+  engagementRate: number;
+  referrals: number;
+  donationValue: number;
+  postsCount: number;
+};
+
+type NormalizedPostRow = {
+  reach: number;
+  engagement_rate: number;
+  donation_referrals: number;
+  estimated_donation_value_php: number;
+  created_at: unknown;
+};
+
+/** Same-origin + auth as the rest of the admin app; no query string so stats are not narrowed by table filters. */
+async function getSocialMediaPosts(): Promise<OutreachData> {
+  return apiFetchJson<OutreachData>(`${API_PREFIX}/outreach`);
 }
 
-/**
- * Headline KPIs: use API `kpis` / `previousMonthKpis` (aggregates over all SocialMediaPosts
- * for the calendar month). The `posts` array is filtered and capped at 100 — not suitable
- * for month totals (reach, referrals, donation value).
- */
-function headlineStatsFromOutreachPayload(d: OutreachData | null) {
-  if (!d?.kpis) return null;
-  const prev = d.previousMonthKpis;
+function normalizeOutreachPosts(raw: unknown[]): NormalizedPostRow[] {
+  return raw.map((row) => {
+    const p = row as Record<string, unknown>;
+    return {
+      reach: Number(p.reach ?? p.impressions ?? 0) || 0,
+      engagement_rate: Number(p.engagement_rate ?? p.engagementRate ?? 0) || 0,
+      donation_referrals:
+        Number(p.donation_referrals ?? p.donationReferrals ?? p.referrals ?? 0) || 0,
+      estimated_donation_value_php:
+        Number(
+          p.estimated_donation_value_php ??
+            p.estimatedDonationValuePhp ??
+            p.donationValue ??
+            0
+        ) || 0,
+      created_at: p.created_at ?? p.createdAt ?? p.date,
+    };
+  });
+}
+
+/** Full-database aggregates (no month filter); matches how the API builds `byPlatform`. */
+function headlineStatsFromByPlatform(rows: PlatformRow[]): HeadlineStats | null {
+  if (!rows.length) return null;
+  const postCount = rows.reduce((s, r) => s + r.postCount, 0);
+  if (postCount <= 0) return null;
+  const reach = rows.reduce((s, r) => s + r.totalReach, 0);
+  const referrals = rows.reduce((s, r) => s + r.totalDonationReferrals, 0);
+  const donationValue = rows.reduce((s, r) => s + r.estimatedDonationValue, 0);
+  const engagementRate =
+    rows.reduce((s, r) => s + r.avgEngagementRate * r.postCount, 0) / postCount;
+  return { reach, engagementRate, referrals, donationValue, postsCount: postCount };
+}
+
+function headlineStatsFromNormalizedPosts(dataset: NormalizedPostRow[]): HeadlineStats | null {
+  if (!dataset.length) return null;
+  const reach = dataset.reduce((sum, p) => sum + p.reach, 0);
+  const engagementRate =
+    dataset.reduce((sum, p) => sum + p.engagement_rate, 0) / dataset.length;
+  const referrals = dataset.reduce((sum, p) => sum + p.donation_referrals, 0);
+  const donationValue = dataset.reduce((sum, p) => sum + p.estimated_donation_value_php, 0);
   return {
-    reach: d.kpis.totalReachThisMonth,
-    engagementRate: Number(d.kpis.avgEngagementRateThisMonth),
-    referrals: d.kpis.donationReferralsThisMonth,
-    donationValue: Number(d.kpis.estimatedDonationValueThisMonth),
-    previous: prev
-      ? {
-          reach: prev.totalReach,
-          engagementRate: Number(prev.avgEngagementRate),
-          referrals: prev.donationReferrals,
-          donationValue: Number(prev.estimatedDonationValue),
-        }
-      : null,
+    reach,
+    engagementRate,
+    referrals,
+    donationValue,
+    postsCount: dataset.length,
   };
 }
 
@@ -152,6 +180,8 @@ export default function OutreachPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<OutreachData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [headlineStats, setHeadlineStats] = useState<HeadlineStats | null>(null);
+  const [headlineLoading, setHeadlineLoading] = useState(true);
   const [filterPlatform, setFilterPlatform] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterCampaign, setFilterCampaign] = useState("");
@@ -175,14 +205,49 @@ export default function OutreachPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const headlineStats = useMemo(() => headlineStatsFromOutreachPayload(data), [data]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHeadlineStats() {
+      setHeadlineLoading(true);
+      try {
+        const payload = await getSocialMediaPosts();
+        const posts = payload.posts;
+        console.log("PROD POSTS:", posts);
+
+        const dataset = normalizeOutreachPosts(posts);
+        // Prefer API platform rollups (all posts); sample `posts` is capped at 100.
+        let next: HeadlineStats | null =
+          headlineStatsFromByPlatform(payload.byPlatform) ??
+          headlineStatsFromNormalizedPosts(dataset);
+
+        if (!next || next.postsCount <= 0) {
+          console.warn("No social media data returned");
+          return;
+        }
+
+        if (!cancelled) setHeadlineStats(next);
+      } catch (err) {
+        console.error("Outreach headline stats failed", err);
+      } finally {
+        if (!cancelled) setHeadlineLoading(false);
+      }
+    }
+    void loadHeadlineStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AdminLayout contentClassName="max-w-7xl">
       <div className="space-y-8">
-        {/* KPI cards: real aggregates from SocialMediaPosts (current month via API kpis; not affected by table filters) */}
+        {/* KPI cards: unfiltered outreach payload + normalization (not month-scoped server kpis); own request so prod filters never zero these out */}
         <section className="space-y-3">
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+            Posts Count:{" "}
+            {headlineLoading ? "…" : headlineStats ? headlineStats.postsCount : "—"}
+          </p>
           <motion.div
             className="grid grid-cols-2 gap-4 lg:grid-cols-4"
             initial={{ opacity: 0, y: 12 }}
@@ -190,65 +255,40 @@ export default function OutreachPage() {
             transition={{ duration: 0.4 }}
           >
             <OutreachStatCard
-              label="Reach This Month"
+              label="Total Reach"
               icon={Eye}
-              loading={loading}
+              loading={headlineLoading}
               value={headlineStats ? headlineStats.reach.toLocaleString("en-US") : "0"}
-              trend={
-                headlineStats?.previous
-                  ? monthOverMonthTrend(headlineStats.reach, headlineStats.previous.reach)
-                  : null
-              }
+              trend={null}
             />
             <OutreachStatCard
               label="Avg Engagement Rate"
               icon={TrendingUp}
-              loading={loading}
+              loading={headlineLoading}
               value={
                 headlineStats
                   ? `${(headlineStats.engagementRate * 100).toFixed(2)}%`
                   : "0.00%"
               }
-              trend={
-                headlineStats?.previous
-                  ? monthOverMonthTrend(
-                      headlineStats.engagementRate,
-                      headlineStats.previous.engagementRate
-                    )
-                  : null
-              }
+              trend={null}
             />
             <OutreachStatCard
               label="Donation Referrals"
               icon={Share2}
-              loading={loading}
+              loading={headlineLoading}
               value={
                 headlineStats ? headlineStats.referrals.toLocaleString("en-US") : "0"
               }
-              trend={
-                headlineStats?.previous
-                  ? monthOverMonthTrend(
-                      headlineStats.referrals,
-                      headlineStats.previous.referrals
-                    )
-                  : null
-              }
+              trend={null}
             />
             <OutreachStatCard
               label="Est. Donation Value"
               icon={Gift}
-              loading={loading}
+              loading={headlineLoading}
               value={
                 headlineStats ? formatUSD(headlineStats.donationValue) : formatUSD(0)
               }
-              trend={
-                headlineStats?.previous
-                  ? monthOverMonthTrend(
-                      headlineStats.donationValue,
-                      headlineStats.previous.donationValue
-                    )
-                  : null
-              }
+              trend={null}
             />
           </motion.div>
         </section>
