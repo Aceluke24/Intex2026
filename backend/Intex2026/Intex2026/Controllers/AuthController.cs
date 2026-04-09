@@ -19,7 +19,8 @@ public class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
     IConfiguration configuration,
-    ILogger<AuthController> logger) : ControllerBase
+    ILogger<AuthController> logger,
+    AppDbContext db) : ControllerBase
 {
     private const string DefaultFrontendUrl = "http://localhost:3000";
     private const string DefaultExternalReturnPath = "/catalog";
@@ -129,6 +130,28 @@ public class AuthController(
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
         await userManager.AddToRoleAsync(user, AuthRoles.Donor);
+
+        // Find or create a Supporter record and link it to the new user account
+        var email = req.Email.Trim().ToLower();
+        var supporter = await db.Supporters.FirstOrDefaultAsync(s => s.Email == email);
+        if (supporter == null)
+        {
+            supporter = new Supporter
+            {
+                SupporterType = "MonetaryDonor",
+                DisplayName = req.DisplayName ?? email.Split('@')[0],
+                Email = email,
+                RelationshipType = "Local",
+                Status = "Active",
+                AcquisitionChannel = "Website",
+                CreatedAt = DateTime.UtcNow,
+            };
+            db.Supporters.Add(supporter);
+            await db.SaveChangesAsync();
+        }
+        user.SupporterId = supporter.SupporterId;
+        await userManager.UpdateAsync(user);
+
         return Ok(new { message = "Account created successfully." });
     }
 

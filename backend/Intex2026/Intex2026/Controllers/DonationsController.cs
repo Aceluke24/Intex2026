@@ -55,7 +55,21 @@ public class DonationsController : ControllerBase
 
         // Look up SupporterId from ApplicationUser
         var user = await _userManager.FindByIdAsync(userIdClaim);
-        if (user?.SupporterId == null) return Ok(Array.Empty<object>());
+        if (user == null) return Unauthorized();
+
+        // Auto-link supporter by email if not yet linked
+        if (user.SupporterId == null && !string.IsNullOrWhiteSpace(user.Email))
+        {
+            var supporter = await _db.Supporters
+                .FirstOrDefaultAsync(s => s.Email == user.Email.ToLower());
+            if (supporter != null)
+            {
+                user.SupporterId = supporter.SupporterId;
+                await _userManager.UpdateAsync(user);
+            }
+        }
+
+        if (user.SupporterId == null) return Ok(Array.Empty<object>());
 
         var donations = await _db.Donations
             .Where(d => d.SupporterId == user.SupporterId)

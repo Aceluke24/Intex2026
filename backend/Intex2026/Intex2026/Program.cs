@@ -97,7 +97,12 @@ var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
 var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
 
 // ── Controllers & OpenAPI ─────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IDonorAnalyticsService, DonorAnalyticsService>();
@@ -219,9 +224,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Default: run CSV seed in all environments (idempotent per-table checks prevent duplicates).
+// Set Seed:RunCsvOnStartup=false in App Settings to disable.
 var runCsvSeedOnStartup =
-    builder.Configuration.GetValue<bool?>("Seed:RunCsvOnStartup") ??
-    app.Environment.IsDevelopment();
+    builder.Configuration.GetValue<bool?>("Seed:RunCsvOnStartup") ?? true;
 
 var runIdentitySeedOnStartup =
     builder.Configuration.GetValue<bool?>("GenerateDefaultIdentityAdmin:RunOnStartup") ??

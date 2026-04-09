@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTheme } from "@/lib/theme";
-import { BrandLogo } from "@/components/BrandLogo";
-import { Moon, Sun, LogOut, ExternalLink, Heart, Calendar, Tag } from "lucide-react";
+import { PublicLayout } from "@/components/PublicLayout";
+import { ExternalLink, Heart, Calendar, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { API_BASE } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
 
 interface Donation {
@@ -31,9 +28,7 @@ const typeColors: Record<string, string> = {
 };
 
 export default function DonorPortal() {
-  const { user, refetch } = useAuth();
-  const { theme, toggle } = useTheme();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [donations, setDonations] = useState<Donation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,12 +43,6 @@ export default function DonorPortal() {
   };
 
   useEffect(() => { loadDonations(); }, []);
-
-  const handleLogout = async () => {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
-    await refetch();
-    navigate("/login");
-  };
 
   const lifetimeGiving = donations
     .filter((d) => d.donationType === "Monetary" && d.amount != null)
@@ -74,36 +63,8 @@ export default function DonorPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-background/95 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5" aria-label="North Star Sanctuary — Home">
-            <BrandLogo variant="compact" />
-            <span className="font-display text-sm font-semibold text-foreground">North Star Sanctuary</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggle}
-              className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-            </button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground hover:text-foreground font-body text-xs"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-6 py-10">
+    <PublicLayout>
+      <div className="max-w-4xl mx-auto px-6 py-10">
         {/* Welcome */}
         <div className="mb-10">
           <h1 className="font-display text-3xl font-bold text-foreground mb-1">
@@ -119,7 +80,7 @@ export default function DonorPortal() {
           <div className="rounded-2xl bg-card border border-border/50 p-5">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="w-4 h-4 text-terracotta" />
-              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">My Lifetime Giving</span>
+              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">Total Donated</span>
             </div>
             <p className="font-display text-2xl font-bold text-foreground">
               {lifetimeGiving > 0 ? `₱${lifetimeGiving.toLocaleString()}` : "₱0"}
@@ -128,20 +89,20 @@ export default function DonorPortal() {
           <div className="rounded-2xl bg-card border border-border/50 p-5">
             <div className="flex items-center gap-2 mb-2">
               <Tag className="w-4 h-4 text-terracotta" />
-              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">My Gifts Count</span>
+              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">Contributions Made</span>
             </div>
             <p className="font-display text-2xl font-bold text-foreground">{giftsCount}</p>
           </div>
           <div className="rounded-2xl bg-card border border-border/50 p-5">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="w-4 h-4 text-terracotta" />
-              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">My Last Gift</span>
+              <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">Most Recent Contribution</span>
             </div>
             <p className="font-display text-2xl font-bold text-foreground">
               {lastGift ? formatValue(lastGift) : "—"}
             </p>
             <p className="font-body text-xs text-muted-foreground mt-1">
-              {lastGift ? formatDate(lastGift.donationDate) : "No gifts yet"}
+              {lastGift ? formatDate(lastGift.donationDate) : "No contributions yet"}
             </p>
           </div>
         </div>
@@ -217,7 +178,7 @@ export default function DonorPortal() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PublicLayout>
   );
 }

@@ -597,10 +597,10 @@ const VisitationsPage = () => {
           `[visitations] ${ms.toFixed(0)}ms ~${text.length} bytes page=${data.page} items=${data.items.length} total=${data.total}`
         );
       }
-      setTotal(data.total);
-      setHomeVisitTotal(data.homeVisitTotal);
-      setConferenceTotal(data.conferenceTotal);
-      setRows(data.items.map(mapVisitationItemToRow));
+      setTotal(data.total ?? 0);
+      setHomeVisitTotal(data.homeVisitTotal ?? 0);
+      setConferenceTotal(data.conferenceTotal ?? 0);
+      setRows((data.items ?? []).map(mapVisitationItemToRow));
     } catch (e) {
       console.error(e);
       setLoadError(e instanceof Error ? e.message : "Failed to load visitations.");
