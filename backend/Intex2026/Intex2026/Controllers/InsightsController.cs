@@ -2,6 +2,7 @@ using Intex2026.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace Intex2026.Controllers;
 
@@ -14,6 +15,18 @@ namespace Intex2026.Controllers;
 [Authorize(Roles = "Admin")]
 public class InsightsController : ControllerBase
 {
+    private sealed class DonorRetentionMlRow
+    {
+        public int SupporterId { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? SupporterType { get; set; }
+        public DateOnly? LastDonationDate { get; set; }
+        public double RepeatProbability180d { get; set; }
+        public DateTime ScoredAt { get; set; }
+        public string ModelVersion { get; set; } = string.Empty;
+    }
+
     private readonly AppDbContext _db;
     public InsightsController(AppDbContext db) => _db = db;
 
@@ -23,6 +36,76 @@ public class InsightsController : ControllerBase
     // Replace with ML model output once pipeline is deployed.
     [HttpGet("donor-churn")]
     public async Task<IActionResult> DonorChurn()
+    {
+        var scored = await BuildRuleBasedDonorChurnAsync();
+        return Ok(scored);
+    }
+
+    // GET /api/insights/donor-retention
+    // Returns ML scores from ml.donor_scores when available.
+    // Falls back to rule-based donor churn if ML data is unavailable.
+    [HttpGet("donor-retention")]
+    public async Task<IActionResult> DonorRetention()
+    {
+        try
+        {
+            var mlRows = await ReadMlRetentionRowsAsync();
+
+            if (mlRows.Count == 0)
+            {
+                var fallbackRows = await BuildRuleBasedDonorChurnAsync();
+                return Ok(new
+                {
+                    source = "rule-based",
+                    message = "ML table is empty. Returned rule-based donor churn scores.",
+                    rows = fallbackRows,
+                });
+            }
+
+            var latestScoredAt = mlRows.Max(x => x.ScoredAt);
+            var modelVersion = mlRows
+                .OrderByDescending(x => x.ScoredAt)
+                .Select(x => x.ModelVersion)
+                .FirstOrDefault() ?? "unknown";
+
+            var rows = mlRows
+                .OrderByDescending(x => 1.0 - x.RepeatProbability180d)
+                .Select(x => new
+                {
+                    x.SupporterId,
+                    x.DisplayName,
+                    x.Email,
+                    x.SupporterType,
+                    x.LastDonationDate,
+                    repeatProbability180d = x.RepeatProbability180d,
+                    churnRisk = 1.0 - x.RepeatProbability180d,
+                    riskCategory = RiskCategoryFromChurn(1.0 - x.RepeatProbability180d),
+                    scoredAt = x.ScoredAt,
+                    x.ModelVersion,
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                source = "ml",
+                modelVersion,
+                scoredAt = latestScoredAt,
+                rows,
+            });
+        }
+        catch
+        {
+            var fallbackRows = await BuildRuleBasedDonorChurnAsync();
+            return Ok(new
+            {
+                source = "rule-based",
+                message = "ML table unavailable. Returned rule-based donor churn scores.",
+                rows = fallbackRows,
+            });
+        }
+    }
+
+    private async Task<List<object>> BuildRuleBasedDonorChurnAsync()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var data = await _db.Supporters
@@ -62,9 +145,62 @@ public class InsightsController : ControllerBase
                 : "Critical"
         })
         .OrderByDescending(s => s.churnRisk)
+        .Cast<object>()
         .ToList();
 
-        return Ok(scored);
+        return scored;
+    }
+
+    private async Task<List<DonorRetentionMlRow>> ReadMlRetentionRowsAsync()
+    {
+        await using var conn = _db.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync();
+        }
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT
+    s.supporter_id,
+    COALESCE(NULLIF(LTRIM(RTRIM(s.display_name)), ''), CONCAT('Supporter #', s.supporter_id)) AS display_name,
+    s.email,
+    s.supporter_type,
+    d.donation_date AS last_donation_date,
+    ds.repeat_probability_180d,
+    ds.scored_at,
+    ds.model_version
+FROM ml.donor_scores ds
+JOIN dbo.supporters s ON s.supporter_id = ds.supporter_id
+LEFT JOIN dbo.donations d ON d.donation_id = ds.donation_id
+WHERE s.status = 'Active';";
+
+        var rows = new List<DonorRetentionMlRow>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            rows.Add(new DonorRetentionMlRow
+            {
+                SupporterId = reader.GetInt32(0),
+                DisplayName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                Email = reader.IsDBNull(2) ? null : reader.GetString(2),
+                SupporterType = reader.IsDBNull(3) ? null : reader.GetString(3),
+                LastDonationDate = reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4)),
+                RepeatProbability180d = reader.GetDouble(5),
+                ScoredAt = reader.GetDateTime(6),
+                ModelVersion = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+            });
+        }
+
+        return rows;
+    }
+
+    private static string RiskCategoryFromChurn(double churnRisk)
+    {
+        if (churnRisk >= 0.75) return "Critical";
+        if (churnRisk >= 0.50) return "High";
+        if (churnRisk >= 0.25) return "Medium";
+        return "Low";
     }
 
     // GET /api/insights/resident-risk
