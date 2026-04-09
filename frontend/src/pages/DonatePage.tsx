@@ -18,6 +18,7 @@ export default function DonatePage() {
   const [amount, setAmount] = useState("");
   const [noteOptions, setNoteOptions] = useState<string[]>([]);
   const [selectedNote, setSelectedNote] = useState("");
+  const [purposeLoadError, setPurposeLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -38,23 +39,31 @@ export default function DonatePage() {
 
   useEffect(() => {
     const fetchPurposes = async () => {
+      console.log("Fetching purposes...");
       try {
         const res = await fetch(`${API_BASE}/api/donations/purposes`);
         if (!res.ok) {
           throw new Error("Unable to load donation purpose options.");
         }
         const data: unknown = await res.json();
-        setNoteOptions(
-          Array.isArray(data)
-            ? data
-                .filter((x): x is string => typeof x === "string")
-                .map((x) => x.trim())
-                .filter((x) => x.length > 0)
-            : [],
+        console.log("Purposes:", data);
+        const sanitized = Array.isArray(data)
+          ? data
+              .filter((x): x is string => typeof x === "string")
+              .map((x) => x.trim())
+              .filter((x) => x.length > 0)
+          : [];
+
+        setNoteOptions(sanitized);
+        setPurposeLoadError(
+          sanitized.length === 0
+            ? "No preset purposes found. You can enter one manually."
+            : null,
         );
       } catch (err) {
         console.error("Failed to load note options", err);
         setNoteOptions([]);
+        setPurposeLoadError("Unable to load preset purposes right now.");
       }
     };
 
@@ -202,32 +211,36 @@ export default function DonatePage() {
           ) : (
             <>
               {!authLoading && !isAuthenticated && (
-                <div className="mb-6 flex flex-col gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
-                    <p className="text-sm font-medium text-blue-900">
-                      Track your impact
-                    </p>
-                    <p className="text-sm text-blue-700">
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-blue-500" />
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        Track your impact
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
                       Sign in to keep a record of your generosity 💙
                     </p>
                   </div>
-                  <div className="flex w-full items-center gap-3 sm:w-auto">
+                  <div className="flex gap-3">
                     <Button
                       type="button"
-                      variant="secondary"
-                      onClick={() => navigate("/login?redirect=/donate")}
-                      className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold border border-primary/30 bg-white text-primary hover:bg-primary/10 dark:bg-transparent dark:text-white dark:border-white/20 dark:hover:bg-white/10 sm:flex-none"
+                      onClick={() => navigate("/login")}
+                      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 transition hover:bg-gray-100 dark:border-white/20 dark:bg-transparent dark:text-white dark:hover:bg-white/10"
                     >
                       Sign In
                     </Button>
                     <Button
                       type="button"
                       onClick={() => navigate("/signup?redirect=/donate")}
-                      className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 sm:flex-none"
+                      className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700"
                     >
                       Create Account
                     </Button>
                   </div>
+                </div>
                 </div>
               )}
 
@@ -346,23 +359,31 @@ export default function DonatePage() {
                 <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
                   Purpose of Donation (optional)
                 </label>
-                <select
-                  value={selectedNote}
-                  onChange={(e) => setSelectedNote(e.target.value)}
-                  disabled={noteOptions.length === 0}
-                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">
-                    {noteOptions.length === 0
-                      ? "No preset purposes available"
-                      : "Select purpose (optional)"}
-                  </option>
-                  {noteOptions.map((note, index) => (
-                    <option key={`${note}-${index}`} value={note}>
-                      {note}
-                    </option>
-                  ))}
-                </select>
+                {noteOptions.length > 0 ? (
+                  <select
+                    value={selectedNote}
+                    onChange={(e) => setSelectedNote(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">Select purpose (optional)</option>
+                    {noteOptions.map((note, index) => (
+                      <option key={`${note}-${index}`} value={note}>
+                        {note}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Enter donation purpose (optional)"
+                    value={selectedNote}
+                    onChange={(e) => setSelectedNote(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                )}
+                {purposeLoadError && (
+                  <p className="mt-2 text-xs text-muted-foreground">{purposeLoadError}</p>
+                )}
               </div>
 
               {error && (
