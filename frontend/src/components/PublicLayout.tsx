@@ -73,15 +73,15 @@ export const PublicLayout = ({
     "bg-[rgba(10,25,47,0.7)] bg-gradient-to-r from-[rgba(10,25,47,0.78)] to-[rgba(8,20,40,0.82)] backdrop-blur-[12px] border-b border-white/8 shadow-[0_8px_24px_rgba(2,6,23,0.22)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.38)]";
   const headerClass = `${headerBaseClass} ${isTransparentState ? headerTransparentClass : headerScrolledClass}`;
 
-  const navDefaultTextClass = isTransparentState ? "text-white/80" : "text-slate-700 dark:text-slate-200";
-  const navActiveTextClass = isTransparentState ? "text-white" : "text-slate-900 dark:text-white";
-  const navHoverTextClass = isTransparentState ? "hover:text-white" : "hover:text-slate-900 dark:hover:text-white";
-  const iconBtnClass = `rounded-full p-2 transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`;
+  const navDefaultTextClass = "text-white";
+  const navActiveTextClass = "text-white";
+  const navHoverTextClass = "hover:text-gray-200";
+  const iconBtnClass = "rounded-full p-2 text-white transition-colors duration-200 hover:text-gray-200";
 
   return (
     <div className="min-h-screen flex flex-col">
       <>
-        <header className={headerClass}>
+        <header className={`${headerClass} text-white`}>
           <div className="relative z-10 mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-5 px-6 lg:px-12">
             <Link
               to="/"
@@ -94,9 +94,7 @@ export const PublicLayout = ({
                 className={`h-10 w-10 object-contain transition-all duration-300 ease-in-out ${isScrolledState ? "scale-95 opacity-95" : "scale-100 opacity-100"}`}
                 decoding="async"
               />
-              <span
-                className={`hidden min-[380px]:block text-[17px] font-display font-semibold tracking-[0.5px] transition-colors duration-300 ease-in-out ${isTransparentState ? "text-[#E6EDF3]" : "text-slate-900 dark:text-slate-100"}`}
-              >
+              <span className="hidden min-[380px]:block text-[17px] font-display font-semibold tracking-[0.5px] text-white transition-colors duration-300 ease-in-out">
                 North Star Sanctuary
               </span>
             </Link>
@@ -123,14 +121,14 @@ export const PublicLayout = ({
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
-                    className={`font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`}
+                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white transition-colors duration-200 hover:text-gray-200"
                   >
                     Sign Out
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    className={`font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`}
+                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white transition-colors duration-200 hover:text-gray-200"
                   >
                     Sign In
                   </Link>
