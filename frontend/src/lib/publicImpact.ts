@@ -31,6 +31,28 @@ type Campaign = {
   daysLeft: number;
 };
 
+function isMeaningfulCampaignName(name: string): boolean {
+  const t = name.trim();
+  if (t.length < 3) return false;
+  if (t.length >= 5) return true;
+  if (/\s/.test(t)) return true;
+  if (/^[a-z]{3,4}$/i.test(t)) return false;
+  return true;
+}
+
+/** Excludes placeholder names, zero-goal rows, and zero-raised campaigns with meaningless names. */
+export function filterValidPublicCampaigns(campaigns: Campaign[]): Campaign[] {
+  return campaigns.filter((c) => {
+    const name = (c.name ?? "").trim();
+    const goal = Number(c.goal ?? 0);
+    const raised = Number(c.raised ?? 0);
+    if (!name || name.length < 3 || name.toLowerCase() === "d") return false;
+    if (goal <= 0) return false;
+    if (raised === 0 && !isMeaningfulCampaignName(name)) return false;
+    return true;
+  });
+}
+
 type Allocation = {
   direct: number | null;
   outreach: number | null;

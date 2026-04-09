@@ -1,5 +1,5 @@
 import { PublicLayout } from "@/components/PublicLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SkeletonCard, SkeletonChart } from "@/components/SkeletonLoaders";
 import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 import { AnimatedCount } from "@/components/AnimatedCount";
@@ -7,6 +7,7 @@ import { RevealOnScroll } from "@/components/RevealOnScroll";
 import {
   fetchPublicImpactBundle,
   fetchPublicHomeStats,
+  filterValidPublicCampaigns,
   type PublicImpactBundle,
   type PublicHomeStats,
 } from "@/lib/publicImpact";
@@ -24,11 +25,10 @@ const ImpactDashboard = () => {
       maximumFractionDigits: 2,
     });
 
-  const progressFillClass = (percentage: number) => {
-    if (percentage < 40) return "from-[#4a6598] to-[#5d77a8]";
-    if (percentage < 80) return "from-[#143d7a] to-[#235aa8]";
-    return "from-[#1f5fa6] to-[#3480d0]";
-  };
+  const validCampaigns = useMemo(
+    () => (data?.campaigns ? filterValidPublicCampaigns(data.campaigns) : []),
+    [data?.campaigns],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -53,7 +53,7 @@ const ImpactDashboard = () => {
     setAnimateCampaignBars(false);
     const timer = window.setTimeout(() => setAnimateCampaignBars(true), 80);
     return () => window.clearTimeout(timer);
-  }, [data?.campaigns.length]);
+  }, [validCampaigns.length]);
 
   if (loading) {
     return (
@@ -160,58 +160,59 @@ const ImpactDashboard = () => {
         </div>
       </section>
 
-      <section className="py-16 lg:py-20 bg-background">
-        <div className="max-w-3xl mx-auto px-6">
+      <section className="impact-campaigns-section py-20 lg:py-24">
+        <div className="max-w-[900px] mx-auto px-6">
           <div className="animate-in fade-in duration-700">
-            <h2 className="font-display text-3xl lg:text-4xl font-semibold tracking-[-0.02em] text-foreground mb-2">Campaign Effectiveness</h2>
-            <p className="text-sm lg:text-base text-muted-foreground mb-8">
-              This section is structured for campaign performance tracking and can be expanded with conversion and retention metrics as data endpoints grow.
+            <h2 className="impact-title">Our Impact</h2>
+            <p className="impact-subtitle font-body text-base">
+              Transparent progress on the initiatives your support makes possible.
             </p>
           </div>
 
-          {data?.campaigns.length === 0 ? (
-            <div className="rounded-2xl bg-white/95 dark:bg-zinc-900 p-5 shadow-sm">
-              <p className="text-sm text-muted-foreground">No campaign-tagged data is available yet.</p>
+          {validCampaigns.length === 0 ? (
+            <div className="campaign-card mb-0">
+              <p className="font-body text-sm text-[#64748b] m-0">
+                No campaign-tagged data is available yet.
+              </p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {data?.campaigns.map((campaign) => {
+            <div className="space-y-0">
+              {validCampaigns.map((campaign) => {
                 const raised = Number(campaign.raised || 0);
                 const goal = Number(campaign.goal || 0);
                 const progress = goal > 0 ? Math.min(raised / goal, 1) : 0;
                 const percentage = Math.round(progress * 100);
 
                 return (
-                  <article
-                    key={campaign.name}
-                    className="rounded-2xl bg-white/95 dark:bg-zinc-900 p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                      <p className="text-base font-semibold text-foreground">{campaign.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                  <div key={campaign.name} className="campaign-card">
+                    <div className="campaign-header">
+                      <h3>{campaign.name}</h3>
+                      <span>
                         ${formatCurrency(raised)} / ${formatCurrency(goal)}
-                      </p>
+                      </span>
                     </div>
-                    <div className="mt-4">
-                      <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-zinc-700/80 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${progressFillClass(percentage)} transition-all duration-700 ease-out`}
-                          style={{ width: `${animateCampaignBars ? percentage : 0}%` }}
-                          role="progressbar"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={percentage}
-                          aria-label={`${campaign.name} progress`}
-                        />
-                      </div>
-                      <p className="mt-2 text-xs font-medium text-muted-foreground">{percentage}%</p>
+
+                    <div className="progress-track">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${animateCampaignBars ? percentage : 0}%` }}
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={percentage}
+                        aria-label={`${campaign.name} progress`}
+                      />
                     </div>
-                  </article>
+
+                    <div className="campaign-footer">
+                      <span>{percentage}% funded</span>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
-          <PublicSafetyNote className="mt-5" />
+          <PublicSafetyNote className="mt-10 text-slate-500" />
         </div>
       </section>
 
