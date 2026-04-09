@@ -57,6 +57,15 @@ public class SupportersController : ControllerBase
     public async Task<IActionResult> Create([FromBody] Supporter supporter)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        if (!string.IsNullOrWhiteSpace(supporter.Email))
+        {
+            supporter.Email = supporter.Email.Trim().ToLowerInvariant();
+            var duplicate = await _db.Supporters.AnyAsync(s => s.Email == supporter.Email);
+            if (duplicate)
+            {
+                return Conflict(new { message = "A supporter with that email already exists." });
+            }
+        }
         supporter.CreatedAt = DateTime.UtcNow;
         _db.Supporters.Add(supporter);
         await _db.SaveChangesAsync();

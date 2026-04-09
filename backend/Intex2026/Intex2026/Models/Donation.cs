@@ -8,7 +8,7 @@ public class Donation
     [Key]
     public int DonationId { get; set; }
 
-    public int SupporterId { get; set; }
+    public int? SupporterId { get; set; }
     [ForeignKey(nameof(SupporterId))]
     public Supporter? Supporter { get; set; }
 

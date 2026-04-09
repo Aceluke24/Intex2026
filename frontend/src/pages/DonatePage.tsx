@@ -1,55 +1,95 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Heart, CheckCircle } from "lucide-react";
 import { API_BASE } from "@/lib/apiBase";
 import { PublicSafetyNote } from "@/components/PublicSafetyNote";
-
-const DONATION_TYPES = ["Monetary", "InKind", "Time", "Skills", "SocialMedia"] as const;
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function DonatePage() {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [donationType, setDonationType] = useState<string>("Monetary");
+  const [anonymous, setAnonymous] = useState(false);
   const [amount, setAmount] = useState("");
   const [campaign, setCampaign] = useState("");
+  const [campaigns, setCampaigns] = useState<string[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const readOnlyInputClass =
+    "w-full rounded-xl border border-input bg-muted/50 px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground cursor-not-allowed focus:outline-none";
+  const editableInputClass =
+    "w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      return;
+    }
+    setFirstName(user.firstName ?? "");
+    setLastName(user.lastName ?? "");
+    setEmail(user.email ?? "");
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      setCampaignsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/campaigns`);
+        if (!res.ok) {
+          throw new Error("Unable to load campaigns right now.");
+        }
+        const data: unknown = await res.json();
+        setCampaigns(Array.isArray(data) ? data.filter((x): x is string => typeof x === "string") : []);
+      } catch {
+        setCampaigns([]);
+      } finally {
+        setCampaignsLoading(false);
+      }
+    };
+
+    loadCampaigns();
+  }, []);
+
+  const canEditIdentity = useMemo(
+    () => !isAuthenticated || anonymous,
+    [anonymous, isAuthenticated],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) {
+      setError("Please enter a valid donation amount.");
+      setSubmitting(false);
+      return;
+    }
+
     const body: Record<string, unknown> = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      donationType,
+      firstName: canEditIdentity ? firstName.trim() || null : user?.firstName ?? null,
+      lastName: canEditIdentity ? lastName.trim() || null : user?.lastName ?? null,
+      email: canEditIdentity ? email.trim() || null : user?.email ?? null,
+      displayName: !canEditIdentity ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email : null,
+      isAnonymous: anonymous,
+      donationType: "Monetary",
+      amount: parsed,
       campaignName: campaign.trim() || null,
       notes: notes.trim() || null,
     };
-
-    if (donationType === "Monetary") {
-      const parsed = parseFloat(amount);
-      if (!parsed || parsed <= 0) {
-        setError("Please enter a valid donation amount.");
-        setSubmitting(false);
-        return;
-      }
-      body.amount = parsed;
-    } else {
-      body.estimatedValue = parseFloat(amount) || null;
-    }
 
     try {
       const res = await fetch(`${API_BASE}/api/public/donations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(body),
       });
 
@@ -129,95 +169,83 @@ export default function DonatePage() {
               onSubmit={handleSubmit}
               className="bg-background/90 rounded-xl p-8 sm:p-10 space-y-6 shadow-sm"
             >
+              {!authLoading && (
+                <label className="flex items-center gap-2 font-body text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={anonymous}
+                    onChange={(e) => setAnonymous(e.target.checked)}
+                    className="h-4 w-4 rounded border-input text-terracotta focus:ring-terracotta/50"
+                  />
+                  Donate anonymously
+                </label>
+              )}
+
               {/* Name row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                    First name <span className="text-terracotta">*</span>
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Jane"
-                  />
+              {!anonymous && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-300 ease-out">
+                  <div>
+                    <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
+                      First name
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      disabled={!canEditIdentity}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
+                      placeholder="Jane"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
+                      Last name
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      disabled={!canEditIdentity}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
+                      placeholder="Doe"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                    Last name <span className="text-terracotta">*</span>
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Doe"
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Email */}
-              <div>
-                <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  Email <span className="text-terracotta">*</span>
-                </label>
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="jane@example.com"
-                />
-              </div>
-
-              {/* Donation type */}
-              <div>
-                <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  Contribution type
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {DONATION_TYPES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setDonationType(t)}
-                      className={`px-4 py-1.5 rounded-full font-body text-[13px] font-medium border transition-all duration-200 ${
-                        donationType === t
-                          ? "bg-terracotta text-terracotta-foreground border-terracotta"
-                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 bg-background"
-                      }`}
-                    >
-                      {t === "InKind" ? "In-Kind" : t === "SocialMedia" ? "Social Media" : t}
-                    </button>
-                  ))}
+              {!anonymous && (
+                <div className="transition-all duration-300 ease-out">
+                  <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    disabled={!canEditIdentity}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
+                    placeholder="jane@example.com"
+                  />
                 </div>
-              </div>
+              )}
 
               {/* Amount */}
               <div>
                 <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  {donationType === "Monetary" ? "Amount (USD)" : "Estimated value (optional)"}
-                  {donationType === "Monetary" && <span className="text-terracotta"> *</span>}
+                  Amount (USD) <span className="text-terracotta"> *</span>
                 </label>
                 <div className="relative">
-                  {donationType === "Monetary" && (
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-body text-sm text-muted-foreground">$</span>
-                  )}
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-body text-sm text-muted-foreground">$</span>
                   <input
                     type="text"
                     inputMode="decimal"
                     pattern="[0-9]*[.]?[0-9]*"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    required={donationType === "Monetary"}
-                    className={`w-full rounded-xl border border-input bg-background py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
-                      donationType === "Monetary" ? "pl-8 pr-4" : "px-4"
-                    }`}
-                    placeholder={donationType === "Monetary" ? "100.00" : "Optional estimated value"}
+                    required
+                    className="w-full rounded-xl border border-input bg-background py-2.5 pl-8 pr-4 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="100.00"
                   />
                 </div>
               </div>
@@ -227,13 +255,19 @@ export default function DonatePage() {
                 <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
                   Campaign / Program (optional)
                 </label>
-                <input
-                  type="text"
+                <select
                   value={campaign}
                   onChange={(e) => setCampaign(e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g. Safe Housing Fund"
-                />
+                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select a campaign (optional)</option>
+                  {campaigns.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                {campaignsLoading && (
+                  <p className="mt-1 font-body text-xs text-muted-foreground">Loading campaigns…</p>
+                )}
               </div>
 
               {/* Notes */}

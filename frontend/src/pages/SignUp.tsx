@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/theme";
 import { Moon, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { API_BASE } from "@/lib/apiBase";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SignUp = () => {
   const [displayName, setDisplayName] = useState("");
@@ -20,6 +21,7 @@ const SignUp = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
+  const { refetch } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +49,8 @@ const SignUp = () => {
         setError(data.message ?? "Registration failed. Please try again.");
         return;
       }
-      navigate("/login?registered=1");
+      await refetch();
+      navigate("/donate");
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {

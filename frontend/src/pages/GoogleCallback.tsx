@@ -19,9 +19,7 @@ const GoogleCallback = () => {
       navigate("/login?externalError=Sign+in+failed", { replace: true });
       return;
     }
-    if (user.roles.includes("Admin")) navigate("/dashboard", { replace: true });
-    else if (user.roles.includes("Donor")) navigate("/donor", { replace: true });
-    else navigate("/", { replace: true });
+    navigate("/donate", { replace: true });
   }, [loading, user, navigate]);
 
   return (

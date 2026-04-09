@@ -54,6 +54,7 @@ public class AppDbContext : DbContext
             .HasOne(d => d.Supporter)
             .WithMany()
             .HasForeignKey(d => d.SupporterId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         // IncidentReport: Resident and Safehouse — restrict to avoid cycles
@@ -92,6 +93,11 @@ public class AppDbContext : DbContext
 
         builder.Entity<SocialAnalytics>()
             .HasIndex(x => x.Platform)
+            .IsUnique();
+
+        builder.Entity<Supporter>()
+            .HasIndex(s => s.Email)
+            .HasFilter("[Email] IS NOT NULL")
             .IsUnique();
 
         builder.Entity<HomeVisitation>()

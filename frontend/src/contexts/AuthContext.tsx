@@ -5,6 +5,8 @@ interface User {
   email: string;
   userName: string;
   supporterId: number | null;
+  firstName: string | null;
+  lastName: string | null;
   roles: string[];
   mfaEnabled: boolean;
 }

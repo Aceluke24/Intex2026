@@ -49,6 +49,21 @@ public class AuthController(
             return Unauthorized();
         }
 
+        var ensuredSupporter = await EnsureSupporterLinkedAsync(user);
+        if (ensuredSupporter != null && user.SupporterId != ensuredSupporter.SupporterId)
+        {
+            user.SupporterId = ensuredSupporter.SupporterId;
+            await userManager.UpdateAsync(user);
+        }
+
+        var supporterId = user.SupporterId ?? ensuredSupporter?.SupporterId;
+        Supporter? supporter = null;
+        if (supporterId.HasValue)
+        {
+            supporter = await db.Supporters.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.SupporterId == supporterId.Value);
+        }
+
         var roles = User.Claims
             .Where(c => c.Type == ClaimTypes.Role)
             .Select(c => c.Value)
@@ -60,7 +75,9 @@ public class AuthController(
         {
             email = user.Email,
             userName = user.UserName,
-            supporterId = user.SupporterId,
+            supporterId,
+            firstName = supporter?.FirstName,
+            lastName = supporter?.LastName,
             roles,
             mfaEnabled = user.TwoFactorEnabled
         });
@@ -72,7 +89,8 @@ public class AuthController(
         if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
             return BadRequest(new { message = "Email and password are required." });
 
-        var user = await FindUserByEmailAsync(req.Email);
+        var normalizedEmail = NormalizeEmail(req.Email);
+        var user = await FindUserByEmailAsync(normalizedEmail);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
             return Unauthorized(new { message = "Invalid credentials." });
 
@@ -81,6 +99,13 @@ public class AuthController(
 
         if (passwordResult == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Invalid credentials." });
+
+        var supporter = await EnsureSupporterLinkedAsync(user);
+        if (supporter != null && user.SupporterId != supporter.SupporterId)
+        {
+            user.SupporterId = supporter.SupporterId;
+            await userManager.UpdateAsync(user);
+        }
 
         // If MFA is enabled, require a TOTP code
         if (user.TwoFactorEnabled)
@@ -103,8 +128,8 @@ public class AuthController(
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.UserName ?? user.Email ?? req.Email),
-            new(ClaimTypes.Email, user.Email ?? req.Email)
+            new(ClaimTypes.Name, user.UserName ?? user.Email ?? normalizedEmail),
+            new(ClaimTypes.Email, user.Email ?? normalizedEmail)
         };
 
         foreach (var role in roles)
@@ -125,7 +150,11 @@ public class AuthController(
                 ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
             });
 
-        return Ok(new { roles });
+        return Ok(new
+        {
+            roles,
+            supporterId = user.SupporterId ?? supporter?.SupporterId
+        });
     }
 
     [HttpPost("register-donor")]
@@ -134,10 +163,11 @@ public class AuthController(
         if (req.Password != req.ConfirmPassword)
             return BadRequest(new { message = "Passwords do not match." });
 
+        var normalizedEmail = NormalizeEmail(req.Email);
         var user = new ApplicationUser
         {
-            UserName = req.Email,
-            Email = req.Email,
+            UserName = normalizedEmail,
+            Email = normalizedEmail,
             EmailConfirmed = true,
             DisplayName = req.DisplayName
         };
@@ -148,28 +178,22 @@ public class AuthController(
 
         await userManager.AddToRoleAsync(user, AuthRoles.Donor);
 
-        // Find or create a Supporter record and link it to the new user account
-        var email = req.Email.Trim().ToLower();
-        var supporter = await db.Supporters.FirstOrDefaultAsync(s => s.Email == email);
-        if (supporter == null)
+        var supporter = await EnsureSupporterLinkedAsync(user, req.DisplayName);
+        if (supporter != null)
         {
-            supporter = new Supporter
-            {
-                SupporterType = "MonetaryDonor",
-                DisplayName = req.DisplayName ?? email.Split('@')[0],
-                Email = email,
-                RelationshipType = "Local",
-                Status = "Active",
-                AcquisitionChannel = "Website",
-                CreatedAt = DateTime.UtcNow,
-            };
-            db.Supporters.Add(supporter);
-            await db.SaveChangesAsync();
+            user.SupporterId = supporter.SupporterId;
         }
-        user.SupporterId = supporter.SupporterId;
         await userManager.UpdateAsync(user);
 
-        return Ok(new { message = "Account created successfully." });
+        await signInManager.SignInAsync(user, isPersistent: true);
+
+        var roles = await GetRolesForUserAsync(user.Id);
+        return Ok(new
+        {
+            message = "Account created successfully.",
+            roles,
+            supporterId = user.SupporterId
+        });
     }
 
     [HttpGet("providers")]
@@ -246,14 +270,15 @@ public class AuthController(
             return Redirect(BuildFrontendSuccessUrl(returnPath));
         }
 
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email) ??
+        var externalEmail = info.Principal.FindFirstValue(ClaimTypes.Email) ??
             info.Principal.FindFirstValue("email");
 
-        if (string.IsNullOrWhiteSpace(email))
+        if (string.IsNullOrWhiteSpace(externalEmail))
         {
             return Redirect(BuildFrontendErrorUrl("The external provider did not return an email address."));
         }
 
+        var email = NormalizeEmail(externalEmail);
         var user = await userManager.FindByEmailAsync(email);
 
         if (user is null)
@@ -271,6 +296,13 @@ public class AuthController(
             {
                 return Redirect(BuildFrontendErrorUrl("Unable to create a local account for the external login."));
             }
+        }
+
+        var supporter = await EnsureSupporterLinkedAsync(user);
+        if (supporter != null && user.SupporterId != supporter.SupporterId)
+        {
+            user.SupporterId = supporter.SupporterId;
+            await userManager.UpdateAsync(user);
         }
 
         var addLoginResult = await userManager.AddLoginAsync(user, info);
@@ -390,9 +422,10 @@ public class AuthController(
 
     private async Task<ApplicationUser?> FindUserByEmailAsync(string email)
     {
+        var normalizedEmail = NormalizeEmail(email);
         return await userManager.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == email);
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
     }
 
     private async Task<ApplicationUser?> FindUserByIdAsync(string userId)
@@ -415,5 +448,74 @@ public class AuthController(
             .Where(role => !string.IsNullOrWhiteSpace(role))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return email.Trim().ToLowerInvariant();
+    }
+
+    private async Task<Supporter?> EnsureSupporterLinkedAsync(ApplicationUser user, string? displayNameOverride = null)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return null;
+        }
+
+        var email = NormalizeEmail(user.Email);
+        var supporter = await db.Supporters
+            .OrderBy(s => s.SupporterId)
+            .FirstOrDefaultAsync(s => s.Email == email);
+
+        if (supporter != null)
+        {
+            return supporter;
+        }
+
+        var parsedName = ParseDisplayName(displayNameOverride ?? user.DisplayName);
+        var displayName = !string.IsNullOrWhiteSpace(displayNameOverride)
+            ? displayNameOverride.Trim()
+            : !string.IsNullOrWhiteSpace(user.DisplayName)
+                ? user.DisplayName.Trim()
+                : email;
+
+        supporter = new Supporter
+        {
+            SupporterType = "MonetaryDonor",
+            FirstName = parsedName.firstName,
+            LastName = parsedName.lastName,
+            DisplayName = displayName,
+            Email = email,
+            RelationshipType = "Local",
+            Status = "Active",
+            AcquisitionChannel = "Website",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        db.Supporters.Add(supporter);
+        await db.SaveChangesAsync();
+        return supporter;
+    }
+
+    private static (string? firstName, string? lastName) ParseDisplayName(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return (null, null);
+        }
+
+        var parts = displayName.Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return (null, null);
+        }
+
+        if (parts.Length == 1)
+        {
+            return (parts[0], null);
+        }
+
+        return (parts[0], string.Join(' ', parts.Skip(1)));
     }
 }

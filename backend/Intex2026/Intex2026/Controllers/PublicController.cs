@@ -1,5 +1,6 @@
 using Intex2026.Data;
 using Intex2026.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mail;
@@ -8,13 +9,18 @@ namespace Intex2026.Controllers;
 
 [ApiController]
 [Route("api/public")]
-public class PublicController : ControllerBase
+public partial class PublicController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<PublicController> _logger;
-    public PublicController(AppDbContext db, ILogger<PublicController> logger)
+    public PublicController(
+        AppDbContext db,
+        UserManager<ApplicationUser> userManager,
+        ILogger<PublicController> logger)
     {
         _db = db;
+        _userManager = userManager;
         _logger = logger;
     }
 
@@ -396,49 +402,60 @@ public class PublicController : ControllerBase
     [HttpPost("donations")]
     public async Task<IActionResult> SubmitDonation([FromBody] PublicDonationRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Email) ||
-            string.IsNullOrWhiteSpace(req.FirstName) ||
-            string.IsNullOrWhiteSpace(req.LastName))
+        if (!req.Amount.HasValue || req.Amount.Value <= 0)
         {
-            return BadRequest(new { error = "First name, last name, and email are required." });
+            return BadRequest(new { error = "Donation amount must be greater than zero." });
         }
 
-        var donationType = req.DonationType ?? "Monetary";
-        var validTypes = new[] { "Monetary", "InKind", "Time", "Skills", "SocialMedia" };
-        if (!validTypes.Contains(donationType))
-            return BadRequest(new { error = "Invalid donation type." });
+        int? supporterId = null;
+        var isAnonymous = req.IsAnonymous;
+        var normalizedEmail = NormalizeEmail(req.Email);
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        ApplicationUser? authUser = null;
 
-        // Find or create supporter by email
-        var supporter = await _db.Supporters
-            .FirstOrDefaultAsync(s => s.Email == req.Email.Trim().ToLower());
-
-        if (supporter == null)
+        if (!string.IsNullOrWhiteSpace(userIdClaim))
         {
-            supporter = new Supporter
+            authUser = await _userManager.FindByIdAsync(userIdClaim);
+        }
+
+        if (authUser?.SupporterId != null)
+        {
+            supporterId = authUser.SupporterId.Value;
+        }
+        else if (!isAnonymous)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedEmail))
             {
-                SupporterType = donationType == "Monetary" ? "MonetaryDonor" : "InKindDonor",
-                DisplayName = $"{req.FirstName.Trim()} {req.LastName.Trim()}",
-                FirstName = req.FirstName.Trim(),
-                LastName = req.LastName.Trim(),
-                Email = req.Email.Trim().ToLower(),
-                RelationshipType = "Local",
-                Status = "Active",
-                AcquisitionChannel = "Website",
-                FirstDonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                CreatedAt = DateTime.UtcNow,
-            };
-            _db.Supporters.Add(supporter);
-            await _db.SaveChangesAsync();
+                return BadRequest(new { error = "Email is required unless donation is anonymous." });
+            }
+
+            try
+            {
+                _ = new MailAddress(normalizedEmail);
+            }
+            catch
+            {
+                return BadRequest(new { error = "Please enter a valid email address." });
+            }
+
+            var supporter = await EnsureSupporterByEmailAsync(
+                normalizedEmail,
+                req.FirstName,
+                req.LastName,
+                req.DisplayName);
+
+            supporterId = supporter.SupporterId;
         }
 
         var donation = new Donation
         {
-            SupporterId = supporter.SupporterId,
-            DonationType = donationType,
+            SupporterId = supporterId,
+            DonationType = "Monetary",
             DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
-            ChannelSource = "Website",
-            Amount = donationType == "Monetary" ? req.Amount : null,
-            EstimatedValue = donationType != "Monetary" ? req.EstimatedValue : null,
+            ChannelSource = "Direct",
+            CurrencyCode = "USD",
+            Amount = req.Amount,
+            EstimatedValue = null,
             CampaignName = req.CampaignName?.Trim(),
             Notes = req.Notes?.Trim(),
             IsRecurring = false,
@@ -448,6 +465,19 @@ public class PublicController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { donationId = donation.DonationId, message = "Thank you for your contribution!" });
+    }
+
+    [HttpGet("campaigns")]
+    public async Task<IActionResult> Campaigns()
+    {
+        var campaigns = await _db.Donations
+            .Where(d => d.CampaignName != null && d.CampaignName != "")
+            .Select(d => d.CampaignName!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+        return Ok(campaigns);
     }
 
     // GET /api/public/safehouses — basic safehouse info (no sensitive data)
@@ -466,10 +496,10 @@ public class PublicDonationRequest
 {
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? DisplayName { get; set; }
     public string? Email { get; set; }
-    public string? DonationType { get; set; }
     public decimal? Amount { get; set; }
-    public decimal? EstimatedValue { get; set; }
+    public bool IsAnonymous { get; set; }
     public string? CampaignName { get; set; }
     public string? Notes { get; set; }
 }
@@ -477,4 +507,58 @@ public class PublicDonationRequest
 public class NewsletterSubscribeRequest
 {
     public string? Email { get; set; }
+}
+
+partial class PublicController
+{
+    private static string? NormalizeEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        return email.Trim().ToLowerInvariant();
+    }
+
+    private async Task<Supporter> EnsureSupporterByEmailAsync(
+        string normalizedEmail,
+        string? firstName,
+        string? lastName,
+        string? displayName)
+    {
+        var existing = await _db.Supporters
+            .OrderBy(s => s.SupporterId)
+            .FirstOrDefaultAsync(s => s.Email == normalizedEmail);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var trimmedFirst = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim();
+        var trimmedLast = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim();
+        var computedDisplay = !string.IsNullOrWhiteSpace(displayName)
+            ? displayName.Trim()
+            : !string.IsNullOrWhiteSpace(trimmedFirst) && !string.IsNullOrWhiteSpace(trimmedLast)
+                ? $"{trimmedFirst} {trimmedLast}"
+                : normalizedEmail;
+
+        var supporter = new Supporter
+        {
+            SupporterType = "MonetaryDonor",
+            DisplayName = computedDisplay,
+            FirstName = trimmedFirst,
+            LastName = trimmedLast,
+            Email = normalizedEmail,
+            RelationshipType = "Local",
+            Status = "Active",
+            AcquisitionChannel = "Website",
+            FirstDonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _db.Supporters.Add(supporter);
+        await _db.SaveChangesAsync();
+        return supporter;
+    }
 }

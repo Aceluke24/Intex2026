@@ -19,6 +19,20 @@ public class DonationsController : ControllerBase
         _userManager = userManager;
     }
 
+    [HttpGet("/api/campaigns")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCampaigns()
+    {
+        var campaigns = await _db.Donations
+            .Where(d => d.CampaignName != null && d.CampaignName != "")
+            .Select(d => d.CampaignName!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+        return Ok(campaigns);
+    }
+
     [HttpGet]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll(
@@ -121,6 +135,14 @@ public class DonationsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] Donation donation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        if (donation.SupporterId.HasValue)
+        {
+            var supporterExists = await _db.Supporters.AnyAsync(s => s.SupporterId == donation.SupporterId.Value);
+            if (!supporterExists)
+            {
+                return BadRequest(new { message = "Donation supporter_id must reference an existing supporter." });
+            }
+        }
         _db.Donations.Add(donation);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = donation.DonationId }, donation);

@@ -28,12 +28,6 @@ const Login = () => {
     searchParams.get("error") ? decodeURIComponent(searchParams.get("error")!) : null
   );
 
-  const redirectByRole = (roles: string[]) => {
-    if (roles.includes("Admin")) navigate("/dashboard");
-    else if (roles.includes("Donor")) navigate("/donor");
-    else navigate("/");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -59,7 +53,7 @@ const Login = () => {
         return;
       }
       await refetch();
-      redirectByRole(data.roles ?? []);
+      navigate("/donate");
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {

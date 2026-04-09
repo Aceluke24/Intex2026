@@ -51,6 +51,12 @@ export default function DonorPortal() {
 
   const giftsCount = donations.length;
   const lastGift = donations[0] ?? null;
+  const campaignBreakdown = donations.reduce<Record<string, number>>((acc, donation) => {
+    if (!donation.campaignName) return acc;
+    if (donation.donationType !== "Monetary" || donation.amount == null) return acc;
+    acc[donation.campaignName] = (acc[donation.campaignName] ?? 0) + donation.amount;
+    return acc;
+  }, {});
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
@@ -187,6 +193,22 @@ export default function DonorPortal() {
               </div>
             ))}
           </div>
+        )}
+
+        {!loading && !error && Object.keys(campaignBreakdown).length > 0 && (
+          <>
+            <h2 className="font-display text-lg font-semibold text-foreground mt-10 mb-4">Campaign Breakdown</h2>
+            <div className="space-y-2">
+              {Object.entries(campaignBreakdown)
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, total]) => (
+                  <div key={name} className="rounded-2xl bg-card border border-border/50 px-4 py-3 flex items-center justify-between">
+                    <p className="font-body text-sm text-foreground">{name}</p>
+                    <p className="font-body text-sm font-semibold text-foreground">{formatUSD(total)}</p>
+                  </div>
+                ))}
+            </div>
+          </>
         )}
       </div>
     </PublicLayout>
