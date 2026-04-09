@@ -445,5 +445,10 @@ app.Use(async (context, next) =>
 });
 
 app.MapControllers();
-app.MapGroup("/api/identity").MapIdentityApi<ApplicationUser>().RequireCors(FrontendCorsPolicy);
+if (app.Environment.IsDevelopment())
+{
+    // Keep scaffolded Identity API endpoints for local debugging only.
+    // Production auth flows use AuthController endpoints under /api/auth.
+    app.MapGroup("/api/identity").MapIdentityApi<ApplicationUser>().RequireCors(FrontendCorsPolicy);
+}
 app.Run();
