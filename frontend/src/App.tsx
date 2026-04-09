@@ -19,7 +19,6 @@ import CaseloadPage from "./pages/CaseloadPage.tsx";
 import RecordingsPage from "./pages/RecordingsPage.tsx";
 import VisitationsPage from "./pages/VisitationsPage.tsx";
 import ReportsPage from "./pages/ReportsPage.tsx";
-import InsightsPage from "./pages/InsightsPage.tsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import About from "./pages/About.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
@@ -77,7 +76,6 @@ const App = () => (
                   <Route path="/dashboard/recordings" element={<RecordingsPage />} />
                   <Route path="/dashboard/visitations" element={<VisitationsPage />} />
                   <Route path="/dashboard/reports" element={<ReportsPage />} />
-                  <Route path="/dashboard/insights" element={<InsightsPage />} />
                   <Route path="/dashboard/programs" element={<ProgramsDashboardPage />} />
                   <Route path="/dashboard/finance" element={<FinanceDashboardPage />} />
                   <Route path="/dashboard/expenses" element={<ExpensesPage />} />
@@ -92,7 +90,7 @@ const App = () => (
               <Route path="/admin/recordings" element={<Navigate to="/dashboard/recordings" replace />} />
               <Route path="/admin/visitations" element={<Navigate to="/dashboard/visitations" replace />} />
               <Route path="/admin/reports" element={<Navigate to="/dashboard/reports" replace />} />
-              <Route path="/admin/insights" element={<Navigate to="/dashboard/insights" replace />} />
+              <Route path="/admin/insights" element={<Navigate to="/dashboard/reports" replace />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -159,13 +159,15 @@ function MultiCreatableField({
 }) {
   const [pick, setPick] = useState("");
   const [draft, setDraft] = useState("");
+  const availableOptions = options ?? [];
+  const selectedItems = selected ?? [];
 
   const addOption = (opt: SelectOption) => {
-    if (selected.some((s) => s.value === opt.value)) return;
-    setSelected([...selected, opt]);
+    if (selectedItems.some((s) => s.value === opt.value)) return;
+    setSelected([...selectedItems, opt]);
   };
 
-  const removeOption = (value: string) => setSelected(selected.filter((s) => s.value !== value));
+  const removeOption = (value: string) => setSelected(selectedItems.filter((s) => s.value !== value));
 
   const createAndAdd = () => {
     const name = draft.trim();
@@ -180,7 +182,7 @@ function MultiCreatableField({
     <div className="space-y-2">
       <Label className="font-body text-xs">{label}</Label>
       <div className="flex flex-wrap gap-2">
-        {selected.map((opt) => (
+        {selectedItems.map((opt) => (
           <span
             key={opt.value}
             className="inline-flex items-center gap-1 rounded-md bg-[hsl(210_70%_96%)] px-2 py-1 font-body text-xs text-[hsl(210_75%_35%)] dark:bg-[hsl(210_30%_20%)] dark:text-[hsl(210_55%_85%)]"
@@ -198,7 +200,7 @@ function MultiCreatableField({
             <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
           </SelectTrigger>
           <SelectContent>
-            {options.map((opt) => (
+            {availableOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -241,6 +243,7 @@ function VisitFormModal({
   const [selectedInterventions, setSelectedInterventions] = useState<SelectOption[]>([]);
   const [selectedFollowUps, setSelectedFollowUps] = useState<SelectOption[]>([]);
   const [saving, setSaving] = useState(false);
+  const residentOptions = residents ?? [];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -255,7 +258,7 @@ function VisitFormModal({
       setSelectedFollowUps(initialData.followUps ?? []);
       return;
     }
-    setResidentId(residents[0] ? String(residents[0].residentId) : "");
+    setResidentId(residentOptions[0] ? String(residentOptions[0].residentId) : "");
     setType("HomeVisit");
     setDate(new Date().toISOString().slice(0, 10));
     setStaff("");
@@ -263,7 +266,7 @@ function VisitFormModal({
     setSafetyFlag(false);
     setSelectedInterventions([]);
     setSelectedFollowUps([]);
-  }, [isOpen, initialData, residents]);
+  }, [isOpen, initialData, residentOptions]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +309,7 @@ function VisitFormModal({
                   <SelectValue placeholder="Select resident" />
                 </SelectTrigger>
                 <SelectContent>
-                  {residents.map((r) => (
+                  {residentOptions.map((r) => (
                     <SelectItem key={r.residentId} value={String(r.residentId)}>
                       {r.internalCode || `Resident #${r.residentId}`} ({r.caseControlNo})
                     </SelectItem>
@@ -544,22 +547,31 @@ const VisitationsPage = () => {
   const ensureResidents = useCallback(async () => {
     if ((fieldOptions.residents?.length ?? 0) > 0) return;
     const data = await fetchFieldOptions();
+    const residents = mapFieldOptionsResidentsToOptions(data.residents);
+    if (residents.length === 0) {
+      throw new Error("No residents available for visitation logging.");
+    }
     setFieldOptions({
-      residents: mapFieldOptionsResidentsToOptions(data.residents),
+      residents,
       interventionOptions: data.interventionOptions ?? [],
       followUpOptions: data.followUpOptions ?? [],
     });
   }, [fieldOptions.residents?.length]);
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       const data = await fetchFieldOptions();
+      if (cancelled) return;
       setFieldOptions({
         residents: mapFieldOptionsResidentsToOptions(data.residents),
         interventionOptions: data.interventionOptions ?? [],
         followUpOptions: data.followUpOptions ?? [],
       });
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const load = useCallback(async () => {
@@ -618,8 +630,9 @@ const VisitationsPage = () => {
       await ensureResidents();
       setSelectedVisit(null);
       setIsModalOpen(true);
-    } catch {
-      toast.error("Failed to load residents for form.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load residents for form.";
+      toast.error(message);
     }
   };
 

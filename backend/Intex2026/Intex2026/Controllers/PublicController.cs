@@ -2,6 +2,7 @@ using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Mail;
 
 namespace Intex2026.Controllers;
 
@@ -15,6 +16,54 @@ public class PublicController : ControllerBase
     {
         _db = db;
         _logger = logger;
+    }
+
+    // POST /api/public/newsletter/subscribe — simple public mailing-list join
+    [HttpPost("newsletter/subscribe")]
+    public async Task<IActionResult> NewsletterSubscribe([FromBody] NewsletterSubscribeRequest req)
+    {
+        var email = (req.Email ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { message = "Email is required." });
+        }
+
+        try
+        {
+            _ = new MailAddress(email);
+        }
+        catch
+        {
+            return BadRequest(new { message = "Please enter a valid email address." });
+        }
+
+        var existing = await _db.Supporters.FirstOrDefaultAsync(s => s.Email == email);
+        if (existing != null)
+        {
+            if (!string.Equals(existing.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                existing.Status = "Active";
+                await _db.SaveChangesAsync();
+            }
+            return Ok(new { message = "You are already on our updates list." });
+        }
+
+        var displayName = email.Split('@')[0];
+        var supporter = new Supporter
+        {
+            SupporterType = "NewsletterSubscriber",
+            DisplayName = displayName,
+            Email = email,
+            RelationshipType = "Local",
+            Status = "Active",
+            AcquisitionChannel = "Website",
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _db.Supporters.Add(supporter);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Thanks for joining. We'll keep you updated." });
     }
 
     // GET /api/public/residents/count — public survivor count (landing)
@@ -423,4 +472,9 @@ public class PublicDonationRequest
     public decimal? EstimatedValue { get; set; }
     public string? CampaignName { get; set; }
     public string? Notes { get; set; }
+}
+
+public class NewsletterSubscribeRequest
+{
+    public string? Email { get; set; }
 }

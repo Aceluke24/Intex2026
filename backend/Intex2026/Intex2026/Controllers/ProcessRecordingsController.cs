@@ -83,7 +83,12 @@ public class ProcessRecordingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ProcessRecording recording)
     {
+        if (string.IsNullOrWhiteSpace(recording.SessionNarrative))
+        {
+            ModelState.AddModelError(nameof(ProcessRecording.SessionNarrative), "Session narrative is required.");
+        }
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        recording.SessionNarrative = recording.SessionNarrative.Trim();
         _db.ProcessRecordings.Add(recording);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = recording.RecordingId }, recording);
@@ -93,6 +98,12 @@ public class ProcessRecordingsController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] ProcessRecording recording)
     {
         if (id != recording.RecordingId) return BadRequest();
+        if (string.IsNullOrWhiteSpace(recording.SessionNarrative))
+        {
+            ModelState.AddModelError(nameof(ProcessRecording.SessionNarrative), "Session narrative is required.");
+        }
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        recording.SessionNarrative = recording.SessionNarrative.Trim();
         _db.Entry(recording).State = EntityState.Modified;
         await _db.SaveChangesAsync();
         return NoContent();

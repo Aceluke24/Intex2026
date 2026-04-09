@@ -15,8 +15,20 @@ public class ReportsController : ControllerBase
     private readonly AppDbContext _db;
     public ReportsController(AppDbContext db) => _db = db;
 
+    private static int ResolveMonthWindow(string? range)
+    {
+        return (range ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "3m" => 3,
+            "6m" => 6,
+            "9m" => 9,
+            "1y" => 12,
+            _ => 9,
+        };
+    }
+
     [HttpGet]
-    public async Task<IActionResult> GetAnalytics(CancellationToken ct)
+    public async Task<IActionResult> GetAnalytics([FromQuery] string? range, CancellationToken ct)
     {
         var residents = await _db.Residents.AsNoTracking().ToListAsync(ct);
         var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
@@ -44,7 +56,8 @@ public class ReportsController : ControllerBase
 
         var months = new List<(string Key, string Label, DateOnly Start, DateOnly End)>();
         var today = DateOnly.FromDateTime(DateTime.Today);
-        for (var i = 11; i >= 0; i--)
+        var monthWindow = ResolveMonthWindow(range);
+        for (var i = monthWindow - 1; i >= 0; i--)
         {
             var d = today.AddMonths(-i);
             var start = new DateOnly(d.Year, d.Month, 1);

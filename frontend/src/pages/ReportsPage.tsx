@@ -41,6 +41,7 @@ const softTooltip = {
     boxShadow: "0 8px 32px rgba(45,35,48,0.08)",
     fontSize: "12px",
     fontFamily: "Inter, system-ui, sans-serif",
+    color: "hsl(213 15% 18%)",
   },
 };
 
@@ -69,7 +70,7 @@ const ReportsPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetchJson<ReportsAnalytics>(`${API_PREFIX}/reports`);
+      const data = await apiFetchJson<ReportsAnalytics>(`${API_PREFIX}/reports?range=${range}`);
       setAnalytics(data);
     } catch (e) {
       console.error(e);
@@ -78,7 +79,7 @@ const ReportsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [range]);
 
   useEffect(() => {
     void load();

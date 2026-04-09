@@ -75,6 +75,22 @@ function mapRisk(r: string): RiskLevel {
   return "Standard";
 }
 
+function mapSubcategoryFlags(category: ResidentCase["category"], subcategory: string) {
+  const sub = subcategory.toLowerCase();
+  return {
+    subCatOrphaned: sub.includes("orphan") || category === "Abandonment",
+    subCatTrafficked: sub.includes("traffick") || category === "Trafficking",
+    subCatChildLabor: sub.includes("labor") || sub.includes("labour"),
+    subCatPhysicalAbuse: sub.includes("physical") || category === "Abuse",
+    subCatSexualAbuse: sub.includes("sexual"),
+    subCatOsaec: sub.includes("osaec") || sub.includes("online sexual"),
+    subCatCicl: sub.includes("cicl") || sub.includes("conflict with law"),
+    subCatAtRisk: sub.includes("at risk") || category === "Domestic violence",
+    subCatStreetChild: sub.includes("street") || category === "Displacement",
+    subCatChildWithHiv: sub.includes("hiv"),
+  };
+}
+
 function mapCaseRow(row: CaseApiRow): ResidentCase {
   const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
   return {
@@ -258,13 +274,17 @@ const CaseloadPage = () => {
     const safehouseId = safehouse?.safehouseId ?? safehouseList[0]?.safehouseId ?? 1;
     const dob = new Date(new Date().getFullYear() - (c.age || 18), 0, 1).toISOString().slice(0, 10);
     const apiStatus = c.status === "Reintegration" ? "Active" : (c.status === "Pending" ? "Active" : c.status);
+    const subFlags = mapSubcategoryFlags(c.category, c.subcategory ?? "");
+    const normalizedSex = c.gender?.toLowerCase().startsWith("m") ? "M" : "F";
 
     const body = {
       safehouseId,
       caseStatus: apiStatus,
-      sex: "F",
+      sex: normalizedSex,
       dateOfBirth: dob,
       caseCategory: categoryMap[c.category] ?? "Neglected",
+      placeOfBirth: c.originLocation !== "—" ? c.originLocation : null,
+      ...subFlags,
       dateOfAdmission: c.admissionDate,
       dateEnrolled: c.admissionDate,
       referralSource: c.referralSource !== "—" ? c.referralSource : "Community",
@@ -278,6 +298,9 @@ const CaseloadPage = () => {
       familyInformalSettler: c.socio.informalSettler,
       isPwd: !!c.disability,
       pwdType: c.disability || null,
+      hasSpecialNeeds: !!c.disability,
+      specialNeedsDiagnosis: c.disability || null,
+      notesRestricted: c.caseNotes !== "—" ? c.caseNotes : null,
     };
 
     const residentId = residentIdMap[c.id];

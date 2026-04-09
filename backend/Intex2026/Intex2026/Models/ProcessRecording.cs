@@ -18,7 +18,8 @@ public class ProcessRecording
     public int? SessionDurationMinutes { get; set; }
     public string EmotionalStateObserved { get; set; } = string.Empty; // Calm | Anxious | Sad | Angry | Hopeful | Withdrawn | Happy | Distressed
     public string? EmotionalStateEnd { get; set; }
-    public string? SessionNarrative { get; set; }
+    [Required]
+    public string SessionNarrative { get; set; } = string.Empty;
     public string? InterventionsApplied { get; set; }
     public string? FollowUpActions { get; set; }
     public bool ProgressNoted { get; set; }

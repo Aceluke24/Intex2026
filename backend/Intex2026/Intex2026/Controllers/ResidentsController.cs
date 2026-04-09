@@ -83,6 +83,17 @@ public class ResidentsController : ControllerBase
             Sex = string.IsNullOrWhiteSpace(req.Sex) ? "F" : req.Sex,
             DateOfBirth = req.DateOfBirth,
             CaseCategory = req.CaseCategory,
+            PlaceOfBirth = req.PlaceOfBirth,
+            SubCatOrphaned = req.SubCatOrphaned,
+            SubCatTrafficked = req.SubCatTrafficked,
+            SubCatChildLabor = req.SubCatChildLabor,
+            SubCatPhysicalAbuse = req.SubCatPhysicalAbuse,
+            SubCatSexualAbuse = req.SubCatSexualAbuse,
+            SubCatOsaec = req.SubCatOsaec,
+            SubCatCicl = req.SubCatCicl,
+            SubCatAtRisk = req.SubCatAtRisk,
+            SubCatStreetChild = req.SubCatStreetChild,
+            SubCatChildWithHiv = req.SubCatChildWithHiv,
             DateOfAdmission = req.DateOfAdmission,
             DateEnrolled = req.DateEnrolled,
             ReferralSource = req.ReferralSource,
@@ -96,6 +107,9 @@ public class ResidentsController : ControllerBase
             FamilyInformalSettler = req.FamilyInformalSettler,
             IsPwd = req.IsPwd,
             PwdType = req.PwdType,
+            HasSpecialNeeds = req.HasSpecialNeeds,
+            SpecialNeedsDiagnosis = req.SpecialNeedsDiagnosis,
+            NotesRestricted = req.NotesRestricted,
         };
         resident.CreatedAt = DateTime.UtcNow;
         _db.Residents.Add(resident);
@@ -116,6 +130,17 @@ public class ResidentsController : ControllerBase
         resident.Sex = string.IsNullOrWhiteSpace(req.Sex) ? resident.Sex : req.Sex;
         resident.DateOfBirth = req.DateOfBirth;
         resident.CaseCategory = req.CaseCategory;
+        resident.PlaceOfBirth = req.PlaceOfBirth;
+        resident.SubCatOrphaned = req.SubCatOrphaned;
+        resident.SubCatTrafficked = req.SubCatTrafficked;
+        resident.SubCatChildLabor = req.SubCatChildLabor;
+        resident.SubCatPhysicalAbuse = req.SubCatPhysicalAbuse;
+        resident.SubCatSexualAbuse = req.SubCatSexualAbuse;
+        resident.SubCatOsaec = req.SubCatOsaec;
+        resident.SubCatCicl = req.SubCatCicl;
+        resident.SubCatAtRisk = req.SubCatAtRisk;
+        resident.SubCatStreetChild = req.SubCatStreetChild;
+        resident.SubCatChildWithHiv = req.SubCatChildWithHiv;
         resident.DateOfAdmission = req.DateOfAdmission;
         resident.DateEnrolled = req.DateEnrolled;
         resident.ReferralSource = req.ReferralSource;
@@ -129,6 +154,9 @@ public class ResidentsController : ControllerBase
         resident.FamilyInformalSettler = req.FamilyInformalSettler;
         resident.IsPwd = req.IsPwd;
         resident.PwdType = req.PwdType;
+        resident.HasSpecialNeeds = req.HasSpecialNeeds;
+        resident.SpecialNeedsDiagnosis = req.SpecialNeedsDiagnosis;
+        resident.NotesRestricted = req.NotesRestricted;
 
         await _db.SaveChangesAsync();
         return NoContent();
@@ -154,6 +182,17 @@ public record ResidentUpsertRequest(
     string Sex,
     DateOnly DateOfBirth,
     string CaseCategory,
+    string? PlaceOfBirth,
+    bool SubCatOrphaned,
+    bool SubCatTrafficked,
+    bool SubCatChildLabor,
+    bool SubCatPhysicalAbuse,
+    bool SubCatSexualAbuse,
+    bool SubCatOsaec,
+    bool SubCatCicl,
+    bool SubCatAtRisk,
+    bool SubCatStreetChild,
+    bool SubCatChildWithHiv,
     DateOnly DateOfAdmission,
     DateOnly DateEnrolled,
     string? ReferralSource,
@@ -166,5 +205,8 @@ public record ResidentUpsertRequest(
     bool FamilyIndigenous,
     bool FamilyInformalSettler,
     bool IsPwd,
-    string? PwdType
+    string? PwdType,
+    bool HasSpecialNeeds,
+    string? SpecialNeedsDiagnosis,
+    string? NotesRestricted
 );

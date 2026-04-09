@@ -33,6 +33,7 @@ const softTooltip = {
     border: "1px solid hsl(36 25% 90%)",
     boxShadow: "0 8px 32px rgba(45,35,48,0.08)",
     fontSize: "12px",
+    color: "hsl(213 15% 18%)",
   },
 };
 

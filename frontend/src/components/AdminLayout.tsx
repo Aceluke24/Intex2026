@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   FileText,
   BarChart3,
-  Brain,
   Moon,
   Sun,
   ChevronLeft,
@@ -40,6 +39,7 @@ const navGroups = [
       { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
       { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
       { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
+      { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3 },
     ],
   },
   {
@@ -54,13 +54,6 @@ const navGroups = [
     label: "Outreach",
     items: [
       { label: "Social Media", path: "/dashboard/outreach", icon: Megaphone },
-    ],
-  },
-  {
-    label: "Reporting",
-    items: [
-      { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3 },
-      { label: "AI Insights", path: "/dashboard/insights", icon: Brain },
     ],
   },
   {
@@ -141,11 +134,6 @@ export const AdminLayout = ({
         <div className="flex items-center min-h-14 h-14 px-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2 min-w-0" aria-label="North Star Sanctuary — Home">
             <BrandLogo variant="compact" className="shrink-0" />
-            {!collapsed && (
-              <span className="font-display text-sm font-semibold text-sidebar-foreground whitespace-nowrap truncate">
-                North Star
-              </span>
-            )}
           </Link>
         </div>
 
