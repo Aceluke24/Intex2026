@@ -15,8 +15,8 @@ import {
 } from "recharts";
 import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { OutreachStatCard } from "@/components/outreach/OutreachStatCard";
+import type { OutreachStatTrend } from "@/components/outreach/OutreachStatCard";
 import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
 
 const softTooltip = {
@@ -34,6 +34,13 @@ type Kpis = {
   avgEngagementRateThisMonth: number;
   donationReferralsThisMonth: number;
   estimatedDonationValueThisMonth: number;
+};
+
+type PreviousMonthKpis = {
+  totalReach: number;
+  avgEngagementRate: number;
+  donationReferrals: number;
+  estimatedDonationValue: number;
 };
 
 type PlatformRow = {
@@ -79,25 +86,29 @@ type FilterOptions = {
 
 type OutreachData = {
   kpis: Kpis;
+  /** Omitted on older API builds; trends default to no baseline. */
+  previousMonthKpis?: PreviousMonthKpis;
   byPlatform: PlatformRow[];
   byPostType: PostTypeRow[];
   posts: Post[];
   filterOptions: FilterOptions;
 };
 
-function KpiCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 flex items-start gap-4">
-      <div className="rounded-xl bg-sidebar-accent/50 p-2.5">
-        <Icon className="w-5 h-5 text-sidebar-primary" />
-      </div>
-      <div>
-        <p className="text-[11px] font-body font-medium uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className="text-2xl font-display font-bold text-foreground leading-tight">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
+function monthOverMonthTrend(current: number, previous: number): OutreachStatTrend | null {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) {
+    return current > 0 ? { label: "↑ new vs last month", direction: "up" } : null;
+  }
+  const pct = ((current - previous) / previous) * 100;
+  if (Math.abs(pct) < 0.05) {
+    return { label: "→ 0% vs last month", direction: "flat" };
+  }
+  const arrow = pct > 0 ? "↑" : "↓";
+  const sign = pct > 0 ? "+" : "";
+  return {
+    label: `${arrow} ${sign}${pct.toFixed(1)}% vs last month`,
+    direction: pct > 0 ? "up" : "down",
+  };
 }
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -142,37 +153,72 @@ export default function OutreachPage() {
   return (
     <AdminLayout contentClassName="max-w-7xl">
       <div className="space-y-8">
-        {/* KPI Cards */}
-        <section>
-          {loading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-            </div>
-          ) : error ? (
-            <p className="text-red-500 text-sm">{error}</p>
-          ) : data ? (
-            <motion.div
-              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <KpiCard icon={Eye} label="Reach This Month" value={data.kpis.totalReachThisMonth.toLocaleString()} />
-              <KpiCard
-                icon={TrendingUp}
-                label="Avg Engagement Rate"
-                value={`${(data.kpis.avgEngagementRateThisMonth * 100).toFixed(2)}%`}
-                sub="this month"
-              />
-              <KpiCard icon={Share2} label="Donation Referrals" value={data.kpis.donationReferralsThisMonth.toLocaleString()} sub="this month" />
-              <KpiCard
-                icon={Gift}
-                label="Est. Donation Value"
-                value={formatUSD(data.kpis.estimatedDonationValueThisMonth)}
-                sub="this month"
-              />
-            </motion.div>
-          ) : null}
+        {/* KPI Cards — aggregates from SocialMediaPosts (calendar month); not filtered by table filters */}
+        <section className="space-y-3">
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <motion.div
+            className="grid grid-cols-2 gap-4 lg:grid-cols-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <OutreachStatCard
+              label="Reach This Month"
+              icon={Eye}
+              loading={loading}
+              value={data ? data.kpis.totalReachThisMonth.toLocaleString("en-US") : ""}
+              trend={
+                data
+                  ? monthOverMonthTrend(
+                      data.kpis.totalReachThisMonth,
+                      data.previousMonthKpis?.totalReach ?? 0
+                    )
+                  : null
+              }
+            />
+            <OutreachStatCard
+              label="Avg Engagement Rate"
+              icon={TrendingUp}
+              loading={loading}
+              value={data ? `${(data.kpis.avgEngagementRateThisMonth * 100).toFixed(2)}%` : ""}
+              trend={
+                data
+                  ? monthOverMonthTrend(
+                      data.kpis.avgEngagementRateThisMonth,
+                      data.previousMonthKpis?.avgEngagementRate ?? 0
+                    )
+                  : null
+              }
+            />
+            <OutreachStatCard
+              label="Donation Referrals"
+              icon={Share2}
+              loading={loading}
+              value={data ? data.kpis.donationReferralsThisMonth.toLocaleString("en-US") : ""}
+              trend={
+                data
+                  ? monthOverMonthTrend(
+                      data.kpis.donationReferralsThisMonth,
+                      data.previousMonthKpis?.donationReferrals ?? 0
+                    )
+                  : null
+              }
+            />
+            <OutreachStatCard
+              label="Est. Donation Value"
+              icon={Gift}
+              loading={loading}
+              value={data ? formatUSD(Number(data.kpis.estimatedDonationValueThisMonth)) : ""}
+              trend={
+                data
+                  ? monthOverMonthTrend(
+                      Number(data.kpis.estimatedDonationValueThisMonth),
+                      Number(data.previousMonthKpis?.estimatedDonationValue ?? 0)
+                    )
+                  : null
+              }
+            />
+          </motion.div>
         </section>
 
         {/* Charts */}

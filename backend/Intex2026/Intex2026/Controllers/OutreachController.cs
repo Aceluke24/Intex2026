@@ -20,9 +20,29 @@ public class OutreachController : ControllerBase
         [FromQuery] string? campaign,
         CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var monthStart = new DateOnly(today.Year, today.Month, 1);
-        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var today = DateTime.Today;
+        var cy = today.Year;
+        var cm = today.Month;
+        var prevMonthDate = new DateTime(cy, cm, 1).AddMonths(-1);
+        var py = prevMonthDate.Year;
+        var pm = prevMonthDate.Month;
+
+        // Headline KPIs: full table, current calendar month only (not affected by list filters).
+        var monthPosts = _db.SocialMediaPosts.AsNoTracking()
+            .Where(p => p.CreatedAt.Year == cy && p.CreatedAt.Month == cm);
+        var totalReach = await monthPosts.SumAsync(p => (long)p.Reach, ct);
+        var avgEngagement = await monthPosts.AverageAsync(p => (double?)p.EngagementRate, ct) ?? 0.0;
+        avgEngagement = Math.Round(avgEngagement, 4);
+        var donationReferrals = await monthPosts.SumAsync(p => (long)p.DonationReferrals, ct);
+        var estimatedDonationValue = await monthPosts.SumAsync(p => (decimal?)p.EstimatedDonationValuePhp, ct) ?? 0m;
+
+        var prevMonthPosts = _db.SocialMediaPosts.AsNoTracking()
+            .Where(p => p.CreatedAt.Year == py && p.CreatedAt.Month == pm);
+        var prevTotalReach = await prevMonthPosts.SumAsync(p => (long)p.Reach, ct);
+        var prevAvgEngagement = await prevMonthPosts.AverageAsync(p => (double?)p.EngagementRate, ct) ?? 0.0;
+        prevAvgEngagement = Math.Round(prevAvgEngagement, 4);
+        var prevDonationReferrals = await prevMonthPosts.SumAsync(p => (long)p.DonationReferrals, ct);
+        var prevEstimatedDonationValue = await prevMonthPosts.SumAsync(p => (decimal?)p.EstimatedDonationValuePhp, ct) ?? 0m;
 
         var posts = await LoadPostsAsync(ct);
 
@@ -34,21 +54,6 @@ public class OutreachController : ControllerBase
             posts = posts.Where(p => p.CampaignName == campaign).ToList();
 
         posts = posts.OrderByDescending(p => p.CreatedAt).ToList();
-
-        // This-month filter (using CreatedAt date)
-        var postsThisMonth = posts.Where(p =>
-        {
-            var d = DateOnly.FromDateTime(p.CreatedAt);
-            return d >= monthStart && d <= monthEnd;
-        }).ToList();
-
-        // KPIs
-        var totalReach = postsThisMonth.Sum(p => p.Reach);
-        var avgEngagement = postsThisMonth.Count > 0
-            ? Math.Round((double)postsThisMonth.Average(p => p.EngagementRate), 4)
-            : 0.0;
-        var donationReferrals = postsThisMonth.Sum(p => p.DonationReferrals);
-        var estimatedDonationValue = postsThisMonth.Sum(p => p.EstimatedDonationValuePhp);
 
         // Engagement by platform (all time filtered by current query)
         var byPlatform = posts
@@ -109,10 +114,17 @@ public class OutreachController : ControllerBase
         {
             kpis = new
             {
-                totalReachThisMonth = totalReach,
+                totalReachThisMonth = (int)totalReach,
                 avgEngagementRateThisMonth = avgEngagement,
-                donationReferralsThisMonth = donationReferrals,
+                donationReferralsThisMonth = (int)donationReferrals,
                 estimatedDonationValueThisMonth = estimatedDonationValue,
+            },
+            previousMonthKpis = new
+            {
+                totalReach = (int)prevTotalReach,
+                avgEngagementRate = prevAvgEngagement,
+                donationReferrals = (int)prevDonationReferrals,
+                estimatedDonationValue = prevEstimatedDonationValue,
             },
             byPlatform,
             byPostType,
