@@ -16,10 +16,8 @@ export default function DonatePage() {
   const [email, setEmail] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [amount, setAmount] = useState("");
-  const [donationTypeId, setDonationTypeId] = useState("");
-  const [donationTypes, setDonationTypes] = useState<Array<{ id: number; name: string }>>([]);
-  const [donationTypesLoading, setDonationTypesLoading] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [noteOptions, setNoteOptions] = useState<string[]>([]);
+  const [selectedNote, setSelectedNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -39,35 +37,28 @@ export default function DonatePage() {
   }, [isAuthenticated, user]);
 
   useEffect(() => {
-    const loadDonationTypes = async () => {
-      setDonationTypesLoading(true);
+    const fetchNotes = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/donation-types`);
+        const res = await fetch(`${API_BASE}/api/donation-notes-options`);
         if (!res.ok) {
-          throw new Error("Unable to load donation types right now.");
+          throw new Error("Unable to load donation purpose options.");
         }
         const data: unknown = await res.json();
-        setDonationTypes(
+        setNoteOptions(
           Array.isArray(data)
             ? data
-                .filter(
-                  (x): x is { id: number; name: string } =>
-                    typeof x === "object" &&
-                    x !== null &&
-                    typeof (x as { id?: unknown }).id === "number" &&
-                    typeof (x as { name?: unknown }).name === "string",
-                )
-                .map((x) => ({ id: x.id, name: x.name }))
+                .filter((x): x is string => typeof x === "string")
+                .map((x) => x.trim())
+                .filter((x) => x.length > 0)
             : [],
         );
-      } catch {
-        setDonationTypes([]);
-      } finally {
-        setDonationTypesLoading(false);
+      } catch (err) {
+        console.error("Failed to load note options", err);
+        setNoteOptions([]);
       }
     };
 
-    loadDonationTypes();
+    fetchNotes();
   }, []);
 
   const canEditIdentity = useMemo(
@@ -91,7 +82,8 @@ export default function DonatePage() {
       return;
     }
 
-    const body: Record<string, unknown> = {
+    const noteLower = selectedNote.toLowerCase();
+    const payload: Record<string, unknown> = {
       firstName: canEditIdentity ? firstName.trim() || null : user?.firstName ?? null,
       lastName: canEditIdentity ? lastName.trim() || null : user?.lastName ?? null,
       email: canEditIdentity ? email.trim() || null : user?.email ?? null,
@@ -99,11 +91,17 @@ export default function DonatePage() {
       isAnonymous: anonymous,
       userId: user?.id ?? null,
       supporterId: user?.supporterId ?? null,
-      donationType: "Monetary",
+      supporter_id: user?.supporterId ?? null,
+      donation_type: "Monetary",
+      donation_date: new Date().toISOString().split("T")[0],
+      channel_source: "Direct",
+      currency_code: "PHP",
       amount: parsedAmount,
-      donationTypeId: donationTypeId ? Number(donationTypeId) : null,
-      campaignName: null,
-      notes: notes.trim() || null,
+      estimated_value: parsedAmount,
+      impact_unit: "pesos",
+      is_recurring: noteLower.includes("monthly") || noteLower.includes("recurring"),
+      campaign_name: noteLower.includes("campaign") ? selectedNote : null,
+      notes: selectedNote || null,
     };
 
     try {
@@ -111,7 +109,7 @@ export default function DonatePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -342,38 +340,23 @@ export default function DonatePage() {
                 </div>
               </div>
 
-              {/* Donation type */}
+              {/* Purpose */}
               <div>
                 <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  Donation Type (optional)
+                  Purpose of Donation (optional)
                 </label>
                 <select
-                  value={donationTypeId}
-                  onChange={(e) => setDonationTypeId(e.target.value)}
+                  value={selectedNote}
+                  onChange={(e) => setSelectedNote(e.target.value)}
                   className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Select a donation type (optional)</option>
-                  {donationTypes.map((type) => (
-                    <option key={type.id} value={String(type.id)}>{type.name}</option>
+                  <option value="">Select purpose (optional)</option>
+                  {noteOptions.map((note, index) => (
+                    <option key={`${note}-${index}`} value={note}>
+                      {note}
+                    </option>
                   ))}
                 </select>
-                {donationTypesLoading && (
-                  <p className="mt-1 font-body text-xs text-muted-foreground">Loading donation types…</p>
-                )}
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                  Message (optional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  placeholder="Share why you're giving..."
-                />
               </div>
 
               {error && (

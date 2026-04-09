@@ -33,6 +33,20 @@ public class DonationsController : ControllerBase
         return Ok(campaigns);
     }
 
+    [HttpGet("/api/donation-notes-options")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDonationNotesOptions()
+    {
+        var notes = await _db.Donations
+            .Where(d => d.Notes != null && d.Notes != "")
+            .Select(d => d.Notes!)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync();
+
+        return Ok(notes);
+    }
+
     [HttpGet]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll(

@@ -479,16 +479,17 @@ public partial class PublicController : ControllerBase
         var donation = new Donation
         {
             SupporterId = supporterId,
-            DonationType = "Monetary",
-            DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
-            ChannelSource = "Direct",
-            CurrencyCode = "USD",
+            DonationType = string.IsNullOrWhiteSpace(req.DonationType) ? "Monetary" : req.DonationType.Trim(),
+            DonationDate = req.DonationDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            ChannelSource = string.IsNullOrWhiteSpace(req.ChannelSource) ? "Direct" : req.ChannelSource.Trim(),
+            CurrencyCode = string.IsNullOrWhiteSpace(req.CurrencyCode) ? "PHP" : req.CurrencyCode.Trim().ToUpperInvariant(),
             Amount = req.Amount,
-            EstimatedValue = null,
+            EstimatedValue = req.EstimatedValue,
+            ImpactUnit = string.IsNullOrWhiteSpace(req.ImpactUnit) ? null : req.ImpactUnit.Trim(),
             DonationTypeId = donationTypeId,
             CampaignName = req.CampaignName?.Trim(),
             Notes = req.Notes?.Trim(),
-            IsRecurring = false,
+            IsRecurring = req.IsRecurring,
         };
 
         _db.Donations.Add(donation);
@@ -533,8 +534,29 @@ public class PublicDonationRequest
     public decimal? Amount { get; set; }
     public bool IsAnonymous { get; set; }
     public int? DonationTypeId { get; set; }
+    public string? DonationType { get; set; }
+    public DateOnly? DonationDate { get; set; }
+    public string? ChannelSource { get; set; }
+    public string? CurrencyCode { get; set; }
+    public decimal? EstimatedValue { get; set; }
+    public string? ImpactUnit { get; set; }
+    public bool IsRecurring { get; set; }
     public string? CampaignName { get; set; }
     public string? Notes { get; set; }
+
+    // Accept snake_case payload keys while preserving existing camelCase clients.
+    public string? user_id { get => UserId; set => UserId = value; }
+    public int? supporter_id { get => SupporterId; set => SupporterId = value; }
+    public bool is_anonymous { get => IsAnonymous; set => IsAnonymous = value; }
+    public int? donation_type_id { get => DonationTypeId; set => DonationTypeId = value; }
+    public string? donation_type { get => DonationType; set => DonationType = value; }
+    public DateOnly? donation_date { get => DonationDate; set => DonationDate = value; }
+    public string? channel_source { get => ChannelSource; set => ChannelSource = value; }
+    public string? currency_code { get => CurrencyCode; set => CurrencyCode = value; }
+    public decimal? estimated_value { get => EstimatedValue; set => EstimatedValue = value; }
+    public string? impact_unit { get => ImpactUnit; set => ImpactUnit = value; }
+    public bool is_recurring { get => IsRecurring; set => IsRecurring = value; }
+    public string? campaign_name { get => CampaignName; set => CampaignName = value; }
 }
 
 public class NewsletterSubscribeRequest
