@@ -1,7 +1,7 @@
 import { PublicLayout } from "@/components/PublicLayout";
 import { useState, useEffect, useMemo } from "react";
 import { SkeletonCard, SkeletonChart } from "@/components/SkeletonLoaders";
-import { PublicSafetyNote } from "@/components/PublicSafetyNote";
+import { ImpactCampaignsSection } from "@/components/impact/ImpactCampaignsSection";
 import { AnimatedCount } from "@/components/AnimatedCount";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import {
@@ -18,12 +18,6 @@ const ImpactDashboard = () => {
   const [data, setData] = useState<PublicImpactBundle | null>(null);
   const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
   const [animateCampaignBars, setAnimateCampaignBars] = useState(false);
-
-  const formatCurrency = (value: number) =>
-    Number(value || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
 
   const validCampaigns = useMemo(
     () => (data?.campaigns ? filterValidPublicCampaigns(data.campaigns) : []),
@@ -120,7 +114,7 @@ const ImpactDashboard = () => {
               },
             ].map((program) => (
               <RevealOnScroll key={program.title}>
-              <article className="rounded-xl bg-muted/40 p-6 transition-all duration-300 ease-out hover:-translate-y-1">
+              <article className="rounded-2xl border border-border/50 bg-gradient-to-br from-card/85 to-muted/35 p-7 shadow-sm backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-border hover:shadow-md">
                 <h3 className="font-semibold text-foreground mb-2">{program.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-3">{program.description}</p>
                 <p className="text-xs text-terracotta">{program.metric} {program.metricLabel}</p>
@@ -160,61 +154,7 @@ const ImpactDashboard = () => {
         </div>
       </section>
 
-      <section className="impact-campaigns-section py-20 lg:py-24">
-        <div className="max-w-[900px] mx-auto px-6">
-          <div className="animate-in fade-in duration-700">
-            <h2 className="impact-title">Our Impact</h2>
-            <p className="impact-subtitle font-body text-base">
-              Transparent progress on the initiatives your support makes possible.
-            </p>
-          </div>
-
-          {validCampaigns.length === 0 ? (
-            <div className="campaign-card mb-0">
-              <p className="font-body text-sm text-[#64748b] m-0">
-                No campaign-tagged data is available yet.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {validCampaigns.map((campaign) => {
-                const raised = Number(campaign.raised || 0);
-                const goal = Number(campaign.goal || 0);
-                const progress = goal > 0 ? Math.min(raised / goal, 1) : 0;
-                const percentage = Math.round(progress * 100);
-
-                return (
-                  <div key={campaign.name} className="campaign-card">
-                    <div className="campaign-header">
-                      <h3>{campaign.name}</h3>
-                      <span>
-                        ${formatCurrency(raised)} / ${formatCurrency(goal)}
-                      </span>
-                    </div>
-
-                    <div className="progress-track">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${animateCampaignBars ? percentage : 0}%` }}
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={percentage}
-                        aria-label={`${campaign.name} progress`}
-                      />
-                    </div>
-
-                    <div className="campaign-footer">
-                      <span>{percentage}% funded</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <PublicSafetyNote className="mt-10 text-slate-500" />
-        </div>
-      </section>
+      <ImpactCampaignsSection campaigns={validCampaigns} animateBars={animateCampaignBars} />
 
       <section className="py-16 lg:py-20 bg-muted/30">
         <div className="max-w-5xl mx-auto px-6">
