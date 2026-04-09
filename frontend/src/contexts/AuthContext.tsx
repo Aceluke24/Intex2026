@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
 interface User {
+  id: string;
   email: string;
   userName: string;
   supporterId: number | null;

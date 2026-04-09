@@ -73,6 +73,7 @@ public class AuthController(
 
         return Ok(new
         {
+            id = user.Id,
             email = user.Email,
             userName = user.UserName,
             supporterId,

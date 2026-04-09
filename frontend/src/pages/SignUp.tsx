@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { Moon, Sun } from "lucide-react";
@@ -22,6 +23,9 @@ const SignUp = () => {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const { refetch } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedRedirect = searchParams.get("redirect");
+  const safeRedirect = requestedRedirect && requestedRedirect.startsWith("/") ? requestedRedirect : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +54,7 @@ const SignUp = () => {
         return;
       }
       await refetch();
-      navigate("/donate");
+      navigate(safeRedirect ?? "/donate");
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {
@@ -184,7 +188,7 @@ const SignUp = () => {
 
           <p className="mt-8 text-center text-xs text-muted-foreground font-body">
             Already have an account?{" "}
-            <Link to="/login" className="text-terracotta hover:underline">Sign in</Link>
+            <Link to={safeRedirect ? `/login?redirect=${encodeURIComponent(safeRedirect)}` : "/login"} className="text-terracotta hover:underline">Sign in</Link>
           </p>
           <p className="mt-3 text-center text-xs text-muted-foreground font-body">
             <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>

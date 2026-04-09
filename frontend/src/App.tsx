@@ -60,6 +60,7 @@ const App = () => (
               <Route path="/impact" element={<ImpactDashboard />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
+              <Route path="/register" element={<Navigate to="/signup" replace />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/about" element={<About />} />
               <Route path="/donate" element={<DonatePage />} />

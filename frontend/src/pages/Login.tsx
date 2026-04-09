@@ -24,6 +24,8 @@ const Login = () => {
   const { theme, toggle } = useTheme();
   const { refetch } = useAuth();
   const [searchParams] = useSearchParams();
+  const requestedRedirect = searchParams.get("redirect");
+  const safeRedirect = requestedRedirect && requestedRedirect.startsWith("/") ? requestedRedirect : null;
 
   const initialError = searchParams.get("externalError") ?? searchParams.get("error");
   const [error, setError] = useState<string | null>(
@@ -58,7 +60,7 @@ const Login = () => {
       const redirect = getLoginRedirect();
       const targetPath = resolvePostLoginPath(data.roles, redirect);
       clearLoginRedirect();
-      navigate(targetPath);
+      navigate(safeRedirect ?? targetPath);
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {
@@ -206,7 +208,7 @@ const Login = () => {
 
               <p className="mt-8 text-center text-xs text-muted-foreground font-body">
                 New donor?{" "}
-                <Link to="/signup" className="text-terracotta hover:underline">Create an account</Link>
+                <Link to={safeRedirect ? `/signup?redirect=${encodeURIComponent(safeRedirect)}` : "/signup"} className="text-terracotta hover:underline">Create an account</Link>
               </p>
               <p className="mt-3 text-center text-xs text-muted-foreground font-body">
                 Already signed in?{" "}

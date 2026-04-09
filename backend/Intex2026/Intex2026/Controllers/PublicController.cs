@@ -427,6 +427,18 @@ public partial class PublicController : ControllerBase
         {
             supporterId = authUser.SupporterId.Value;
         }
+        else if (authUser != null && !string.IsNullOrWhiteSpace(authUser.Email))
+        {
+            var linkedSupporter = await EnsureSupporterByEmailAsync(
+                authUser.Email.Trim().ToLowerInvariant(),
+                req.FirstName,
+                req.LastName,
+                req.DisplayName);
+
+            supporterId = linkedSupporter.SupporterId;
+            authUser.SupporterId = linkedSupporter.SupporterId;
+            await _userManager.UpdateAsync(authUser);
+        }
         else if (!isAnonymous)
         {
             if (string.IsNullOrWhiteSpace(normalizedEmail))
@@ -512,6 +524,8 @@ public partial class PublicController : ControllerBase
 
 public class PublicDonationRequest
 {
+    public string? UserId { get; set; }
+    public int? SupporterId { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? DisplayName { get; set; }

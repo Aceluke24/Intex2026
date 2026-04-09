@@ -6,9 +6,11 @@ import { Heart, CheckCircle } from "lucide-react";
 import { API_BASE } from "@/lib/apiBase";
 import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function DonatePage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -95,6 +97,8 @@ export default function DonatePage() {
       email: canEditIdentity ? email.trim() || null : user?.email ?? null,
       displayName: !canEditIdentity ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email : null,
       isAnonymous: anonymous,
+      userId: user?.id ?? null,
+      supporterId: user?.supporterId ?? null,
       donationType: "Monetary",
       amount: parsedAmount,
       donationTypeId: donationTypeId ? Number(donationTypeId) : null,
@@ -177,26 +181,75 @@ export default function DonatePage() {
               <p className="font-body text-muted-foreground">
                 Your generous contribution has been recorded. We'll be in touch soon.
               </p>
+              {!isAuthenticated && (
+                <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left">
+                  <p className="font-body text-sm font-medium text-blue-900">
+                    Create an account to track this donation and future contributions.
+                  </p>
+                  <p className="mt-1 font-body text-sm text-blue-700">
+                    Sign in to keep a record of your generosity 💙
+                  </p>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/signup?redirect=/donate")}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                    >
+                      Claim this donation
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ) : (
-            <motion.form
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              onSubmit={handleSubmit}
-              className="bg-background/90 rounded-xl p-8 sm:p-10 space-y-6 shadow-sm"
-            >
-              {!authLoading && (
-                <label className="flex items-center gap-2 font-body text-sm text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={anonymous}
-                    onChange={(e) => setAnonymous(e.target.checked)}
-                    className="h-4 w-4 rounded border-input text-terracotta focus:ring-terracotta/50"
-                  />
-                  Donate anonymously
-                </label>
+            <>
+              {!authLoading && !isAuthenticated && (
+                <div className="mb-6 flex flex-col gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">
+                      Track your impact
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      Sign in to keep a record of your generosity 💙
+                    </p>
+                  </div>
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/login?redirect=/donate")}
+                      className="flex-1 rounded-lg border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 sm:flex-none"
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/signup?redirect=/donate")}
+                      className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none"
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                </div>
               )}
+
+              <motion.form
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                onSubmit={handleSubmit}
+                className="bg-background/90 rounded-xl p-8 sm:p-10 space-y-6 shadow-sm"
+              >
+                {!authLoading && (
+                  <label className="flex items-center gap-2 font-body text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={anonymous}
+                      onChange={(e) => setAnonymous(e.target.checked)}
+                      className="h-4 w-4 rounded border-input text-terracotta focus:ring-terracotta/50"
+                    />
+                    Donate anonymously
+                  </label>
+                )}
 
               {/* Name row */}
               {!anonymous && (
@@ -329,15 +382,16 @@ export default function DonatePage() {
                 </p>
               )}
 
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium h-11 gap-2 transition-all duration-300 ease-out hover:scale-[1.01]"
-              >
-                <Heart className="w-4 h-4" />
-                {submitting ? "Submitting…" : "Submit Donation"}
-              </Button>
-            </motion.form>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium h-11 gap-2 transition-all duration-300 ease-out hover:scale-[1.01]"
+                >
+                  <Heart className="w-4 h-4" />
+                  {submitting ? "Submitting…" : "Submit Donation"}
+                </Button>
+              </motion.form>
+            </>
           )}
         </div>
       </section>
