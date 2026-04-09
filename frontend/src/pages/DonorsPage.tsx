@@ -291,23 +291,24 @@ const DonorsPage = () => {
     if (!res.ok) throw new Error(await res.text());
   }, []);
 
-  const handleSaveSupporterDisplayName = useCallback(
-    async (displayName: string) => {
+  const handleSaveSupporterEdit = useCallback(
+    async (body: Record<string, unknown>) => {
       if (!editSupporterTarget) return;
       const id = editSupporterTarget.id;
-      const previousName = editSupporterTarget.name;
-      setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: displayName } : s)));
       try {
-        await updateSupporter(id, { displayName });
-        toast.success("Display name updated");
+        const res = await apiFetch(`${API_PREFIX}/supporters/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        toast.success("Supporter updated");
         void load();
       } catch (e) {
         console.error(e);
-        setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: previousName } : s)));
         throw e instanceof Error ? e : new Error("Failed to update supporter.");
       }
     },
-    [editSupporterTarget, load, updateSupporter],
+    [editSupporterTarget, load],
   );
 
   const supporterDeleteDetailLines = useMemo(() => {
@@ -858,7 +859,10 @@ const DonorsPage = () => {
           if (!open) setEditSupporterTarget(null);
         }}
         supporter={editSupporterTarget}
-        onSave={handleSaveSupporterDisplayName}
+        onSave={handleSaveSupporterEdit}
+        onRequestDelete={(s) => {
+          setDeleteSupporterTarget(s);
+        }}
       />
 
       <ConfirmDeleteModal
