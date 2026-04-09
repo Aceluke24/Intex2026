@@ -287,8 +287,10 @@ public partial class PublicController : ControllerBase
         try
         {
             var campaigns = await _db.Donations
-                .Where(d => d.CampaignName != null && d.CampaignName != "")
-                .GroupBy(d => d.CampaignName)
+                .Where(d => d.CampaignName != null
+                    && d.CampaignName.Trim() != ""
+                    && d.CampaignName.Trim().Length >= 3)
+                .GroupBy(d => d.CampaignName!.Trim())
                 .Select(g => new
                 {
                     name = g.Key,
@@ -464,6 +466,12 @@ public partial class PublicController : ControllerBase
             supporterId = supporter.SupporterId;
         }
 
+        var validatedCampaignName = NormalizeAndValidateCampaignName(req.CampaignName, out var campaignValidationError);
+        if (campaignValidationError != null)
+        {
+            return BadRequest(new { error = campaignValidationError });
+        }
+
         int? donationTypeId = null;
         if (req.DonationTypeId.HasValue)
         {
@@ -487,7 +495,7 @@ public partial class PublicController : ControllerBase
             EstimatedValue = req.EstimatedValue,
             ImpactUnit = string.IsNullOrWhiteSpace(req.ImpactUnit) ? null : req.ImpactUnit.Trim(),
             DonationTypeId = donationTypeId,
-            CampaignName = req.CampaignName?.Trim(),
+            CampaignName = validatedCampaignName,
             Notes = req.Notes?.Trim(),
             IsRecurring = req.IsRecurring,
         };
@@ -502,8 +510,10 @@ public partial class PublicController : ControllerBase
     public async Task<IActionResult> Campaigns()
     {
         var campaigns = await _db.Donations
-            .Where(d => d.CampaignName != null && d.CampaignName != "")
-            .Select(d => d.CampaignName!)
+            .Where(d => d.CampaignName != null
+                && d.CampaignName.Trim() != ""
+                && d.CampaignName.Trim().Length >= 3)
+            .Select(d => d.CampaignName!.Trim())
             .Distinct()
             .OrderBy(c => c)
             .ToListAsync();
@@ -566,6 +576,30 @@ public class NewsletterSubscribeRequest
 
 partial class PublicController
 {
+    private static string? NormalizeAndValidateCampaignName(string? campaignName, out string? validationError)
+    {
+        validationError = null;
+        if (campaignName == null)
+        {
+            return null;
+        }
+
+        var trimmed = campaignName.Trim();
+        if (trimmed.Length == 0)
+        {
+            validationError = "Campaign name cannot be empty.";
+            return null;
+        }
+
+        if (trimmed.Length < 3)
+        {
+            validationError = "Campaign name must be at least 3 characters.";
+            return null;
+        }
+
+        return trimmed;
+    }
+
     private static string? NormalizeEmail(string? email)
     {
         if (string.IsNullOrWhiteSpace(email))

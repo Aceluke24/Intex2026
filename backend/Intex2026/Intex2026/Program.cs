@@ -353,6 +353,12 @@ using (var scope = app.Services.CreateScope())
                     ('Recurring gift', 1),
                     ('Monthly contribution', 1);
                 """);
+
+            // Remove historically invalid campaign rows so they never surface on /impact.
+            await appDb.Database.ExecuteSqlRawAsync("""
+                DELETE FROM "Donations"
+                WHERE lower(trim(COALESCE("CampaignName", ''))) = 'd';
+                """);
         }
         else
         {
@@ -444,6 +450,12 @@ using (var scope = app.Services.CreateScope())
                 ON target.[Name] = source.[Name]
                 WHEN NOT MATCHED BY TARGET THEN
                     INSERT ([Name], [IsActive]) VALUES (source.[Name], source.[IsActive]);
+                """);
+
+            // Remove historically invalid campaign rows so they never surface on /impact.
+            await appDb.Database.ExecuteSqlRawAsync("""
+                DELETE FROM [Donations]
+                WHERE LOWER(LTRIM(RTRIM(ISNULL([CampaignName], '')))) = 'd';
                 """);
         }
 

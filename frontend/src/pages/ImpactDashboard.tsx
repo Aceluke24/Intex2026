@@ -16,6 +16,19 @@ const ImpactDashboard = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [data, setData] = useState<PublicImpactBundle | null>(null);
   const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
+  const [animateCampaignBars, setAnimateCampaignBars] = useState(false);
+
+  const formatCurrency = (value: number) =>
+    Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const progressFillClass = (percentage: number) => {
+    if (percentage < 40) return "from-[#4a6598] to-[#5d77a8]";
+    if (percentage < 80) return "from-[#143d7a] to-[#235aa8]";
+    return "from-[#1f5fa6] to-[#3480d0]";
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -35,6 +48,12 @@ const ImpactDashboard = () => {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    setAnimateCampaignBars(false);
+    const timer = window.setTimeout(() => setAnimateCampaignBars(true), 80);
+    return () => window.clearTimeout(timer);
+  }, [data?.campaigns.length]);
 
   if (loading) {
     return (
@@ -142,27 +161,56 @@ const ImpactDashboard = () => {
       </section>
 
       <section className="py-16 lg:py-20 bg-background">
-        <div className="max-w-5xl mx-auto px-6">
-          <h2 className="font-display text-2xl lg:text-3xl font-semibold tracking-tight text-foreground mb-6">Campaign Effectiveness</h2>
-          <div className="rounded-xl bg-muted/40 p-6">
-            <p className="text-sm text-muted-foreground mb-4">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="animate-in fade-in duration-700">
+            <h2 className="font-display text-3xl lg:text-4xl font-semibold tracking-[-0.02em] text-foreground mb-2">Campaign Effectiveness</h2>
+            <p className="text-sm lg:text-base text-muted-foreground mb-8">
               This section is structured for campaign performance tracking and can be expanded with conversion and retention metrics as data endpoints grow.
             </p>
-            {data?.campaigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No campaign-tagged data is available yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {data?.campaigns.map((campaign) => (
-                  <div key={campaign.name} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl bg-background/80 px-4 py-3">
-                    <p className="text-sm font-medium text-foreground">{campaign.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ${Number(campaign.raised || 0).toLocaleString()} raised of ${Number(campaign.goal || 0).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
+
+          {data?.campaigns.length === 0 ? (
+            <div className="rounded-2xl bg-white/95 dark:bg-zinc-900 p-5 shadow-sm">
+              <p className="text-sm text-muted-foreground">No campaign-tagged data is available yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {data?.campaigns.map((campaign) => {
+                const raised = Number(campaign.raised || 0);
+                const goal = Number(campaign.goal || 0);
+                const progress = goal > 0 ? Math.min(raised / goal, 1) : 0;
+                const percentage = Math.round(progress * 100);
+
+                return (
+                  <article
+                    key={campaign.name}
+                    className="rounded-2xl bg-white/95 dark:bg-zinc-900 p-5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                      <p className="text-base font-semibold text-foreground">{campaign.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        ${formatCurrency(raised)} / ${formatCurrency(goal)}
+                      </p>
+                    </div>
+                    <div className="mt-4">
+                      <div className="h-3 w-full rounded-full bg-slate-200 dark:bg-zinc-700/80 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${progressFillClass(percentage)} transition-all duration-700 ease-out`}
+                          style={{ width: `${animateCampaignBars ? percentage : 0}%` }}
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={percentage}
+                          aria-label={`${campaign.name} progress`}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs font-medium text-muted-foreground">{percentage}%</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
           <PublicSafetyNote className="mt-5" />
         </div>
       </section>

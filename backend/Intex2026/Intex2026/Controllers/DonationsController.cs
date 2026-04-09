@@ -24,8 +24,10 @@ public class DonationsController : ControllerBase
     public async Task<IActionResult> GetCampaigns()
     {
         var campaigns = await _db.Donations
-            .Where(d => d.CampaignName != null && d.CampaignName != "")
-            .Select(d => d.CampaignName!)
+            .Where(d => d.CampaignName != null
+                && d.CampaignName.Trim() != ""
+                && d.CampaignName.Trim().Length >= 3)
+            .Select(d => d.CampaignName!.Trim())
             .Distinct()
             .OrderBy(c => c)
             .ToListAsync();
@@ -195,6 +197,12 @@ public class DonationsController : ControllerBase
             }
         }
 
+        var validatedCampaignName = NormalizeAndValidateCampaignName(req.CampaignName, out var campaignValidationError);
+        if (campaignValidationError != null)
+        {
+            return BadRequest(new { message = campaignValidationError });
+        }
+
         var donation = new Donation
         {
             SupporterId = user.SupporterId.Value,
@@ -207,7 +215,7 @@ public class DonationsController : ControllerBase
             ImpactUnit = donationType != "Monetary" ? req.ImpactUnit ?? "hours" : null,
             IsRecurring = false,
             DonationTypeId = req.DonationTypeId,
-            CampaignName = string.IsNullOrWhiteSpace(req.CampaignName) ? null : req.CampaignName.Trim(),
+            CampaignName = validatedCampaignName,
             Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim(),
         };
 
@@ -221,6 +229,14 @@ public class DonationsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] Donation donation)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
+        var validatedCampaignName = NormalizeAndValidateCampaignName(donation.CampaignName, out var campaignValidationError);
+        if (campaignValidationError != null)
+        {
+            return BadRequest(new { message = campaignValidationError });
+        }
+
+        donation.CampaignName = validatedCampaignName;
+
         if (donation.SupporterId.HasValue)
         {
             var supporterExists = await _db.Supporters.AnyAsync(s => s.SupporterId == donation.SupporterId.Value);
@@ -239,6 +255,15 @@ public class DonationsController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] Donation donation)
     {
         if (id != donation.DonationId) return BadRequest();
+
+        var validatedCampaignName = NormalizeAndValidateCampaignName(donation.CampaignName, out var campaignValidationError);
+        if (campaignValidationError != null)
+        {
+            return BadRequest(new { message = campaignValidationError });
+        }
+
+        donation.CampaignName = validatedCampaignName;
+
         _db.Entry(donation).State = EntityState.Modified;
         await _db.SaveChangesAsync();
         return NoContent();
@@ -254,6 +279,30 @@ public class DonationsController : ControllerBase
         _db.Donations.Remove(d);
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private static string? NormalizeAndValidateCampaignName(string? campaignName, out string? validationError)
+    {
+        validationError = null;
+        if (campaignName == null)
+        {
+            return null;
+        }
+
+        var trimmed = campaignName.Trim();
+        if (trimmed.Length == 0)
+        {
+            validationError = "Campaign name cannot be empty.";
+            return null;
+        }
+
+        if (trimmed.Length < 3)
+        {
+            validationError = "Campaign name must be at least 3 characters.";
+            return null;
+        }
+
+        return trimmed;
     }
 }
 
