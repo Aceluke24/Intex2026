@@ -14,6 +14,7 @@ public record CustomLoginRequest(string Email, string Password, string? MfaCode 
 public record MfaCodeRequest(string Code);
 public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
 public record AssignRoleRequest(string Email);
+public record UpdateUserRolesRequest(string UserId, string[] Roles);
 
 [ApiController]
 [Route("api/auth")]
@@ -418,6 +419,65 @@ public class AuthController(
             return BadRequest(new { message = "Failed to assign role: " + string.Join("; ", result.Errors.Select(e => e.Description)) });
 
         return Ok(new { message = $"Donor role assigned to {user.Email}." });
+    }
+
+    [HttpGet("admin/users")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAllUsers()
+    {
+        var users = await userManager.Users.ToListAsync();
+        var userDtos = new List<object>();
+
+        foreach (var user in users)
+        {
+            var roles = await userManager.GetRolesAsync(user);
+            userDtos.Add(new
+            {
+                id = user.Id,
+                email = user.Email,
+                displayName = user.DisplayName ?? user.UserName,
+                roles = roles.OrderBy(r => r).ToArray(),
+                mfaEnabled = user.TwoFactorEnabled,
+                createdAt = user.Id // Use ID creation timestamp approximation
+            });
+        }
+
+        return Ok(userDtos.OrderBy(u => ((dynamic)u).email));
+    }
+
+    [HttpPost("admin/update-user-roles")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateUserRoles([FromBody] UpdateUserRolesRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.UserId))
+            return BadRequest(new { message = "User ID is required." });
+
+        var user = await userManager.FindByIdAsync(req.UserId);
+        if (user is null)
+            return NotFound(new { message = "User not found." });
+
+        var currentRoles = await userManager.GetRolesAsync(user);
+        var desiredRoles = (req.Roles ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Remove roles not in desired list
+        var rolesToRemove = currentRoles.Where(r => !desiredRoles.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (rolesToRemove.Any())
+        {
+            var removeResult = await userManager.RemoveFromRolesAsync(user, rolesToRemove);
+            if (!removeResult.Succeeded)
+                return BadRequest(new { message = "Failed to remove roles: " + string.Join("; ", removeResult.Errors.Select(e => e.Description)) });
+        }
+
+        // Add roles not already assigned
+        var rolesToAdd = desiredRoles.Where(r => !currentRoles.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (rolesToAdd.Any())
+        {
+            var addResult = await userManager.AddToRolesAsync(user, rolesToAdd);
+            if (!addResult.Succeeded)
+                return BadRequest(new { message = "Failed to add roles: " + string.Join("; ", addResult.Errors.Select(e => e.Description)) });
+        }
+
+        return Ok(new { message = $"Roles updated for {user.Email}.", roles = desiredRoles });
     }
 
     private bool IsGoogleConfigured()
