@@ -30,8 +30,32 @@ import type {
 } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+const DIRECTORY_PAGE_SIZES = [10, 25, 50] as const;
+
+function visiblePageNumbers(current: number, totalPages: number): (number | "ellipsis")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const set = new Set<number>();
+  set.add(1);
+  set.add(totalPages);
+  for (let d = -1; d <= 1; d++) {
+    const p = current + d;
+    if (p >= 1 && p <= totalPages) set.add(p);
+  }
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: (number | "ellipsis")[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (p - prev > 1) out.push("ellipsis");
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
 import { toast } from "sonner";
 
 const EMPTY_METRICS: DonorsDashboardResponse["metrics"] = {
@@ -168,6 +192,8 @@ const DonorsPage = () => {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<SupporterKind | "All">("All");
   const [statusFilter, setStatusFilter] = useState<SupporterStatus | "All">("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -229,6 +255,20 @@ const DonorsPage = () => {
       return matchSearch && matchType && matchStatus;
     });
   }, [supporters, search, typeFilter, statusFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+
+  const paginatedFiltered = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, safePage, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, typeFilter, statusFilter, pageSize]);
+
+  const pageItems = useMemo(() => visiblePageNumbers(safePage, pageCount), [safePage, pageCount]);
 
   const openProfile = (id: string) => {
     setSelectedId(id);
@@ -548,7 +588,7 @@ const DonorsPage = () => {
               ) : viewMode === "table" ? (
                 <div className="space-y-4">
                   <AnimatePresence mode="popLayout">
-                    {filtered.map((s, i) => (
+                    {paginatedFiltered.map((s, i) => (
                       <SupporterRow
                         key={s.id}
                         index={i}
@@ -565,7 +605,7 @@ const DonorsPage = () => {
                 </div>
               ) : (
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                  {filtered.map((s) => (
+                  {paginatedFiltered.map((s) => (
                     <SupporterCard
                       key={s.id}
                       supporter={s}
@@ -581,6 +621,80 @@ const DonorsPage = () => {
                   )}
                 </div>
               )}
+              {!loading && filtered.length > 0 ? (
+                <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <label className="flex items-center gap-2 font-body text-xs text-muted-foreground">
+                    <span className="shrink-0 font-medium">Rows per page</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="h-9 rounded-xl border border-border/60 bg-white/70 px-3 py-1.5 font-body text-sm text-foreground shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:border-white/12 dark:bg-white/[0.08]"
+                    >
+                      {DIRECTORY_PAGE_SIZES.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                      disabled={safePage <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {pageItems.map((item, idx) =>
+                        item === "ellipsis" ? (
+                          <span
+                            key={`e-${idx}`}
+                            className="flex h-9 min-w-[2.25rem] items-center justify-center font-body text-sm text-muted-foreground"
+                            aria-hidden
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <Button
+                            key={item}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-9 min-w-[2.25rem] rounded-xl border font-body text-sm tabular-nums",
+                              item === safePage
+                                ? "border-[hsl(340_35%_75%)]/50 bg-white text-foreground shadow-[0_4px_16px_rgba(200,130,150,0.12)] dark:border-white/20 dark:bg-white/15"
+                                : "border-white/50 bg-white/50 dark:border-white/10 dark:bg-white/[0.07]",
+                            )}
+                            onClick={() => setPage(item)}
+                          >
+                            {item}
+                          </Button>
+                        ),
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                      disabled={safePage >= pageCount}
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground sm:text-right">
+                    Page {safePage} of {pageCount}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </section>
       </StaffPageShell>
