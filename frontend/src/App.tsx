@@ -36,6 +36,7 @@ import MfaSetup from "./pages/MfaSetup.tsx";
 import GoogleCallback from "./pages/GoogleCallback.tsx";
 import Unauthorized from "./pages/Unauthorized.tsx";
 import StaffManagement from "./pages/StaffManagement.tsx";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -95,7 +96,14 @@ const App = () => (
                   <Route path="/dashboard/visitations" element={<VisitationsPage />} />
                   <Route path="/dashboard/reports" element={<ReportsPage />} />
                   <Route path="/dashboard/analytics/pipelines" element={<InsightsPage />} />
-                  <Route path="/dashboard/programs" element={<ProgramsDashboardPage />} />
+                  <Route
+                    path="/dashboard/programs"
+                    element={
+                      <PageErrorBoundary title="Programs Dashboard">
+                        <ProgramsDashboardPage />
+                      </PageErrorBoundary>
+                    }
+                  />
                   <Route path="/dashboard/finance" element={<FinanceDashboardPage />} />
                   <Route path="/dashboard/expenses" element={<ExpensesPage />} />
                   <Route path="/dashboard/outreach" element={<OutreachPage />} />
