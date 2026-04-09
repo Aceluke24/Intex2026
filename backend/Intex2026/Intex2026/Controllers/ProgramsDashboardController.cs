@@ -191,15 +191,16 @@ public class ProgramsDashboardController : ControllerBase
         });
     }
 
-    [HttpPatch("incidents/{id}/resolve")]
+    [HttpPatch("incidents/{id:int}/resolve")]
     public async Task<IActionResult> ResolveIncident(int id, CancellationToken ct)
     {
-        var incident = await _db.IncidentReports.FindAsync([id], ct);
-        if (incident == null) return NotFound();
+        var incident = await _db.IncidentReports.FirstOrDefaultAsync(i => i.IncidentId == id, ct);
+        if (incident == null)
+            return NotFound();
         incident.Resolved = true;
         incident.ResolutionDate = DateOnly.FromDateTime(DateTime.Today);
         await _db.SaveChangesAsync(ct);
-        return NoContent();
+        return Ok(new { ok = true, incidentId = id });
     }
 
     private static double ComputeGoalCurrent(OrganizationalGoal g, List<Resident> residents,

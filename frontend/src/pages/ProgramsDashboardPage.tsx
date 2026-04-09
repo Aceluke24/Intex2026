@@ -86,6 +86,12 @@ type Incident = {
   description: string | null;
 };
 
+/** API uses camelCase; tolerate PascalCase if a proxy or older client changed casing. */
+function getIncidentRowId(inc: Incident & { IncidentId?: number }): number | undefined {
+  const raw = inc.incidentId ?? inc.IncidentId;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
+}
+
 type ProgramsData = {
   kpis: Kpis;
   goalProgress: GoalProgress[];
@@ -157,16 +163,25 @@ export default function ProgramsDashboardPage() {
   const [savingGoal, setSavingGoal] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const d = await apiFetchJson<ProgramsData>(`${API_PREFIX}/programs-dashboard`);
       setData(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      const msg = e instanceof Error ? e.message : "Failed to load";
+      if (silent) {
+        console.error("[ProgramsDashboard] refresh failed", e);
+        toast.error("Could not refresh dashboard");
+      } else {
+        setError(msg);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -207,16 +222,34 @@ export default function ProgramsDashboardPage() {
   };
 
   const handleResolve = async (id: number) => {
+    if (!Number.isFinite(id)) {
+      console.error("Failed to resolve incident: invalid id", id);
+      toast.error("Invalid incident.");
+      return;
+    }
     setResolvingId(id);
     try {
-      const res = await apiFetch(`${API_PREFIX}/programs-dashboard/incidents/${id}/resolve`, {
+      const res = await apiFetch(`${API_PREFIX}/incidents/${id}/resolve`, {
         method: "PATCH",
       });
-      if (!res.ok) throw new Error();
-      toast.success("Incident marked resolved");
-      void load();
-    } catch {
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(detail ? `${res.status}: ${detail.slice(0, 120)}` : `${res.status}`);
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              unresolvedIncidents: prev.unresolvedIncidents.filter((row) => getIncidentRowId(row) !== id),
+            }
+          : prev
+      );
+      toast.success("Incident resolved");
+      await load({ silent: true });
+    } catch (err) {
+      console.error("Failed to resolve incident", err);
       toast.error("Failed to resolve incident");
+      await load({ silent: true });
     } finally {
       setResolvingId(null);
     }
@@ -400,8 +433,10 @@ export default function ProgramsDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {data.unresolvedIncidents.map((inc) => (
-                    <tr key={inc.incidentId} className="hover:bg-muted/30 transition-colors">
+                  {data.unresolvedIncidents.map((inc) => {
+                    const rowId = getIncidentRowId(inc);
+                    return (
+                    <tr key={rowId ?? `${inc.residentCode}-${inc.incidentDate}`} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-foreground">{inc.residentCode}</td>
                       <td className="px-4 py-3 text-muted-foreground">{inc.safehouseName ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{inc.incidentType}</td>
@@ -414,18 +449,26 @@ export default function ProgramsDashboardPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Button
+                          type="button"
                           size="sm"
                           variant="ghost"
-                          disabled={resolvingId === inc.incidentId}
-                          onClick={() => void handleResolve(inc.incidentId)}
-                          className="text-xs h-7 px-2"
+                          disabled={rowId == null || resolvingId === rowId}
+                          onClick={() => {
+                            if (rowId == null) {
+                              toast.error("Invalid incident.");
+                              return;
+                            }
+                            void handleResolve(rowId);
+                          }}
+                          className="text-xs h-7 px-2 cursor-pointer hover:bg-accent/80"
                         >
                           <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                          Resolve
+                          {resolvingId === rowId ? "…" : "Resolve"}
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
