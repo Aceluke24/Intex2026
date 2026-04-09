@@ -9,8 +9,6 @@ import type {
   PriorityCallout,
   ResidentRow,
 } from "@/lib/dashboardTypes";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { LayoutDashboard } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetchJson } from "@/lib/apiFetch";
@@ -45,8 +43,6 @@ type DashboardApiResponse = {
 };
 
 const DashboardPage = () => {
-  usePageHeader("Command Center", "Live operations overview");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -148,9 +144,6 @@ const DashboardPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Overview"
-        eyebrowIcon={<LayoutDashboard className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Command Center"
         description="What needs attention today — data from your connected systems."
       >

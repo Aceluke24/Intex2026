@@ -3,7 +3,6 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
@@ -109,8 +108,6 @@ function feedEntryTimestampMs(entry: FeedEntry): number {
 }
 
 const DonorsPage = () => {
-  usePageHeader("Donors & Contributions", "Supporter relationship management");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -365,9 +362,6 @@ const DonorsPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Philanthropy"
-        eyebrowIcon={<HeartHandshake className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Donors & Contributions"
         description="Manage supporters and track impact across programs."
         actions={

@@ -1,4 +1,3 @@
-import { StickyStaffBar } from "@/components/admin/StickyStaffBar";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
@@ -26,7 +25,6 @@ import Header from "@/components/layout/Header";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetch } from "@/lib/apiFetch";
-import { useAdminChrome } from "@/contexts/AdminChromeContext";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === "/dashboard") return pathname === "/dashboard";
@@ -90,7 +88,6 @@ export const AdminLayout = ({
   const location = useLocation();
   const navigate = useNavigate();
   const { user, refetch } = useAuth();
-  const { header } = useAdminChrome();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
@@ -109,8 +106,8 @@ export const AdminLayout = ({
         )}
       >
         <Header
-          title={header?.title ?? "Dashboard"}
-          subtitle={header?.subtitle ?? null}
+          title=""
+          subtitle={null}
           rightContent={
             <>
               {user && (
@@ -206,8 +203,7 @@ export const AdminLayout = ({
 
       {/* ── Main content ──────────────────────────────────────── */}
       <main className={cn("flex-1 transition-all duration-300 min-h-screen pt-14", collapsed ? "ml-16" : "ml-60")}>
-        <div className={cn("p-6 lg:p-10 max-w-6xl", contentClassName)}>
-          <StickyStaffBar />
+        <div className={cn("max-w-6xl px-5 py-5 lg:px-8 lg:py-8", contentClassName)}>
           {children}
         </div>
       </main>

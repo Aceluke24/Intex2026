@@ -1,7 +1,6 @@
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,7 @@ import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
 import { format, isValid, parse } from "date-fns";
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, X } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, MapPin, Plus, Shield, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -527,8 +526,6 @@ const VisitationRecordCard = memo(function VisitationRecordCard({
 });
 
 const VisitationsPage = () => {
-  usePageHeader("Visitations & Conferences", "Field & coordination");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rows, setRows] = useState<VisitationRow[]>([]);
@@ -752,8 +749,6 @@ const VisitationsPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        eyebrow="Field operations"
-        eyebrowIcon={<Home className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Home Visitation & Case Conferences"
         description="Visits and coordination records from the central database."
         actions={

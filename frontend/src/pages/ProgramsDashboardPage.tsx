@@ -14,7 +14,6 @@ import {
   dashboardTableShellClass,
 } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import { cn } from "@/lib/utils";
@@ -311,8 +310,6 @@ const emptyGoalForm = (): GoalFormData => ({
 });
 
 export default function ProgramsDashboardPage() {
-  usePageHeader("Programs Dashboard", "Operations & outcomes overview");
-
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ProgramsData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -438,9 +435,6 @@ export default function ProgramsDashboardPage() {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Programs & operations"
-        eyebrowIcon={<Activity className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Programs Dashboard"
         description="Operations, goals, and safehouse performance at a glance."
       >

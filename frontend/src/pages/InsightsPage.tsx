@@ -10,10 +10,8 @@ import {
   dashboardTableRowClass,
 } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { Brain } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -64,8 +62,6 @@ const actionByRiskCategory: Record<string, string> = {
 };
 
 const InsightsPage = () => {
-  usePageHeader("AI Insights", "Recommendations & signals");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [churn, setChurn] = useState<DonorChurnRow[]>([]);
@@ -211,13 +207,7 @@ const InsightsPage = () => {
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
-      <StaffPageShell
-        tone="quiet"
-        eyebrow="Machine learning"
-        eyebrowIcon={<Brain className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
-        title="AI Insights"
-        description={insightDescription}
-      >
+      <StaffPageShell title="AI Insights" description={insightDescription}>
         <p className="mb-10 font-body text-xs text-muted-foreground">
           Source: {donorScoreSource === "ml" ? "ML" : "Rule-based"}
           {donorModelVersion ? ` • Model: ${donorModelVersion}` : ""}

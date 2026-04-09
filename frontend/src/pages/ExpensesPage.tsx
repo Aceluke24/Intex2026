@@ -10,10 +10,9 @@ import {
   dashboardTableShellClass,
 } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { Plus, Pencil, Receipt, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,8 +57,6 @@ const emptyForm = (): ExpenseForm => ({
 });
 
 export default function ExpensesPage() {
-  usePageHeader("Expenses", "Record & review organizational spending");
-
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [safehouses, setSafehouses] = useState<Safehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,9 +163,6 @@ export default function ExpensesPage() {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Finance & contributions"
-        eyebrowIcon={<Receipt className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Expenses"
         description="Record and review organizational spending with filters by category, program area, and date."
         actions={

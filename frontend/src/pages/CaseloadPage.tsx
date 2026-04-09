@@ -20,7 +20,6 @@ import {
   type ResidentCase,
   type RiskLevel,
 } from "@/lib/caseloadTypes";
-import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { exportToCSV } from "@/lib/exportToCSV";
 import { API_PREFIX } from "@/lib/apiBase";
@@ -255,8 +254,6 @@ function dateToIsoOrNull(value: string | null | undefined): string | null {
 }
 
 const CaseloadPage = () => {
-  usePageHeader("Caseload Inventory", "Resident cases & reintegration");
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cases, setCases] = useState<ResidentCase[]>([]);
@@ -531,9 +528,6 @@ const CaseloadPage = () => {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        tone="quiet"
-        eyebrow="Case management"
-        eyebrowIcon={<ClipboardList className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
         title="Caseload Inventory"
         description="Manage resident cases, track progress, and support reintegration."
         actions={
