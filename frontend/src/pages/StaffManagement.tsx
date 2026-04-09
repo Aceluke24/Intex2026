@@ -1,10 +1,21 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { AlertCircle, CheckCircle, Mail, Search, Shield, Users, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Mail, Search, Shield, Users, Loader2, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -19,10 +30,15 @@ interface UpdateRolesResponse {
   roles?: string[];
 }
 
+interface DeleteUserResponse {
+  message?: string;
+}
+
 type Status = "idle" | "loading" | "success" | "error";
 
 export const StaffManagement = () => {
   usePageHeader("Staff & Users", "Manage user roles and permissions");
+  const { user: currentUser } = useAuth();
 
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -32,6 +48,8 @@ export const StaffManagement = () => {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<User | null>(null);
 
   // Fetch all users on mount
   useEffect(() => {
@@ -103,6 +121,38 @@ export const StaffManagement = () => {
       );
     } finally {
       setUpdatingUserId(null);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser: User) => {
+    if (targetUser.id === currentUser?.id) {
+      setStatus("error");
+      setMessage("You cannot delete your own account.");
+      return;
+    }
+
+    setDeletingUserId(targetUser.id);
+
+    try {
+      const response = await apiFetchJson<DeleteUserResponse>(
+        `${API_PREFIX}/auth/admin/delete-user`,
+        {
+          method: "POST",
+          body: JSON.stringify({ userId: targetUser.id }),
+        }
+      );
+
+      setUsers((prevUsers) => prevUsers.filter((u) => u.id !== targetUser.id));
+      setStatus("success");
+      setMessage(response.message || `Deleted user ${targetUser.email}.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(
+        error instanceof Error ? error.message : "An error occurred while deleting user."
+      );
+    } finally {
+      setDeletingUserId(null);
+      setPendingDeleteUser(null);
     }
   };
 
@@ -281,7 +331,7 @@ export const StaffManagement = () => {
                         <div className="flex gap-2">
                           <Button
                             onClick={() => handleToggleRole(user.id, "Admin")}
-                            disabled={updatingUserId === user.id}
+                            disabled={updatingUserId === user.id || deletingUserId === user.id}
                             variant={user.roles.includes("Admin") ? "default" : "outline"}
                             size="sm"
                             className={
@@ -298,7 +348,7 @@ export const StaffManagement = () => {
                           </Button>
                           <Button
                             onClick={() => handleToggleRole(user.id, "Donor")}
-                            disabled={updatingUserId === user.id}
+                            disabled={updatingUserId === user.id || deletingUserId === user.id}
                             variant={user.roles.includes("Donor") ? "default" : "outline"}
                             size="sm"
                             className={
@@ -311,6 +361,19 @@ export const StaffManagement = () => {
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Users className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => setPendingDeleteUser(user)}
+                            disabled={updatingUserId === user.id || deletingUserId === user.id || user.id === currentUser?.id}
+                            variant="destructive"
+                            size="sm"
+                            aria-label={`Remove ${user.email}`}
+                          >
+                            {deletingUserId === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
                             )}
                           </Button>
                         </div>
@@ -331,9 +394,37 @@ export const StaffManagement = () => {
             <li>• Click on "Admins" or "Donors" tabs to filter by role</li>
             <li>• Click the shield icon to toggle Admin role on/off</li>
             <li>• Click the users icon to toggle Donor role on/off</li>
+            <li>• Click the trash icon to remove a user profile</li>
             <li>• Users can have multiple roles simultaneously</li>
           </ul>
         </div>
+
+        <AlertDialog open={pendingDeleteUser !== null} onOpenChange={(open) => !open && setPendingDeleteUser(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove user profile?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteUser
+                  ? `This will permanently delete ${pendingDeleteUser.email}. This action cannot be undone.`
+                  : "This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingUserId !== null}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!pendingDeleteUser || deletingUserId !== null}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!pendingDeleteUser) return;
+                  void handleDeleteUser(pendingDeleteUser);
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deletingUserId !== null ? "Removing..." : "Remove"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );

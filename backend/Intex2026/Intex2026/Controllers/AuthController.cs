@@ -15,6 +15,7 @@ public record MfaCodeRequest(string Code);
 public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
 public record AssignRoleRequest(string Email);
 public record UpdateUserRolesRequest(string UserId, string[] Roles);
+public record DeleteUserRequest(string UserId);
 
 [ApiController]
 [Route("api/auth")]
@@ -478,6 +479,28 @@ public class AuthController(
         }
 
         return Ok(new { message = $"Roles updated for {user.Email}.", roles = desiredRoles });
+    }
+
+    [HttpPost("admin/delete-user")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteUser([FromBody] DeleteUserRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.UserId))
+            return BadRequest(new { message = "User ID is required." });
+
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.Equals(currentUserId, req.UserId, StringComparison.Ordinal))
+            return BadRequest(new { message = "You cannot delete your own account." });
+
+        var user = await userManager.FindByIdAsync(req.UserId);
+        if (user is null)
+            return NotFound(new { message = "User not found." });
+
+        var deleteResult = await userManager.DeleteAsync(user);
+        if (!deleteResult.Succeeded)
+            return BadRequest(new { message = "Failed to delete user: " + string.Join("; ", deleteResult.Errors.Select(e => e.Description)) });
+
+        return Ok(new { message = $"Deleted user {user.Email}." });
     }
 
     private bool IsGoogleConfigured()
