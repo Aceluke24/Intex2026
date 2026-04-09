@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { formatUSD } from "@/lib/currency";
 
 const PROGRAM_AREAS = ["Education", "Wellbeing", "Operations", "Transport", "Maintenance", "Outreach", "General"];
 const CATEGORIES = ["Rent", "Food", "Salaries", "Medical", "Utilities", "Supplies", "Transport", "Other"];
@@ -45,9 +46,6 @@ const emptyForm = (): ExpenseForm => ({
   description: "",
   recordedBy: "",
 });
-
-const PHP = (n: number) =>
-  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ExpensesPage() {
   usePageHeader("Expenses", "Record & review organizational spending");
@@ -202,7 +200,7 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{expenses.length} record{expenses.length !== 1 ? "s" : ""}</span>
             <span>·</span>
-            <span className="font-semibold text-foreground">{PHP(total)} total</span>
+            <span className="font-semibold text-foreground">{formatUSD(total)} total</span>
           </div>
         )}
 
@@ -237,7 +235,7 @@ export default function ExpensesPage() {
                       <td className="px-4 py-3 font-medium text-foreground">{e.category}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.programArea}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.safehouseName ?? "Org-wide"}</td>
-                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{PHP(e.amount)}</td>
+                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{formatUSD(e.amount)}</td>
                       <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{e.description ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.recordedBy ?? "—"}</td>
                       <td className="px-4 py-3">
@@ -262,7 +260,7 @@ export default function ExpensesPage() {
                 <tfoot className="bg-muted/30 border-t border-border">
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</td>
-                    <td className="px-4 py-3 font-bold text-foreground">{PHP(total)}</td>
+                    <td className="px-4 py-3 font-bold text-foreground">{formatUSD(total)}</td>
                     <td colSpan={3} />
                   </tr>
                 </tfoot>
@@ -303,7 +301,7 @@ export default function ExpensesPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">Amount (₱)</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Amount (USD)</label>
                 <input
                   type="number"
                   step="0.01"

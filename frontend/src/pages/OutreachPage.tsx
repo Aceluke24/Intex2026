@@ -17,6 +17,7 @@ import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
 
 const softTooltip = {
   contentStyle: {
@@ -99,9 +100,6 @@ function KpiCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; l
   );
 }
 
-const PHP = (n: number) =>
-  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-
 const PLATFORM_COLORS: Record<string, string> = {
   Facebook: "#1877f2",
   Instagram: "#e1306c",
@@ -170,7 +168,7 @@ export default function OutreachPage() {
               <KpiCard
                 icon={Gift}
                 label="Est. Donation Value"
-                value={PHP(data.kpis.estimatedDonationValueThisMonth)}
+                value={formatUSD(data.kpis.estimatedDonationValueThisMonth)}
                 sub="this month"
               />
             </motion.div>
@@ -187,7 +185,7 @@ export default function OutreachPage() {
                 <BarChart data={data.byPlatform}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
                   <XAxis dataKey="platform" tick={{ fontSize: 10 }} />
-                  <YAxis yAxisId="reach" orientation="left" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+                  <YAxis yAxisId="reach" orientation="left" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
                   <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v * 100).toFixed(1)}%`} />
                   <Tooltip {...softTooltip} formatter={(v: number, name: string) =>
                     name === "avgEngagementRate" ? `${(v * 100).toFixed(2)}%` : v.toLocaleString()
@@ -206,11 +204,11 @@ export default function OutreachPage() {
                 <BarChart data={data.byPostType}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
                   <XAxis dataKey="postType" tick={{ fontSize: 9 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip {...softTooltip} formatter={(v: number) => v.toLocaleString()} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
+                  <Tooltip {...softTooltip} formatter={(v: number, name: string) => (name === "estimatedDonationValue" ? formatUSD(v) : v.toLocaleString())} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="totalReach" name="Total Reach" fill="#c8877a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="estimatedDonationValue" name="Est. Donation ₱" fill="#d4a5a0" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="estimatedDonationValue" name="Est. Donation $" fill="#d4a5a0" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </section>
@@ -280,7 +278,7 @@ export default function OutreachPage() {
                         <td className="px-4 py-3 text-muted-foreground">{p.likes.toLocaleString()}</td>
                         <td className="px-4 py-3 text-muted-foreground">{(p.engagementRate * 100).toFixed(2)}%</td>
                         <td className="px-4 py-3 text-muted-foreground">{p.donationReferrals}</td>
-                        <td className="px-4 py-3 font-medium text-foreground">{PHP(p.estimatedDonationValuePhp)}</td>
+                        <td className="px-4 py-3 font-medium text-foreground">{formatUSD(p.estimatedDonationValuePhp)}</td>
                         <td className="px-4 py-3">
                           {p.postUrl ? (
                             <a href={p.postUrl} target="_blank" rel="noreferrer" className="text-sidebar-primary hover:underline">

@@ -102,7 +102,7 @@ public class DonationsController : ControllerBase
             DonationType = donationType,
             DonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
             ChannelSource = "Direct",
-            CurrencyCode = donationType == "Monetary" ? "PHP" : null,
+            CurrencyCode = donationType == "Monetary" ? "USD" : null,
             Amount = donationType == "Monetary" ? req.Amount : null,
             EstimatedValue = req.EstimatedValue,
             ImpactUnit = donationType != "Monetary" ? req.ImpactUnit ?? "hours" : null,

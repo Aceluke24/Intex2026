@@ -26,6 +26,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
 
 const softTooltip = {
   contentStyle: {
@@ -121,14 +122,11 @@ function GoalBar({ goal, label }: { goal: NonNullable<GoalInfo>; label: string }
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-muted-foreground">
-        ₱{goal.currentValue.toLocaleString()} / ₱{goal.targetValue.toLocaleString()} · {goal.periodStart} → {goal.periodEnd}
+        {formatUSD(goal.currentValue, 0)} / {formatUSD(goal.targetValue, 0)} · {goal.periodStart} → {goal.periodEnd}
       </p>
     </div>
   );
 }
-
-const PHP = (n: number) =>
-  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 const PERIOD_LABELS: Record<string, string> = { month: "This Month", quarter: "This Quarter", year: "This Year" };
 
@@ -173,13 +171,13 @@ export default function FinanceDashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              <KpiCard icon={DollarSign} label="Monetary Donations" value={PHP(data.kpis.monetaryThisMonth)} sub="this month" highlight="positive" />
-              <KpiCard icon={Package} label="In-Kind Value" value={PHP(data.kpis.inKindThisMonth)} sub="est. this month" />
-              <KpiCard icon={TrendingDown} label="Expenses" value={PHP(data.kpis.expensesThisMonth)} sub="this month" highlight={data.kpis.expensesThisMonth > 0 ? "negative" : "neutral"} />
+              <KpiCard icon={DollarSign} label="Monetary Donations" value={formatUSD(data.kpis.monetaryThisMonth)} sub="this month" highlight="positive" />
+              <KpiCard icon={Package} label="In-Kind Value" value={formatUSD(data.kpis.inKindThisMonth)} sub="est. this month" />
+              <KpiCard icon={TrendingDown} label="Expenses" value={formatUSD(data.kpis.expensesThisMonth)} sub="this month" highlight={data.kpis.expensesThisMonth > 0 ? "negative" : "neutral"} />
               <KpiCard
                 icon={data.kpis.netThisMonth >= 0 ? TrendingUp : TrendingDown}
                 label="Net Position"
-                value={PHP(data.kpis.netThisMonth)}
+                value={formatUSD(data.kpis.netThisMonth)}
                 sub="donations − expenses"
                 highlight={data.kpis.netThisMonth >= 0 ? "positive" : "negative"}
               />
@@ -204,8 +202,8 @@ export default function FinanceDashboardPage() {
               <BarChart data={data.incomeVsSpending}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `₱${(v / 1000).toFixed(0)}k`} />
-                <Tooltip {...softTooltip} formatter={(v: number) => PHP(v)} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
+                <Tooltip {...softTooltip} formatter={(v: number) => formatUSD(v)} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="income" name="Donations" fill="#c8877a" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="spending" name="Expenses" fill="#a09090" radius={[4, 4, 0, 0]} />
@@ -230,14 +228,14 @@ export default function FinanceDashboardPage() {
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number) => PHP(v)} />
+                    <Tooltip formatter={(v: number) => formatUSD(v)} />
                   </PieChart>
                   <div className="space-y-1.5 flex-1 min-w-0">
                     {data.byProgramArea.map((row, i) => (
                       <div key={row.programArea} className="flex items-center gap-2 text-xs">
                         <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                         <span className="text-muted-foreground truncate">{row.programArea}</span>
-                        <span className="ml-auto font-medium text-foreground">{PHP(row.total)}</span>
+                        <span className="ml-auto font-medium text-foreground">{formatUSD(row.total)}</span>
                       </div>
                     ))}
                   </div>
@@ -270,9 +268,9 @@ export default function FinanceDashboardPage() {
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.byCategory} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `₱${(v / 1000).toFixed(0)}k`} />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
                     <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={80} />
-                    <Tooltip formatter={(v: number) => PHP(v)} contentStyle={softTooltip.contentStyle} />
+                    <Tooltip formatter={(v: number) => formatUSD(v)} contentStyle={softTooltip.contentStyle} />
                     <Bar dataKey="total" fill="#a09090" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -304,7 +302,7 @@ export default function FinanceDashboardPage() {
                           {d.status ?? "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-foreground">{PHP(d.totalMonetary)}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{formatUSD(d.totalMonetary)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{d.lastDonation}</td>
                     </tr>
                   ))}

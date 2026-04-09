@@ -5,6 +5,7 @@ import { PublicLayout } from "@/components/PublicLayout";
 import { ExternalLink, Heart, Calendar, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { formatUSD } from "@/lib/currency";
 
 interface Donation {
   donationId: number;
@@ -56,7 +57,7 @@ export default function DonorPortal() {
 
   const formatValue = (d: Donation) => {
     if (d.donationType === "Monetary" && d.amount != null)
-      return `₱${d.amount.toLocaleString()}`;
+      return formatUSD(d.amount);
     if (d.estimatedValue != null && d.impactUnit)
       return `${d.estimatedValue.toLocaleString()} ${d.impactUnit}`;
     return "—";
@@ -83,7 +84,7 @@ export default function DonorPortal() {
               <span className="font-body text-xs text-muted-foreground uppercase tracking-wider">Total Donated</span>
             </div>
             <p className="font-display text-2xl font-bold text-foreground">
-              {lifetimeGiving > 0 ? `₱${lifetimeGiving.toLocaleString()}` : "₱0"}
+              {lifetimeGiving > 0 ? formatUSD(lifetimeGiving) : formatUSD(0)}
             </p>
           </div>
           <div className="rounded-2xl bg-card border border-border/50 p-5">

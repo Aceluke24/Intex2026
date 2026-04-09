@@ -664,7 +664,7 @@ const DonorsPage = () => {
           };
           if (kind === "monetary") {
             body.amount = parseFloat(amount) || 0;
-            body.currencyCode = "PHP";
+            body.currencyCode = "USD";
           } else if (kind === "volunteer") {
             body.estimatedValue = parseFloat(hours) || null;
             body.impactUnit = "hours";
