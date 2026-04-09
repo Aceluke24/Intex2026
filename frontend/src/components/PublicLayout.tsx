@@ -44,7 +44,7 @@ export const PublicLayout = ({
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
+      setScrolled(window.scrollY > 20);
     };
     handleScroll();
     window.addEventListener("scroll", handleScroll);
@@ -63,26 +63,40 @@ export const PublicLayout = ({
     ...(isDonor && !isAdmin ? [{ label: "My Donations", path: "/donor" }] : []),
   ];
 
-  const iconBtnClass = "rounded-full p-2 text-white/75 hover:text-white/80 transition-colors duration-200";
+  const isHomeRoute = location.pathname === "/";
+  const isScrolledState = scrolled || !isHomeRoute;
+  const isTransparentState = isHomeRoute && !scrolled;
 
-  const headerBaseClass =
-    "fixed top-0 left-0 w-full z-50 transition-all duration-300 ease-in-out";
-  const headerTopClass = "bg-transparent";
+  const headerBaseClass = "fixed top-0 left-0 w-full z-50 transition-all duration-300 ease-in-out";
+  const headerTransparentClass = "bg-transparent border-b border-transparent shadow-none";
   const headerScrolledClass =
-    "bg-gradient-to-r from-[#0B1E3A]/80 to-[#0A1930]/90 backdrop-blur-md border-b border-white/10 shadow-sm dark:from-[#08172E]/85 dark:to-[#071427]/90";
+    "bg-[rgba(10,25,47,0.7)] bg-gradient-to-r from-[rgba(10,25,47,0.78)] to-[rgba(8,20,40,0.82)] backdrop-blur-[12px] border-b border-white/8 shadow-[0_8px_24px_rgba(2,6,23,0.22)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.38)]";
+  const headerClass = `${headerBaseClass} ${isTransparentState ? headerTransparentClass : headerScrolledClass}`;
+
+  const navDefaultTextClass = isTransparentState ? "text-white/80" : "text-slate-700 dark:text-slate-200";
+  const navActiveTextClass = isTransparentState ? "text-white" : "text-slate-900 dark:text-white";
+  const navHoverTextClass = isTransparentState ? "hover:text-white" : "hover:text-slate-900 dark:hover:text-white";
+  const iconBtnClass = `rounded-full p-2 transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`;
 
   return (
     <div className="min-h-screen flex flex-col">
       <>
-        <header className={`${headerBaseClass} ${scrolled ? headerScrolledClass : headerTopClass}`}>
+        <header className={headerClass}>
           <div className="relative z-10 mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-5 px-6 lg:px-12">
             <Link
               to="/"
-              className="flex shrink-0 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+              className="flex shrink-0 items-center gap-3 rounded-md transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
               aria-label="North Star Sanctuary — Home"
             >
-              <img src="/logo.png" alt="" className="h-10 w-10 object-contain" decoding="async" />
-              <span className="hidden min-[380px]:block text-[17px] font-display font-semibold tracking-[0.5px] text-[#E6EDF3]">
+              <img
+                src="/logo.png"
+                alt=""
+                className={`h-10 w-10 object-contain transition-all duration-300 ease-in-out ${isScrolledState ? "scale-95 opacity-95" : "scale-100 opacity-100"}`}
+                decoding="async"
+              />
+              <span
+                className={`hidden min-[380px]:block text-[17px] font-display font-semibold tracking-[0.5px] transition-colors duration-300 ease-in-out ${isTransparentState ? "text-[#E6EDF3]" : "text-slate-900 dark:text-slate-100"}`}
+              >
                 North Star Sanctuary
               </span>
             </Link>
@@ -94,8 +108,8 @@ export const PublicLayout = ({
                   to={item.path}
                   className={`shrink-0 font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${
                     location.pathname === item.path
-                      ? "text-[#E6EDF3]"
-                      : "text-white/75 hover:text-white/80"
+                      ? navActiveTextClass
+                      : `${navDefaultTextClass} ${navHoverTextClass}`
                   }`}
                 >
                   {item.label}
@@ -109,14 +123,14 @@ export const PublicLayout = ({
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
-                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white/75 transition-colors duration-200 hover:text-white/80"
+                    className={`font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`}
                   >
                     Sign Out
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white/75 transition-colors duration-200 hover:text-white/80"
+                    className={`font-body text-[14px] font-medium tracking-[0.2px] transition-colors duration-200 ${navDefaultTextClass} ${navHoverTextClass}`}
                   >
                     Sign In
                   </Link>
