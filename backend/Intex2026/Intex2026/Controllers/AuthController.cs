@@ -462,16 +462,12 @@ public class AuthController(
     private async Task<ApplicationUser?> FindUserByEmailAsync(string email)
     {
         var normalizedEmail = NormalizeEmail(email);
-        return await userManager.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+        return await userManager.FindByEmailAsync(normalizedEmail);
     }
 
     private async Task<ApplicationUser?> FindUserByIdAsync(string userId)
     {
-        return await userManager.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        return await userManager.FindByIdAsync(userId);
     }
 
     private async Task<string[]> GetRolesForUserAsync(string userId)
