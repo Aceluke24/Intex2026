@@ -14,6 +14,11 @@ interface User {
   mfaEnabled: boolean;
 }
 
+interface UpdateRolesResponse {
+  message?: string;
+  roles?: string[];
+}
+
 type Status = "idle" | "loading" | "success" | "error";
 
 export const StaffManagement = () => {
@@ -32,13 +37,8 @@ export const StaffManagement = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await apiFetchJson(`${API_PREFIX}/api/auth/admin/users`);
-        if (response.ok) {
-          setUsers(response.data || []);
-        } else {
-          setStatus("error");
-          setMessage("Failed to load users.");
-        }
+        const response = await apiFetchJson<User[]>(`${API_PREFIX}/auth/admin/users`);
+        setUsers(response || []);
       } catch (error) {
         setStatus("error");
         setMessage(
@@ -80,27 +80,22 @@ export const StaffManagement = () => {
     setUpdatingUserId(userId);
 
     try {
-      const response = await apiFetchJson(
-        `${API_PREFIX}/api/auth/admin/update-user-roles`,
+      const response = await apiFetchJson<UpdateRolesResponse>(
+        `${API_PREFIX}/auth/admin/update-user-roles`,
         {
           method: "POST",
           body: JSON.stringify({ userId, roles: newRoles }),
         }
       );
 
-      if (response.ok) {
-        // Update local state
-        setUsers((prevUsers) =>
-          prevUsers.map((u) =>
-            u.id === userId ? { ...u, roles: newRoles.sort() } : u
-          )
-        );
-        setStatus("success");
-        setMessage(`Roles updated for ${user.email}.`);
-      } else {
-        setStatus("error");
-        setMessage(response.data?.message || "Failed to update roles.");
-      }
+      // Update local state after successful API call.
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === userId ? { ...u, roles: newRoles.sort() } : u
+        )
+      );
+      setStatus("success");
+      setMessage(response.message || `Roles updated for ${user.email}.`);
     } catch (error) {
       setStatus("error");
       setMessage(
