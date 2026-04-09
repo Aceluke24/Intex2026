@@ -73,6 +73,7 @@ const InsightsPage = () => {
   const [donorScoreSource, setDonorScoreSource] = useState<"ml" | "rule-based">("rule-based");
   const [donorModelVersion, setDonorModelVersion] = useState<string | null>(null);
   const [donorScoredAt, setDonorScoredAt] = useState<string | null>(null);
+  const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,10 +158,43 @@ const InsightsPage = () => {
   }, [churn, donorScoreSource, residentRisk, loading]);
 
   const topAtRiskDonors = useMemo(() => {
-    return [...churn]
-      .sort((a, b) => b.churnRisk - a.churnRisk)
+    let filtered = [...churn];
+
+    if (donorViewMode === "at-risk") {
+      // Show high churn risk donors (churnRisk > 0.5 or Critical/High categories)
+      filtered = filtered.filter((d) => d.churnRisk > 0.5 || d.riskCategory === "Critical" || d.riskCategory === "High");
+    } else if (donorViewMode === "loyal") {
+      // Show loyal donors (repeat probability > 0.7)
+      filtered = filtered.filter((d) => {
+        const repeatProb = typeof d.repeatProbability180d === "number" ? d.repeatProbability180d : Math.max(0, 1 - d.churnRisk);
+        return repeatProb > 0.7;
+      });
+    } else if (donorViewMode === "recoverable") {
+      // Show high-risk donors with low but non-zero repeat probability (recovery candidates)
+      filtered = filtered.filter((d) => {
+        const repeatProb = typeof d.repeatProbability180d === "number" ? d.repeatProbability180d : Math.max(0, 1 - d.churnRisk);
+        return (d.churnRisk > 0.5 || d.riskCategory === "Critical" || d.riskCategory === "High") && repeatProb > 0 && repeatProb <= 0.4;
+      });
+    }
+
+    return filtered
+      .sort((a, b) => {
+        if (donorViewMode === "at-risk") {
+          return b.churnRisk - a.churnRisk;
+        } else if (donorViewMode === "recoverable") {
+          // For recoverable, sort by repeat probability (ascending, so lowest recovery potential first for prioritization)
+          const aRepeat = typeof a.repeatProbability180d === "number" ? a.repeatProbability180d : Math.max(0, 1 - a.churnRisk);
+          const bRepeat = typeof b.repeatProbability180d === "number" ? b.repeatProbability180d : Math.max(0, 1 - b.churnRisk);
+          return aRepeat - bRepeat;
+        } else {
+          // For loyal, sort by repeat probability descending
+          const aRepeat = typeof a.repeatProbability180d === "number" ? a.repeatProbability180d : Math.max(0, 1 - a.churnRisk);
+          const bRepeat = typeof b.repeatProbability180d === "number" ? b.repeatProbability180d : Math.max(0, 1 - b.churnRisk);
+          return bRepeat - aRepeat;
+        }
+      })
       .slice(0, 10);
-  }, [churn]);
+  }, [churn, donorViewMode]);
 
   const avgRepeatProbability = useMemo(() => {
     const values = churn
@@ -217,28 +251,22 @@ const InsightsPage = () => {
             <motion.section
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
+              className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
               aria-labelledby="top-risk-donors-heading"
             >
-              <DashboardGlassPanel>
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2
-                      id="top-risk-donors-heading"
-                      className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-                    >
-                      Top at-risk donors
-                    </h2>
-                    <p className="mt-2 font-body text-sm text-muted-foreground">
-                      Ranked by predicted churn risk
-                      {avgRepeatProbability !== null
-                        ? ` • Avg repeat probability: ${(avgRepeatProbability * 100).toFixed(0)}%`
-                        : ""}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-white/50 bg-white/55 px-3 py-1 font-body text-xs text-foreground/80 dark:border-white/10 dark:bg-white/10">
-                    {donorScoreSource === "ml" ? "ML ranked" : "Rule-based ranked"}
-                  </span>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 id="top-risk-donors-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
+                    Top At-Risk Donors
+                  </h2>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Ranked by predicted churn risk{avgRepeatProbability !== null ? ` • Avg repeat probability: ${(avgRepeatProbability * 100).toFixed(0)}%` : ""}
+                  </p>
                 </div>
+                <span className="rounded-full border border-[hsl(340_26%_78%)] bg-[hsl(340_32%_94%)] px-3 py-1 font-body text-xs text-[hsl(340_35%_38%)]">
+                  {donorScoreSource === "ml" ? "ML ranked" : "Rule-based ranked"}
+                </span>
+              </div>
 
                 <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
                   <table className="w-full min-w-[780px] text-left">
@@ -259,47 +287,42 @@ const InsightsPage = () => {
                             ? d.repeatProbability180d
                             : Math.max(0, 1 - d.churnRisk);
 
-                        return (
-                          <tr key={d.supporterId} className={dashboardTableRowClass}>
-                            <td className={dashboardTableCellClass}>
-                              <p className="font-medium text-foreground">{d.displayName || `Supporter #${d.supporterId}`}</p>
-                              <p className="font-body text-xs text-muted-foreground">{d.supporterType ?? "Supporter"}</p>
-                            </td>
-                            <td className={dashboardTableCellClass}>
-                              <span
-                                className={[
-                                  "inline-flex rounded-full px-2 py-0.5 font-body text-xs font-medium",
-                                  category === "Critical" ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" : "",
-                                  category === "High" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "",
-                                  category === "Medium" ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "",
-                                  category === "Low" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "",
-                                ].join(" ")}
-                              >
-                                {category}
-                              </span>
-                            </td>
-                            <td className={dashboardTableCellClass}>{(d.churnRisk * 100).toFixed(0)}%</td>
-                            <td className={dashboardTableCellClass}>{(repeatProbability * 100).toFixed(0)}%</td>
-                            <td className={`${dashboardTableCellClass} text-muted-foreground`}>
-                              {d.lastDonationDate ? new Date(d.lastDonationDate).toLocaleDateString() : "—"}
-                            </td>
-                            <td className={dashboardTableCellClass}>
-                              {actionByRiskCategory[category] ?? "Review donor profile"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {!topAtRiskDonors.length ? (
-                        <tr>
-                          <td className={`${dashboardTableCellClass} text-muted-foreground`} colSpan={6}>
-                            No donor risk rows available.
+                      return (
+                        <tr key={d.supporterId} className="border-b border-[hsl(350,16%,94%)]/80 font-body text-sm text-foreground/90">
+                          <td className="px-2 py-2">
+                            <p className="font-medium text-foreground">{d.displayName || `Supporter #${d.supporterId}`}</p>
+                            <p className="text-xs text-muted-foreground">{d.supporterType ?? "Supporter"}</p>
                           </td>
+                          <td className="px-2 py-2">
+                            <span
+                              className={[
+                                "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                                category === "Critical" ? "bg-rose-100 text-rose-700" : "",
+                                category === "High" ? "bg-amber-100 text-amber-700" : "",
+                                category === "Medium" ? "bg-sky-100 text-sky-700" : "",
+                                category === "Low" ? "bg-emerald-100 text-emerald-700" : "",
+                              ].join(" ")}
+                            >
+                              {category}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2">{(d.churnRisk * 100).toFixed(0)}%</td>
+                          <td className="px-2 py-2">{(repeatProbability * 100).toFixed(0)}%</td>
+                          <td className="px-2 py-2">{d.lastDonationDate ? new Date(d.lastDonationDate).toLocaleDateString() : "—"}</td>
+                          <td className="px-2 py-2">{actionByRiskCategory[category] ?? "Review donor profile"}</td>
                         </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              </DashboardGlassPanel>
+                      );
+                    })}
+                    {!topAtRiskDonors.length && (
+                      <tr>
+                        <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={6}>
+                          No donor risk rows available.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </motion.section>
           </div>
         )}
