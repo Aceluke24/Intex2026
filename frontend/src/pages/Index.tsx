@@ -5,7 +5,7 @@ import { AnimatedCount } from "@/components/AnimatedCount";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { Home, HeartPulse, HandHeart, Heart } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { fetchPublicHomeStats, type PublicHomeStats } from "@/lib/publicImpact";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -34,6 +34,7 @@ const fromFieldFallback = [
 ] as const;
 
 const Index = () => {
+  const navigate = useNavigate();
   const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -89,11 +90,20 @@ const Index = () => {
             Working in vulnerable regions across India where support systems are limited.
           </p>
           <div className="flex flex-wrap gap-4 mb-14">
-            <Button asChild className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 h-12 px-7 text-sm transition-all duration-300 ease-out hover:scale-[1.02]">
-              <Link to="/donate">Donate Now</Link>
+            <Button
+              type="button"
+              onClick={() => navigate("/donate")}
+              className="rounded-full bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 h-12 px-7 text-sm transition-all duration-300 ease-out hover:scale-[1.02]"
+            >
+              Donate Now
             </Button>
-            <Button asChild variant="secondary" className="rounded-full bg-navy-foreground/12 text-navy-foreground hover:bg-navy-foreground/18 h-12 px-7 text-sm transition-all duration-300 ease-out hover:scale-[1.02]">
-              <Link to="/impact">See Our Impact</Link>
+            <Button
+              type="button"
+              onClick={() => navigate("/impact")}
+              variant="secondary"
+              className="rounded-full bg-navy-foreground/12 text-navy-foreground hover:bg-navy-foreground/18 h-12 px-7 text-sm transition-all duration-300 ease-out hover:scale-[1.02]"
+            >
+              See Our Impact
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
