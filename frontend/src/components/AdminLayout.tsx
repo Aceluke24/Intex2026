@@ -41,7 +41,13 @@ const navGroups = [
       { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
       { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
       { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
-      { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { label: "Reports", path: "/dashboard/reports", icon: BarChart3 },
+      { label: "ML Pipelines", path: "/dashboard/analytics/pipelines", icon: LayoutDashboard },
     ],
   },
   {

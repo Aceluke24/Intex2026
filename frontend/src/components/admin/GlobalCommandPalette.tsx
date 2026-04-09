@@ -27,7 +27,8 @@ const nav = [
   { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText, keywords: "sessions therapy notes" },
   { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin, keywords: "home visits field" },
   { label: "Donors & Contributions", path: "/dashboard/donors", icon: Heart, keywords: "crm supporters" },
-  { label: "Reports & Analytics", path: "/dashboard/reports", icon: BarChart3, keywords: "export data" },
+  { label: "Reports", path: "/dashboard/reports", icon: BarChart3, keywords: "analytics export data" },
+  { label: "ML Pipelines", path: "/dashboard/analytics/pipelines", icon: LayoutDashboard, keywords: "ml model scoring insights" },
 ];
 
 const actions = [
