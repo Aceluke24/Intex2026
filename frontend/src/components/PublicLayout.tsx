@@ -73,9 +73,9 @@ export const PublicLayout = ({
   const isTransparentState = isHomeRoute && !scrolled;
 
   const headerBaseClass = "fixed top-0 left-0 w-full z-50 transition-all duration-300 ease-in-out";
-  const headerTransparentClass = "bg-transparent border-b border-transparent shadow-none";
+  const headerTransparentClass = "bg-transparent border-b-0 shadow-none";
   const headerScrolledClass =
-    "bg-[rgba(10,25,47,0.7)] bg-gradient-to-r from-[rgba(10,25,47,0.78)] to-[rgba(8,20,40,0.82)] backdrop-blur-[12px] border-b border-white/8 shadow-[0_8px_24px_rgba(2,6,23,0.22)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.38)]";
+    "bg-[rgba(10,25,47,0.7)] bg-gradient-to-r from-[rgba(10,25,47,0.78)] to-[rgba(8,20,40,0.82)] backdrop-blur-[12px] shadow-[0_8px_24px_rgba(2,6,23,0.22),inset_0_-1px_0_0_rgba(255,255,255,0.08)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.38),inset_0_-1px_0_0_rgba(255,255,255,0.06)]";
   const headerClass = `${headerBaseClass} ${isTransparentState ? headerTransparentClass : headerScrolledClass}`;
 
   const navDefaultTextClass = "text-white";
@@ -87,7 +87,7 @@ export const PublicLayout = ({
     <div className="min-h-screen flex flex-col">
       <>
         <header className={`${headerClass} text-white`}>
-          <div className="relative z-10 mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between gap-5 px-6 lg:px-12">
+          <div className="relative z-10 mx-auto flex h-[var(--public-header-height)] w-full max-w-7xl items-center justify-between gap-5 px-6 lg:px-12">
             <Link
               to="/"
               className="flex shrink-0 items-center gap-3 rounded-md transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
@@ -186,7 +186,7 @@ export const PublicLayout = ({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed left-0 right-0 top-[72px] z-40 max-h-[min(70vh,calc(100dvh-72px))] overflow-y-auto border-b border-white/10 bg-[rgba(10,25,47,0.95)] backdrop-blur-[10px] md:hidden"
+              className="fixed left-0 right-0 top-[var(--public-header-height)] z-40 max-h-[min(70vh,calc(100dvh-var(--public-header-height)))] overflow-y-auto border-b border-white/10 bg-[rgba(10,25,47,0.95)] backdrop-blur-[10px] md:hidden"
             >
               <div className="space-y-1 px-6 py-6">
                 {navItems.map((item) => (
@@ -247,7 +247,11 @@ export const PublicLayout = ({
         </AnimatePresence>
       </>
 
-      <main className={`flex-1 ${overlayHeader ? "pt-0" : "pt-[88px]"}`}>{children}</main>
+      <main
+        className={`flex-1 min-h-0 ${overlayHeader ? "pt-0" : "pt-[var(--public-header-height)]"}`}
+      >
+        {children}
+      </main>
 
       {/* Footer — minimal, editorial */}
       <footer className="gradient-navy-deep text-navy-foreground">

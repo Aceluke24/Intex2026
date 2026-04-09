@@ -6,6 +6,9 @@
 
 @layer base {
   :root {
+    /* Public site fixed nav — keep in sync with PublicLayout header row height */
+    --public-header-height: 4.5rem;
+
     /* Cream-first palette — warm, human, editorial */
     --background: 36 33% 94%;
     --foreground: 213 65% 14%;
@@ -121,11 +124,21 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    margin: 0;
+    padding: 0;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  /* Avoid stray margin-collapse gaps below fixed headers */
+  main > *:first-child {
+    margin-top: 0;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Playfair Display', serif;
