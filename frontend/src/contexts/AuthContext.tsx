@@ -15,7 +15,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<User | null>;
   isAdmin: boolean;
   isDonor: boolean;
   isAuthenticated: boolean;
@@ -27,17 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchMe = async () => {
+  const fetchMe = async (): Promise<User | null> => {
     try {
       const res = await fetch(apiUrl(`${API_PREFIX}/auth/me`), { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setUser(data);
+        return data;
       } else {
         setUser(null);
+        return null;
       }
     } catch {
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }

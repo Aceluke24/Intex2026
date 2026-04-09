@@ -51,18 +51,13 @@ public class DonationsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetDonationPurposes()
     {
-        var rawNotes = await _db.Donations
+        var purposes = await _db.Donations
             .AsNoTracking()
-            .Select(d => d.Notes)
+            .Where(d => d.Notes != null && d.Notes.Trim() != "")
+            .Select(d => d.Notes!.Trim())
+            .Distinct()
+            .OrderBy(n => n)
             .ToListAsync();
-
-        var purposes = rawNotes
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n!.Trim())
-            .Where(n => n.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
         return Ok(purposes);
     }

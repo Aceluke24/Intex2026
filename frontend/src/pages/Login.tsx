@@ -56,9 +56,9 @@ const Login = () => {
         setRequiresMfa(true);
         return;
       }
-      await refetch();
+      const refreshedUser = await refetch();
       const redirect = getLoginRedirect();
-      const targetPath = resolvePostLoginPath(data.roles, redirect);
+      const targetPath = resolvePostLoginPath(data.roles ?? refreshedUser?.roles, redirect);
       clearLoginRedirect();
       navigate(safeRedirect ?? targetPath);
     } catch {

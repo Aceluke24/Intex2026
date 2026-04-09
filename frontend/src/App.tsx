@@ -33,6 +33,7 @@ import ExpensesPage from "./pages/ExpensesPage.tsx";
 import OutreachPage from "./pages/OutreachPage.tsx";
 import MfaSetup from "./pages/MfaSetup.tsx";
 import GoogleCallback from "./pages/GoogleCallback.tsx";
+import Unauthorized from "./pages/Unauthorized.tsx";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/donate" element={<DonatePage />} />
               <Route path="/mission" element={<Mission />} />
               <Route path="/get-involved" element={<GetInvolved />} />
+              <Route path="/unauthorized" element={<Unauthorized />} />
 
               {/* Google OAuth callback — public, handles its own redirect */}
               <Route path="/google-callback" element={<GoogleCallback />} />
