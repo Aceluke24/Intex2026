@@ -1,0 +1,26 @@
+{
+  "model_name": "donor_retention",
+  "trained_at": "2026-04-09T19:21:34.018219",
+  "horizon_days": 180,
+  "numeric_features": [
+    "donation_value",
+    "days_since_last_donation",
+    "prior_non_monetary_count",
+    "prior_donation_index",
+    "num_allocations",
+    "pct_donation_allocated",
+    "allocation_concentration",
+    "is_recurring"
+  ],
+  "categorical_features": [
+    "donation_type",
+    "channel_source",
+    "campaign_name",
+    "supporter_type",
+    "region",
+    "country",
+    "relationship_type",
+    "status",
+    "acquisition_channel"
+  ]
+}
