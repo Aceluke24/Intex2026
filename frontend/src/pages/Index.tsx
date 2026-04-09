@@ -220,9 +220,6 @@ const Index = () => {
                   </div>
                 ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            All figures come from the live database (public stats API). If the request fails, values show as &quot;--&quot;.
-          </p>
         </div>
       </section>
 
