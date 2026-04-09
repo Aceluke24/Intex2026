@@ -302,9 +302,24 @@ const CaseloadPage = () => {
     };
     const riskMap: Record<string, string> = { Standard: "Low", Elevated: "Medium", High: "High" };
 
+    const residentId = residentIdMap[c.id];
     const safehouse = safehouseList.find((sh) => sh.name === c.safehouse);
     const safehouseId = safehouse?.safehouseId ?? safehouseList[0]?.safehouseId ?? 1;
-    const dob = new Date(new Date().getFullYear() - (c.age || 18), 0, 1).toISOString().slice(0, 10);
+    const fallbackDob = new Date(new Date().getFullYear() - (c.age || 18), 0, 1).toISOString().slice(0, 10);
+    let dateOfBirth = fallbackDob;
+
+    // Preserve existing DOB on updates to avoid overriding with synthetic age-derived values.
+    if (residentId) {
+      try {
+        const existing = await apiFetchJson<{ dateOfBirth?: string }>(`${API_PREFIX}/residents/${residentId}`);
+        if (existing?.dateOfBirth) {
+          dateOfBirth = String(existing.dateOfBirth).slice(0, 10);
+        }
+      } catch {
+        // Keep fallback DOB if resident detail cannot be loaded.
+      }
+    }
+
     const apiStatus = c.status === "Reintegration" ? "Active" : (c.status === "Pending" ? "Active" : c.status);
     const subFlags = mapSubcategoryFlags(c.category, c.subcategory ?? "");
     const normalizedSex = c.gender?.toLowerCase().startsWith("m") ? "M" : "F";
@@ -313,7 +328,7 @@ const CaseloadPage = () => {
       safehouseId,
       caseStatus: apiStatus,
       sex: normalizedSex,
-      dateOfBirth: dob,
+      dateOfBirth,
       birthStatus: c.birthStatus,
       religion: c.religion,
       caseCategory: categoryMap[c.category] ?? "Neglected",
@@ -348,7 +363,6 @@ const CaseloadPage = () => {
       notesRestricted: c.caseNotes !== "—" ? c.caseNotes : null,
     };
 
-    const residentId = residentIdMap[c.id];
     try {
       const res = residentId
         ? await apiFetch(`${API_PREFIX}/residents/${residentId}`, {

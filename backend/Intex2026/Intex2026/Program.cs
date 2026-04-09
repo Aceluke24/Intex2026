@@ -235,7 +235,7 @@ var runIdentitySeedOnStartup =
 
 var applyMigrationsOnStartup =
     builder.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup") ??
-    app.Environment.IsDevelopment();
+    true;
 
 using (var scope = app.Services.CreateScope())
 {
@@ -347,6 +347,16 @@ using (var scope = app.Services.CreateScope())
                 """);
         }
 
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Startup migration/seeding failed");
+        throw;
+    }
+
+    try
+    {
+        // Keep analytics warm-up non-fatal so route registration and API availability are not blocked.
         var donorAnalytics = scope.ServiceProvider.GetRequiredService<IDonorAnalyticsService>();
         var residentAnalytics = scope.ServiceProvider.GetRequiredService<IResidentAnalyticsService>();
         var socialAnalytics = scope.ServiceProvider.GetRequiredService<ISocialAnalyticsService>();
@@ -356,14 +366,9 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogCritical(ex, "Startup migration/seeding failed");
-
-        // In production, fail fast so deployment health checks surface the root cause immediately
-        // instead of returning opaque runtime 500s from auth/data endpoints.
-        if (!app.Environment.IsDevelopment())
-        {
-            throw;
-        }
+        logger.LogError(ex,
+            "Startup analytics recalculation failed — analytics data may be stale until next recalculation. Error: {Message}",
+            ex.Message);
     }
 }
 

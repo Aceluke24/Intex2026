@@ -117,7 +117,7 @@ const DashboardPage = () => {
       setDonationActivity(data.donationActivity);
       setDonationInsight(data.donationInsight);
       setResidentsOverview(
-        data.residentsOverview.map((r) => ({
+        (data.residentsOverview ?? []).map((r) => ({
           id: r.id,
           safehouse: r.safehouse,
           status: r.status as ResidentRow["status"],
