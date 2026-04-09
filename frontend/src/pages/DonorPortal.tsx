@@ -86,9 +86,9 @@ export default function DonorPortal() {
           </div>
           <Link
             to="/mfa-setup"
-            className="flex items-center gap-2 text-sm font-body text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100 shrink-0"
           >
-            <ShieldCheck className="w-4 h-4 text-terracotta" />
+            <ShieldCheck className="w-4 h-4" />
             {user?.mfaEnabled ? "2FA Enabled" : "Enable 2FA"}
           </Link>
         </div>

@@ -123,13 +123,21 @@ export const PublicLayout = ({
             <div className="flex shrink-0 items-center gap-4">
               <div className="hidden items-center gap-4 md:flex">
                 {isAuthenticated ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="font-body text-[14px] font-medium tracking-[0.2px] text-white transition-colors duration-200 hover:text-gray-200"
-                  >
-                    Sign Out
-                  </button>
+                  <>
+                    <Link
+                      to="/mfa-setup"
+                      className="rounded-full border border-white/20 bg-white/10 px-[14px] py-[10px] font-body text-[14px] font-semibold tracking-[0.2px] text-white transition-all duration-200 ease-in-out hover:-translate-y-[1px] hover:bg-white/15"
+                    >
+                      2FA Setup
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleLogout()}
+                      className="font-body text-[14px] font-medium tracking-[0.2px] text-white transition-colors duration-200 hover:text-gray-200"
+                    >
+                      Sign Out
+                    </button>
+                  </>
                 ) : (
                   <Link
                     to="/login"
@@ -193,16 +201,25 @@ export const PublicLayout = ({
                 ))}
                 <div className="flex flex-col gap-2 pt-4">
                   {isAuthenticated ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileOpen(false);
-                        void handleLogout();
-                      }}
-                      className="w-full rounded-xl px-4 py-3 text-left font-body text-[14px] font-medium tracking-[0.2px] text-[rgba(230,237,243,0.75)] transition-colors duration-200 hover:bg-white/10 hover:text-[#E6EDF3]"
-                    >
-                      Sign Out
-                    </button>
+                    <>
+                      <Link
+                        to="/mfa-setup"
+                        onClick={() => setMobileOpen(false)}
+                        className="block rounded-xl px-4 py-3 font-body text-[14px] font-semibold tracking-[0.2px] text-[#E6EDF3] transition-colors duration-200 hover:bg-white/10"
+                      >
+                        2FA Setup
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileOpen(false);
+                          void handleLogout();
+                        }}
+                        className="w-full rounded-xl px-4 py-3 text-left font-body text-[14px] font-medium tracking-[0.2px] text-[rgba(230,237,243,0.75)] transition-colors duration-200 hover:bg-white/10 hover:text-[#E6EDF3]"
+                      >
+                        Sign Out
+                      </button>
+                    </>
                   ) : (
                     <Link
                       to="/login"

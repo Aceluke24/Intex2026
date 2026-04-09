@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { QRCodeSVG } from "react-qr-code";
+import QRCode from "react-qr-code";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,7 +134,7 @@ const MfaSetup = () => {
 
             <div className="flex justify-center">
               <div className="bg-white p-4 rounded-xl shadow-sm">
-                <QRCodeSVG value={setup.otpUri} size={200} />
+                <QRCode value={setup.otpUri} size={200} />
               </div>
             </div>
 

@@ -115,11 +115,11 @@ export const AdminLayout = ({
               </button>
               <Link
                 to="/mfa-setup"
-                className="flex items-center gap-1.5 text-sm text-gray-500 hover:underline dark:text-gray-400"
+                className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100"
                 title="Two-Factor Authentication"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span className="hidden sm:inline">2FA</span>
+                <span className="hidden sm:inline">2FA Setup</span>
               </Link>
               <button
                 onClick={() => void handleLogout()}
