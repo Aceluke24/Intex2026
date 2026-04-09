@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Identity;
@@ -19,7 +18,6 @@ public record RegisterDonorRequest(string Email, string Password, string Confirm
 public class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
-    AuthIdentityDbContext authDb,
     IConfiguration configuration,
     ILogger<AuthController> logger) : ControllerBase
 {
@@ -294,113 +292,30 @@ public class AuthController(
 
     private async Task<ApplicationUser?> FindUserByEmailAsync(string email)
     {
-        var conn = authDb.Database.GetDbConnection();
-        if (conn.State != ConnectionState.Open)
-        {
-            await conn.OpenAsync();
-        }
-
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-SELECT TOP 1 Id, UserName, Email, PasswordHash, SupporterId, DisplayName
-FROM AspNetUsers
-WHERE CAST(Email AS nvarchar(256)) = @email";
-
-        var p = cmd.CreateParameter();
-        p.ParameterName = "@email";
-        p.Value = email;
-        cmd.Parameters.Add(p);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
-        {
-            return null;
-        }
-
-        return MapUser(reader);
+        return await userManager.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email == email);
     }
 
     private async Task<ApplicationUser?> FindUserByIdAsync(string userId)
     {
-        var conn = authDb.Database.GetDbConnection();
-        if (conn.State != ConnectionState.Open)
-        {
-            await conn.OpenAsync();
-        }
-
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-SELECT TOP 1 Id, UserName, Email, PasswordHash, SupporterId, DisplayName
-FROM AspNetUsers
-WHERE CAST(Id AS nvarchar(450)) = @userId";
-
-        var p = cmd.CreateParameter();
-        p.ParameterName = "@userId";
-        p.Value = userId;
-        cmd.Parameters.Add(p);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
-        {
-            return null;
-        }
-
-        return MapUser(reader);
+        return await userManager.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId);
     }
 
     private async Task<string[]> GetRolesForUserAsync(string userId)
     {
-        var conn = authDb.Database.GetDbConnection();
-        if (conn.State != ConnectionState.Open)
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null)
         {
-            await conn.OpenAsync();
+            return [];
         }
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-SELECT CAST(r.Name AS nvarchar(256))
-FROM AspNetUserRoles ur
-INNER JOIN AspNetRoles r ON CAST(r.Id AS nvarchar(450)) = CAST(ur.RoleId AS nvarchar(450))
-WHERE CAST(ur.UserId AS nvarchar(450)) = @userId";
-
-        var p = cmd.CreateParameter();
-        p.ParameterName = "@userId";
-        p.Value = userId;
-        cmd.Parameters.Add(p);
-
-        var roles = new List<string>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            if (!reader.IsDBNull(0))
-            {
-                var role = reader.GetString(0);
-                if (!string.IsNullOrWhiteSpace(role))
-                {
-                    roles.Add(role);
-                }
-            }
-        }
-
-        return roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-    }
-
-    private static ApplicationUser MapUser(IDataRecord reader)
-    {
-        var user = new ApplicationUser
-        {
-            Id = reader["Id"]?.ToString() ?? string.Empty,
-            UserName = reader["UserName"] == DBNull.Value ? null : reader["UserName"]?.ToString(),
-            Email = reader["Email"] == DBNull.Value ? null : reader["Email"]?.ToString(),
-            PasswordHash = reader["PasswordHash"] == DBNull.Value ? null : reader["PasswordHash"]?.ToString(),
-            DisplayName = reader["DisplayName"] == DBNull.Value ? null : reader["DisplayName"]?.ToString()
-        };
-
-        if (reader["SupporterId"] != DBNull.Value && int.TryParse(reader["SupporterId"]?.ToString(), out var supporterId))
-        {
-            user.SupporterId = supporterId;
-        }
-
-        return user;
+        var roles = await userManager.GetRolesAsync(user);
+        return roles
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

@@ -24,16 +24,16 @@ public class OutreachController : ControllerBase
         var monthStart = new DateOnly(today.Year, today.Month, 1);
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
 
-        var query = _db.SocialMediaPosts.AsNoTracking().AsQueryable();
+        var posts = await LoadPostsAsync(ct);
 
         if (!string.IsNullOrWhiteSpace(platform))
-            query = query.Where(p => p.Platform == platform);
+            posts = posts.Where(p => p.Platform == platform).ToList();
         if (!string.IsNullOrWhiteSpace(postType))
-            query = query.Where(p => p.PostType == postType);
+            posts = posts.Where(p => p.PostType == postType).ToList();
         if (!string.IsNullOrWhiteSpace(campaign))
-            query = query.Where(p => p.CampaignName == campaign);
+            posts = posts.Where(p => p.CampaignName == campaign).ToList();
 
-        var posts = await query.OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
+        posts = posts.OrderByDescending(p => p.CreatedAt).ToList();
 
         // This-month filter (using CreatedAt date)
         var postsThisMonth = posts.Where(p =>
@@ -119,5 +119,73 @@ public class OutreachController : ControllerBase
             posts = postTable,
             filterOptions = new { platforms, postTypes, campaigns },
         });
+    }
+
+    private async Task<List<PostSnapshot>> LoadPostsAsync(CancellationToken ct)
+    {
+        if (_db.Database.IsSqlServer())
+        {
+            return await _db.Database.SqlQueryRaw<PostSnapshot>("""
+                SELECT
+                    p.PostId,
+                    p.Platform,
+                    p.PostType,
+                    p.MediaType,
+                    p.CreatedAt,
+                    p.Reach,
+                    p.Likes,
+                    p.Comments,
+                    p.Shares,
+                    p.EngagementRate,
+                    p.DonationReferrals,
+                    p.EstimatedDonationValuePhp,
+                    p.CampaignName,
+                    CAST(CASE WHEN ISNULL(p.IsBoosted, 0) = 0 THEN 0 ELSE 1 END AS bit) AS IsBoosted,
+                    p.PostUrl
+                FROM SocialMediaPosts p
+                """)
+                .ToListAsync(ct);
+        }
+
+        return await _db.SocialMediaPosts
+            .AsNoTracking()
+            .Select(p => new PostSnapshot
+            {
+                PostId = p.PostId,
+                Platform = p.Platform,
+                PostType = p.PostType,
+                MediaType = p.MediaType,
+                CreatedAt = p.CreatedAt,
+                Reach = p.Reach,
+                Likes = p.Likes,
+                Comments = p.Comments,
+                Shares = p.Shares,
+                EngagementRate = p.EngagementRate,
+                DonationReferrals = p.DonationReferrals,
+                EstimatedDonationValuePhp = p.EstimatedDonationValuePhp,
+                CampaignName = p.CampaignName,
+                IsBoosted = p.IsBoosted,
+                PostUrl = p.PostUrl,
+            })
+            .ToListAsync(ct);
+    }
+
+    private sealed class PostSnapshot
+    {
+        public int PostId { get; init; }
+        public string Platform { get; init; } = string.Empty;
+        public string PostType { get; init; } = string.Empty;
+        public string? MediaType { get; init; }
+        public DateTime CreatedAt { get; init; }
+        public int Reach { get; init; }
+        public int Likes { get; init; }
+        public int Comments { get; init; }
+        public int Shares { get; init; }
+        public decimal EngagementRate { get; init; }
+        public int DonationReferrals { get; init; }
+        public decimal EstimatedDonationValuePhp { get; init; }
+        public string? CampaignName { get; init; }
+        public bool IsBoosted { get; init; }
+        public string? PostUrl { get; init; }
     }
 }

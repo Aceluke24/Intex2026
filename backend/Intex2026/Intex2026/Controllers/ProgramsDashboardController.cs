@@ -25,9 +25,17 @@ public class ProgramsDashboardController : ControllerBase
         var residents = await _db.Residents.AsNoTracking().ToListAsync(ct);
         var recordings = await _db.ProcessRecordings.AsNoTracking().ToListAsync(ct);
         var visitations = await _db.HomeVisitations.AsNoTracking().ToListAsync(ct);
-        var incidents = await _db.IncidentReports.AsNoTracking().Include(i => i.Resident).Include(i => i.Safehouse).ToListAsync(ct);
+        var incidents = await LoadIncidentsAsync(ct);
         var safehouses = await _db.Safehouses.AsNoTracking().ToListAsync(ct);
-        var healthRecords = await _db.HealthWellbeingRecords.AsNoTracking().ToListAsync(ct);
+        var healthRecords = await _db.HealthWellbeingRecords
+            .AsNoTracking()
+            .Select(h => new HealthRecordSnapshot
+            {
+                ResidentId = h.ResidentId,
+                RecordDate = h.RecordDate,
+                GeneralHealthScore = h.GeneralHealthScore,
+            })
+            .ToListAsync(ct);
         var educationRecords = await _db.EducationRecords.AsNoTracking().ToListAsync(ct);
         var goals = await _db.OrganizationalGoals.AsNoTracking().Include(g => g.Safehouse).ToListAsync(ct);
 
@@ -152,8 +160,8 @@ public class ProgramsDashboardController : ControllerBase
             .Select(i => new
             {
                 i.IncidentId,
-                ResidentCode = i.Resident?.InternalCode ?? $"ID-{i.ResidentId}",
-                SafehouseName = i.Safehouse?.Name,
+                ResidentCode = i.ResidentCode ?? $"ID-{i.ResidentId}",
+                i.SafehouseName,
                 i.IncidentType,
                 i.Severity,
                 i.IncidentDate,
@@ -195,7 +203,7 @@ public class ProgramsDashboardController : ControllerBase
     }
 
     private static double ComputeGoalCurrent(OrganizationalGoal g, List<Resident> residents,
-        List<ProcessRecording> recordings, List<HomeVisitation> visitations, List<IncidentReport> incidents,
+        List<ProcessRecording> recordings, List<HomeVisitation> visitations, List<IncidentSnapshot> incidents,
         CancellationToken _)
     {
         return g.GoalCategory switch
@@ -232,5 +240,107 @@ public class ProgramsDashboardController : ControllerBase
             result.Add((label, start, end));
         }
         return result;
+    }
+
+    private async Task<List<IncidentSnapshot>> LoadIncidentsAsync(CancellationToken ct)
+    {
+        if (_db.Database.IsSqlServer())
+        {
+            var sqlRows = await _db.Database.SqlQueryRaw<IncidentSqlRow>("""
+                SELECT
+                    i.IncidentId,
+                    i.ResidentId,
+                    i.SafehouseId,
+                    i.IncidentDate,
+                    i.IncidentType,
+                    i.Severity,
+                    i.Description,
+                    i.ResolutionDate,
+                    CAST(CASE WHEN ISNULL(i.Resolved, 0) = 0 THEN 0 ELSE 1 END AS bit) AS Resolved,
+                    CAST(CASE WHEN ISNULL(i.FollowUpRequired, 0) = 0 THEN 0 ELSE 1 END AS bit) AS FollowUpRequired,
+                    r.InternalCode AS ResidentCode,
+                    s.Name AS SafehouseName
+                FROM IncidentReports i
+                LEFT JOIN Residents r ON r.ResidentId = i.ResidentId
+                LEFT JOIN Safehouses s ON s.SafehouseId = i.SafehouseId
+                """)
+                .ToListAsync(ct);
+
+            return sqlRows.Select(row => new IncidentSnapshot
+            {
+                IncidentId = row.IncidentId,
+                ResidentId = row.ResidentId,
+                SafehouseId = row.SafehouseId,
+                IncidentDate = row.IncidentDate,
+                IncidentType = row.IncidentType,
+                Severity = row.Severity,
+                Description = row.Description,
+                Resolved = row.Resolved,
+                ResolutionDate = row.ResolutionDate,
+                FollowUpRequired = row.FollowUpRequired,
+                ResidentCode = row.ResidentCode,
+                SafehouseName = row.SafehouseName,
+            }).ToList();
+        }
+
+        return await _db.IncidentReports
+            .AsNoTracking()
+            .Include(i => i.Resident)
+            .Include(i => i.Safehouse)
+            .Select(i => new IncidentSnapshot
+            {
+                IncidentId = i.IncidentId,
+                ResidentId = i.ResidentId,
+                SafehouseId = i.SafehouseId,
+                IncidentDate = i.IncidentDate,
+                IncidentType = i.IncidentType,
+                Severity = i.Severity,
+                Description = i.Description,
+                Resolved = i.Resolved,
+                ResolutionDate = i.ResolutionDate,
+                FollowUpRequired = i.FollowUpRequired,
+                ResidentCode = i.Resident != null ? i.Resident.InternalCode : null,
+                SafehouseName = i.Safehouse != null ? i.Safehouse.Name : null,
+            })
+            .ToListAsync(ct);
+    }
+
+    private sealed class IncidentSnapshot
+    {
+        public int IncidentId { get; init; }
+        public int ResidentId { get; init; }
+        public int SafehouseId { get; init; }
+        public DateOnly IncidentDate { get; init; }
+        public string IncidentType { get; init; } = string.Empty;
+        public string Severity { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public bool Resolved { get; init; }
+        public DateOnly? ResolutionDate { get; init; }
+        public bool FollowUpRequired { get; init; }
+        public string? ResidentCode { get; init; }
+        public string? SafehouseName { get; init; }
+    }
+
+    private sealed class IncidentSqlRow
+    {
+        public int IncidentId { get; init; }
+        public int ResidentId { get; init; }
+        public int SafehouseId { get; init; }
+        public DateOnly IncidentDate { get; init; }
+        public string IncidentType { get; init; } = string.Empty;
+        public string Severity { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public bool Resolved { get; init; }
+        public DateOnly? ResolutionDate { get; init; }
+        public bool FollowUpRequired { get; init; }
+        public string? ResidentCode { get; init; }
+        public string? SafehouseName { get; init; }
+    }
+
+    private sealed class HealthRecordSnapshot
+    {
+        public int ResidentId { get; init; }
+        public DateOnly RecordDate { get; init; }
+        public decimal? GeneralHealthScore { get; init; }
     }
 }

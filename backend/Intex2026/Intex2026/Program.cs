@@ -258,49 +258,88 @@ using (var scope = app.Services.CreateScope())
             await AuthIdentityGenerator.GenerateDefaultIdentityAsync(scope.ServiceProvider, app.Configuration);
         }
 
-        // Idempotent table creation for Expenses and OrganizationalGoals
-        // (bypasses EF migration snapshot mismatch between SQLite and SQL Server)
-        await appDb.Database.ExecuteSqlRawAsync("""
-            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Expenses')
-            BEGIN
-                CREATE TABLE [Expenses] (
-                    [ExpenseId] int NOT NULL IDENTITY(1,1),
-                    [SafehouseId] int NULL,
-                    [ProgramArea] nvarchar(max) NOT NULL DEFAULT '',
-                    [Category] nvarchar(max) NOT NULL DEFAULT '',
-                    [Amount] decimal(18,2) NOT NULL DEFAULT 0,
-                    [ExpenseDate] date NOT NULL,
-                    [Description] nvarchar(max) NULL,
-                    [RecordedBy] nvarchar(max) NULL,
-                    [CreatedAt] datetime2 NOT NULL DEFAULT GETUTCDATE(),
-                    CONSTRAINT [PK_Expenses] PRIMARY KEY ([ExpenseId]),
-                    CONSTRAINT [FK_Expenses_Safehouses_SafehouseId] FOREIGN KEY ([SafehouseId])
-                        REFERENCES [Safehouses] ([SafehouseId]) ON DELETE SET NULL
+        // Idempotent table creation for Expenses and OrganizationalGoals.
+        // Use provider-specific SQL so both SQL Server and SQLite dev setups can boot.
+        if (appDb.Database.IsSqlite())
+        {
+            await appDb.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "Expenses" (
+                    "ExpenseId" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "SafehouseId" INTEGER NULL,
+                    "ProgramArea" TEXT NOT NULL DEFAULT '',
+                    "Category" TEXT NOT NULL DEFAULT '',
+                    "Amount" NUMERIC NOT NULL DEFAULT 0,
+                    "ExpenseDate" TEXT NOT NULL,
+                    "Description" TEXT NULL,
+                    "RecordedBy" TEXT NULL,
+                    "CreatedAt" TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                    CONSTRAINT "FK_Expenses_Safehouses_SafehouseId" FOREIGN KEY ("SafehouseId")
+                        REFERENCES "Safehouses" ("SafehouseId") ON DELETE SET NULL
                 );
-                CREATE INDEX [IX_Expenses_SafehouseId] ON [Expenses] ([SafehouseId]);
-            END
-            """);
+                CREATE INDEX IF NOT EXISTS "IX_Expenses_SafehouseId" ON "Expenses" ("SafehouseId");
+                """);
 
-        await appDb.Database.ExecuteSqlRawAsync("""
-            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'OrganizationalGoals')
-            BEGIN
-                CREATE TABLE [OrganizationalGoals] (
-                    [GoalId] int NOT NULL IDENTITY(1,1),
-                    [GoalCategory] nvarchar(max) NOT NULL DEFAULT '',
-                    [SafehouseId] int NULL,
-                    [TargetValue] decimal(18,2) NOT NULL DEFAULT 0,
-                    [PeriodStart] date NOT NULL,
-                    [PeriodEnd] date NOT NULL,
-                    [Description] nvarchar(max) NULL,
-                    [CreatedBy] nvarchar(max) NULL,
-                    [CreatedAt] datetime2 NOT NULL DEFAULT GETUTCDATE(),
-                    CONSTRAINT [PK_OrganizationalGoals] PRIMARY KEY ([GoalId]),
-                    CONSTRAINT [FK_OrganizationalGoals_Safehouses_SafehouseId] FOREIGN KEY ([SafehouseId])
-                        REFERENCES [Safehouses] ([SafehouseId]) ON DELETE SET NULL
+            await appDb.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "OrganizationalGoals" (
+                    "GoalId" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "GoalCategory" TEXT NOT NULL DEFAULT '',
+                    "SafehouseId" INTEGER NULL,
+                    "TargetValue" NUMERIC NOT NULL DEFAULT 0,
+                    "PeriodStart" TEXT NOT NULL,
+                    "PeriodEnd" TEXT NOT NULL,
+                    "Description" TEXT NULL,
+                    "CreatedBy" TEXT NULL,
+                    "CreatedAt" TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                    CONSTRAINT "FK_OrganizationalGoals_Safehouses_SafehouseId" FOREIGN KEY ("SafehouseId")
+                        REFERENCES "Safehouses" ("SafehouseId") ON DELETE SET NULL
                 );
-                CREATE INDEX [IX_OrganizationalGoals_SafehouseId] ON [OrganizationalGoals] ([SafehouseId]);
-            END
-            """);
+                CREATE INDEX IF NOT EXISTS "IX_OrganizationalGoals_SafehouseId" ON "OrganizationalGoals" ("SafehouseId");
+                """);
+        }
+        else
+        {
+            await appDb.Database.ExecuteSqlRawAsync("""
+                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Expenses')
+                BEGIN
+                    CREATE TABLE [Expenses] (
+                        [ExpenseId] int NOT NULL IDENTITY(1,1),
+                        [SafehouseId] int NULL,
+                        [ProgramArea] nvarchar(max) NOT NULL DEFAULT '',
+                        [Category] nvarchar(max) NOT NULL DEFAULT '',
+                        [Amount] decimal(18,2) NOT NULL DEFAULT 0,
+                        [ExpenseDate] date NOT NULL,
+                        [Description] nvarchar(max) NULL,
+                        [RecordedBy] nvarchar(max) NULL,
+                        [CreatedAt] datetime2 NOT NULL DEFAULT GETUTCDATE(),
+                        CONSTRAINT [PK_Expenses] PRIMARY KEY ([ExpenseId]),
+                        CONSTRAINT [FK_Expenses_Safehouses_SafehouseId] FOREIGN KEY ([SafehouseId])
+                            REFERENCES [Safehouses] ([SafehouseId]) ON DELETE SET NULL
+                    );
+                    CREATE INDEX [IX_Expenses_SafehouseId] ON [Expenses] ([SafehouseId]);
+                END
+                """);
+
+            await appDb.Database.ExecuteSqlRawAsync("""
+                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'OrganizationalGoals')
+                BEGIN
+                    CREATE TABLE [OrganizationalGoals] (
+                        [GoalId] int NOT NULL IDENTITY(1,1),
+                        [GoalCategory] nvarchar(max) NOT NULL DEFAULT '',
+                        [SafehouseId] int NULL,
+                        [TargetValue] decimal(18,2) NOT NULL DEFAULT 0,
+                        [PeriodStart] date NOT NULL,
+                        [PeriodEnd] date NOT NULL,
+                        [Description] nvarchar(max) NULL,
+                        [CreatedBy] nvarchar(max) NULL,
+                        [CreatedAt] datetime2 NOT NULL DEFAULT GETUTCDATE(),
+                        CONSTRAINT [PK_OrganizationalGoals] PRIMARY KEY ([GoalId]),
+                        CONSTRAINT [FK_OrganizationalGoals_Safehouses_SafehouseId] FOREIGN KEY ([SafehouseId])
+                            REFERENCES [Safehouses] ([SafehouseId]) ON DELETE SET NULL
+                    );
+                    CREATE INDEX [IX_OrganizationalGoals_SafehouseId] ON [OrganizationalGoals] ([SafehouseId]);
+                END
+                """);
+        }
 
         var donorAnalytics = scope.ServiceProvider.GetRequiredService<IDonorAnalyticsService>();
         var residentAnalytics = scope.ServiceProvider.GetRequiredService<IResidentAnalyticsService>();

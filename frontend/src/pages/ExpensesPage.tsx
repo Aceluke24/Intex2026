@@ -1,6 +1,6 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
-import { apiFetchJson } from "@/lib/apiFetch";
+import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import { motion } from "framer-motion";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -124,10 +124,8 @@ export default function ExpensesPage() {
       };
       const url = editingId ? `${API_PREFIX}/expenses/${editingId}` : `${API_PREFIX}/expenses`;
       const method = editingId ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
@@ -144,7 +142,7 @@ export default function ExpensesPage() {
   const handleDelete = async (id: number) => {
     setDeletingId(id);
     try {
-      const res = await fetch(`${API_PREFIX}/expenses/${id}`, { method: "DELETE", credentials: "include" });
+      const res = await apiFetch(`${API_PREFIX}/expenses/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Expense deleted");
       void load();
