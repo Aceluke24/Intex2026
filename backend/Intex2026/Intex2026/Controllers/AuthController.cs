@@ -324,7 +324,7 @@ public class AuthController(
             return Redirect(BuildFrontendErrorUrl("Unable to associate the external login with the local account.", frontendBase));
         }
 
-        await signInManager.SignInAsync(user, isPersistent: false, info.LoginProvider);
+        await signInManager.SignInAsync(user, isPersistent: false);
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         return Redirect(BuildFrontendSuccessUrl(returnPath, frontendBase));
     }
