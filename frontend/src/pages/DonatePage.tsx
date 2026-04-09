@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -70,10 +70,7 @@ export default function DonatePage() {
     fetchPurposes();
   }, []);
 
-  const canEditIdentity = useMemo(
-    () => !isAuthenticated || anonymous,
-    [anonymous, isAuthenticated],
-  );
+  const emailFromForm = !isAuthenticated || anonymous;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,11 +89,18 @@ export default function DonatePage() {
     }
 
     const noteLower = selectedNote.toLowerCase();
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
+    const displayFromForm =
+      trimmedFirst || trimmedLast
+        ? [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim()
+        : null;
+
     const payload: Record<string, unknown> = {
-      firstName: canEditIdentity ? firstName.trim() || null : user?.firstName ?? null,
-      lastName: canEditIdentity ? lastName.trim() || null : user?.lastName ?? null,
-      email: canEditIdentity ? email.trim() || null : user?.email ?? null,
-      displayName: !canEditIdentity ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email : null,
+      firstName: anonymous ? null : trimmedFirst || null,
+      lastName: anonymous ? null : trimmedLast || null,
+      email: emailFromForm ? email.trim() || null : user?.email ?? null,
+      displayName: anonymous ? null : displayFromForm,
       isAnonymous: anonymous,
       userId: user?.id ?? null,
       supporterId: user?.supporterId ?? null,
@@ -264,36 +268,38 @@ export default function DonatePage() {
                 )}
 
               {/* Name row */}
-              {!anonymous && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-300 ease-out">
-                  <div>
-                    <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                      First name
-                    </label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      disabled={!canEditIdentity}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
-                      placeholder="Jane"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
-                      Last name
-                    </label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      disabled={!canEditIdentity}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
-                      placeholder="Doe"
-                    />
-                  </div>
+              <div
+                className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-all duration-300 ease-out${
+                  anonymous ? " opacity-50" : ""
+                }`}
+              >
+                <div>
+                  <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
+                    First name
+                  </label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    disabled={anonymous}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className={anonymous ? readOnlyInputClass : editableInputClass}
+                    placeholder="Jane"
+                  />
                 </div>
-              )}
+                <div>
+                  <label className="block font-body text-[13px] font-medium text-foreground mb-1.5">
+                    Last name
+                  </label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    disabled={anonymous}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className={anonymous ? readOnlyInputClass : editableInputClass}
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
 
               {/* Email */}
               {!anonymous && (
@@ -304,9 +310,9 @@ export default function DonatePage() {
                   <input
                     type="email"
                     value={email}
-                    disabled={!canEditIdentity}
+                    disabled={!emailFromForm}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={!canEditIdentity ? readOnlyInputClass : editableInputClass}
+                    className={!emailFromForm ? readOnlyInputClass : editableInputClass}
                     placeholder="jane@example.com"
                   />
                 </div>
