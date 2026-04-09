@@ -193,6 +193,7 @@ if (!string.IsNullOrWhiteSpace(googleClientId) &&
         {
             options.ClientId = googleClientId;
             options.ClientSecret = googleClientSecret;
+            options.SignInScheme = IdentityConstants.ExternalScheme;
         });
 }
 
