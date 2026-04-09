@@ -33,6 +33,16 @@ jobs:
       - name: Publish
         run: dotnet publish backend/Intex2026/Intex2026/Intex2026.csproj --configuration Release --no-build --output backend-publish
 
+      - name: Validate App Service publish profile secret
+        env:
+          AZURE_WEBAPP_PUBLISH_PROFILE_INTEX_BACKEND: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_INTEX_BACKEND }}
+        run: |
+          if [ -z "${AZURE_WEBAPP_PUBLISH_PROFILE_INTEX_BACKEND}" ]; then
+            echo "Missing GitHub secret: AZURE_WEBAPP_PUBLISH_PROFILE_INTEX_BACKEND"
+            echo "Download publish profile for intex-backend-fmb8dnaxb0dkd8gv in Azure Portal and save it as this secret."
+            exit 1
+          fi
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
