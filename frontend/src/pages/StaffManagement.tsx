@@ -413,10 +413,9 @@ export const StaffManagement = () => {
               <AlertDialogCancel disabled={deletingUserId !== null}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 disabled={!pendingDeleteUser || deletingUserId !== null}
-                onClick={(e) => {
-                  e.preventDefault();
+                onClick={async () => {
                   if (!pendingDeleteUser) return;
-                  void handleDeleteUser(pendingDeleteUser);
+                  await handleDeleteUser(pendingDeleteUser);
                 }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
