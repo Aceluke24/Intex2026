@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { PublicLayout } from "@/components/PublicLayout";
-import { ExternalLink, Heart, Calendar, Tag } from "lucide-react";
+import { ExternalLink, Heart, Calendar, Tag, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { formatUSD } from "@/lib/currency";
@@ -67,13 +67,22 @@ export default function DonorPortal() {
     <PublicLayout>
       <div className="max-w-4xl mx-auto px-6 py-10">
         {/* Welcome */}
-        <div className="mb-10">
-          <h1 className="font-display text-3xl font-bold text-foreground mb-1">
-            Welcome back{user?.email ? `, ${user.email.split("@")[0]}` : ""}
-          </h1>
-          <p className="font-body text-sm text-muted-foreground">
-            Thank you for your support. Here's a summary of your contributions.
-          </p>
+        <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="font-display text-3xl font-bold text-foreground mb-1">
+              Welcome back{user?.email ? `, ${user.email.split("@")[0]}` : ""}
+            </h1>
+            <p className="font-body text-sm text-muted-foreground">
+              Thank you for your support. Here's a summary of your contributions.
+            </p>
+          </div>
+          <Link
+            to="/mfa-setup"
+            className="flex items-center gap-2 text-sm font-body text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <ShieldCheck className="w-4 h-4 text-terracotta" />
+            {user?.mfaEnabled ? "2FA Enabled" : "Enable 2FA"}
+          </Link>
         </div>
 
         {/* Stats row */}

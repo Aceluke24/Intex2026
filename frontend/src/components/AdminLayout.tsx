@@ -16,6 +16,7 @@ import {
   DollarSign,
   Receipt,
   Megaphone,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -112,6 +113,14 @@ export const AdminLayout = ({
               >
                 {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </button>
+              <Link
+                to="/mfa-setup"
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:underline dark:text-gray-400"
+                title="Two-Factor Authentication"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">2FA</span>
+              </Link>
               <button
                 onClick={() => void handleLogout()}
                 type="button"
