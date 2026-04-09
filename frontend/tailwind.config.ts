@@ -104,12 +104,17 @@ export default {
           "0%": { transform: "translateX(-120%)" },
           "100%": { transform: "translateX(120%)" },
         },
+        "impact-row-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "impact-fade-up": "impact-fade-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards",
         "impact-shimmer": "impact-shimmer 2.8s ease-in-out infinite",
+        "impact-row-in": "impact-row-in 0.55s ease-out forwards",
       },
     },
   },
