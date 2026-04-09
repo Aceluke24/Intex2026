@@ -6,6 +6,7 @@ import { ExternalLink, Heart, Calendar, Tag, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { formatUSD } from "@/lib/currency";
+import { toTitleCase } from "@/lib/utils";
 
 interface Donation {
   donationId: number;
@@ -29,6 +30,15 @@ const typeColors: Record<string, string> = {
   Skills: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   SocialMedia: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
 };
+
+function donorWelcomeName(user: { firstName: string | null; lastName: string | null; email: string } | null | undefined) {
+  if (!user) return "";
+  const fromProfile = [user.firstName, user.lastName]
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .join(" ");
+  const raw = fromProfile || user.email?.split("@")[0] || "";
+  return toTitleCase(raw);
+}
 
 export default function DonorPortal() {
   const { user } = useAuth();
@@ -63,6 +73,8 @@ export default function DonorPortal() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
+  const welcomeName = donorWelcomeName(user);
+
   const formatValue = (d: Donation) => {
     if (d.donationType === "Monetary" && d.amount != null)
       return formatUSD(d.amount);
@@ -78,7 +90,7 @@ export default function DonorPortal() {
         <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="font-display text-3xl font-bold text-foreground mb-1">
-              Welcome back{user?.email ? `, ${user.email.split("@")[0]}` : ""}
+              Welcome back{welcomeName ? `, ${welcomeName}` : ""}
             </h1>
             <p className="font-body text-sm text-muted-foreground">
               Thank you for your support. Here's a summary of your contributions.
