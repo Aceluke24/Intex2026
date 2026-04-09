@@ -77,6 +77,8 @@ export interface DonorsDashboardResponse {
     volunteerHoursLogged: number;
     inKindValue: number;
     donorRetentionRate: number;
+    repeatDonorCount: number;
+    totalDonorCount: number;
   };
   allocationByDestination: AllocationSlice[];
 }

@@ -15,8 +15,13 @@ namespace Intex2026.Controllers;
 public class DonorsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<DonorsController> _logger;
 
-    public DonorsController(AppDbContext db) => _db = db;
+    public DonorsController(AppDbContext db, ILogger<DonorsController> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
@@ -97,9 +102,12 @@ public class DonorsController : ControllerBase
         var volunteerHours = donations.Where(d => d.DonationType == "Time").Sum(d => d.Amount ?? 0);
         var inKindValue = donations.Where(d => d.DonationType == "InKind").Sum(d => d.EstimatedValue ?? d.Amount ?? 0);
 
-        var supporterIdsWithDonation = donations.Select(d => d.SupporterId).ToHashSet();
-        var repeatDonorCount = donationBySup.Count(kv => kv.Value.Count >= 2);
-        var donorDen = supporterIdsWithDonation.Count;
+        var donationCountsBySupporter = donations
+            .Where(d => d.SupporterId.HasValue)
+            .GroupBy(d => d.SupporterId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var repeatDonorCount = donationCountsBySupporter.Count(kv => kv.Value >= 2);
+        var donorDen = donationCountsBySupporter.Count;
         var donorRetentionRate = donorDen > 0 ? Math.Round(repeatDonorCount / (double)donorDen * 100, 1) : 0.0;
 
         var allocation = await BuildAllocationAsync(ct);
@@ -110,9 +118,45 @@ public class DonorsController : ControllerBase
             (double)monthlyContributions,
             (double)volunteerHours,
             (double)inKindValue,
-            donorRetentionRate);
+            donorRetentionRate,
+            repeatDonorCount,
+            donorDen);
 
         return Ok(new DonorsDashboardDto(items, feed, metrics, allocation));
+    }
+
+    // GET /api/donors/retention-debug
+    // Quick sanity-check values for retention KPI:
+    // (repeat donors with 2+ gifts) / (donors with at least 1 gift) * 100
+    [HttpGet("retention-debug")]
+    public async Task<IActionResult> GetRetentionDebug(CancellationToken ct)
+    {
+        var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
+        var donationCountsBySupporter = donations
+            .Where(d => d.SupporterId.HasValue)
+            .GroupBy(d => d.SupporterId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var repeatDonorCount = donationCountsBySupporter.Count(kv => kv.Value >= 2);
+        var totalDonorCount = donationCountsBySupporter.Count;
+        var donorRetentionRate = totalDonorCount > 0
+            ? Math.Round(repeatDonorCount / (double)totalDonorCount * 100, 1)
+            : 0.0;
+
+        _logger.LogInformation(
+            "Donor retention debug computed: {Rate}% ({Repeat} repeat of {Total} donors).",
+            donorRetentionRate,
+            repeatDonorCount,
+            totalDonorCount);
+
+        return Ok(new
+        {
+            formula = "(Number of donors who gave 2+ times) / (Total number of donors) * 100",
+            donorRetentionRate,
+            repeatDonorCount,
+            totalDonorCount,
+            label = $"{donorRetentionRate:F1}% — {repeatDonorCount} repeat of {totalDonorCount} donors"
+        });
     }
 
     /// <summary>CSV export; optional <paramref name="search"/>, <paramref name="kind"/>, <paramref name="status"/> match Donors page filters.</summary>
@@ -312,7 +356,9 @@ public class DonorsController : ControllerBase
         double MonthlyContributions,
         double VolunteerHoursLogged,
         double InKindValue,
-        double DonorRetentionRate);
+        double DonorRetentionRate,
+        int RepeatDonorCount,
+        int TotalDonorCount);
 
     private sealed record ContributionBreakdownDto(
         double Monetary,

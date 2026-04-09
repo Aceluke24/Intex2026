@@ -141,11 +141,13 @@ public class DashboardController : ControllerBase
             residentSpark.Add(count);
         }
 
-        var supporterIdsWithDonation = donations.Select(x => x.SupporterId).ToHashSet();
-        var countBySup = donations.GroupBy(x => x.SupporterId).ToDictionary(g => g.Key, g => g.Count());
-        var multiDonorIds = countBySup.Where(kv => kv.Value >= 2).Select(kv => kv.Key).ToHashSet();
-        var donorDen = supporterIdsWithDonation.Count;
-        int? retPct = donorDen > 0 ? (int)Math.Round(multiDonorIds.Count / (double)donorDen * 100) : null;
+        var donationCountsBySupporter = donations
+            .Where(d => d.SupporterId.HasValue)
+            .GroupBy(d => d.SupporterId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var repeatDonorCount = donationCountsBySupporter.Count(kv => kv.Value >= 2);
+        var donorDen = donationCountsBySupporter.Count;
+        double? retPct = donorDen > 0 ? Math.Round(repeatDonorCount / (double)donorDen * 100, 1) : null;
 
         var withReint = activeResidents.Where(r =>
             !string.IsNullOrWhiteSpace(r.ReintegrationStatus) && r.ReintegrationStatus != "Not Started").ToList();
@@ -194,8 +196,8 @@ public class DashboardController : ControllerBase
         var supportingMetrics = new List<DashboardMetricDto>
         {
             new("donations", "Donations this month", FormatMoneyCompact(curSum), donationTrendLabel, donationTrend, "heart"),
-            new("retention", "Donor retention", retPct.HasValue ? $"{retPct}%" : "—",
-                donorDen > 0 ? $"{multiDonorIds.Count} repeat of {donorDen} donors" : "No donations yet",
+            new("retention", "Donor retention", retPct.HasValue ? $"{retPct:F1}%" : "—",
+                donorDen > 0 ? $"{repeatDonorCount} repeat of {donorDen} donors" : "No donations yet",
                 "neutral", "percent"),
             new("conferences", "Upcoming visits (14 days)", upcomingVisits.ToString(),
                 "Home visitations on the calendar", upcomingVisits > 0 ? "up" : "neutral", "calendar")
@@ -218,7 +220,9 @@ public class DashboardController : ControllerBase
             priorSum > 0
                 ? (curSum >= priorSum ? "trending at or above last month" : "softening versus last month")
                 : "building your baseline",
-            retPct.HasValue ? $"{retPct}%" : "—");
+            retPct.HasValue
+                ? $"{retPct:F1}% — {repeatDonorCount} repeat of {donorDen} donors"
+                : "—");
 
             return Ok(new DashboardResponseDto(
                 primaryMetric,

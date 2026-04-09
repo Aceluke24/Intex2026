@@ -65,6 +65,8 @@ const EMPTY_METRICS: DonorsDashboardResponse["metrics"] = {
   volunteerHoursLogged: 0,
   inKindValue: 0,
   donorRetentionRate: 0,
+  repeatDonorCount: 0,
+  totalDonorCount: 0,
 };
 
 function emptyBreakdown(): ContributionBreakdown {
@@ -165,6 +167,8 @@ const DonorsPage = () => {
         volunteerHoursLogged: Number(dash.metrics.volunteerHoursLogged) || 0,
         inKindValue: Number(dash.metrics.inKindValue) || 0,
         donorRetentionRate: Number(dash.metrics.donorRetentionRate) || 0,
+        repeatDonorCount: Number(dash.metrics.repeatDonorCount) || 0,
+        totalDonorCount: Number(dash.metrics.totalDonorCount) || 0,
       });
       setAllocationByDestination(dash.allocationByDestination);
       const houseList = Array.isArray(housesRaw) ? housesRaw : [];
@@ -426,7 +430,7 @@ const DonorsPage = () => {
                   animateTo={donorMetrics.donorRetentionRate}
                   formatAnimated={(n) => `${n.toFixed(1)}%`}
                   icon={Percent}
-                  change="Repeat gift rate (2+ gifts)"
+                  change={`${donorMetrics.repeatDonorCount} repeat of ${donorMetrics.totalDonorCount} donors`}
                   changeType="neutral"
                   className="sm:col-span-2 xl:col-span-6"
                 />
