@@ -1,5 +1,6 @@
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
+import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { ResidentSelector, SessionEntrySheet, SessionTimeline } from "@/components/processRecording";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
@@ -365,7 +366,7 @@ const RecordingsPage = () => {
   };
 
   return (
-    <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         tone="quiet"
         eyebrow="Clinical documentation"

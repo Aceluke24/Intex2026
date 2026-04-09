@@ -1,8 +1,22 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  DashboardGlassPanel,
+  DashboardSectionHeader,
+  dashboardPanelEyebrowClass,
+  dashboardPanelSubtitleClass,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+  dashboardTableShellClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -79,40 +93,11 @@ type FinanceData = {
   spendingPeriod: string;
 };
 
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  sub?: string;
-  highlight?: "positive" | "negative" | "neutral";
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 flex items-start gap-4">
-      <div className={cn("rounded-xl p-2.5", highlight === "negative" ? "bg-red-50 dark:bg-red-950" : "bg-sidebar-accent/50")}>
-        <Icon className={cn("w-5 h-5", highlight === "negative" ? "text-red-500" : highlight === "positive" ? "text-emerald-500" : "text-sidebar-primary")} />
-      </div>
-      <div>
-        <p className="text-[11px] font-body font-medium uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className={cn("text-2xl font-display font-bold leading-tight", highlight === "positive" ? "text-emerald-600 dark:text-emerald-400" : highlight === "negative" ? "text-red-500" : "text-foreground")}>
-          {value}
-        </p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 function GoalBar({ goal, label }: { goal: NonNullable<GoalInfo>; label: string }) {
   const pct = goal.targetValue > 0 ? Math.min(100, Math.round((goal.currentValue / goal.targetValue) * 100)) : 0;
   const color = pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+    <DashboardGlassPanel padding="sm" className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="font-medium text-foreground">{label}</span>
         <span className={cn("font-semibold text-xs", pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-red-500")}>{pct}%</span>
@@ -124,7 +109,7 @@ function GoalBar({ goal, label }: { goal: NonNullable<GoalInfo>; label: string }
       <p className="text-xs text-muted-foreground">
         {formatUSD(goal.currentValue, 0)} / {formatUSD(goal.targetValue, 0)} · {goal.periodStart} → {goal.periodEnd}
       </p>
-    </div>
+    </DashboardGlassPanel>
   );
 }
 
@@ -154,74 +139,115 @@ export default function FinanceDashboardPage() {
   useEffect(() => { void load(period); }, [load, period]);
 
   return (
-    <AdminLayout contentClassName="max-w-7xl">
-      <div className="space-y-8">
-        {/* KPI Cards */}
-        <section>
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Finance & contributions"
+        eyebrowIcon={<DollarSign className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Finance Dashboard"
+        description="Donations, spending, and donor concentration for the selected period."
+      >
+        {error ? (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <section className="mb-12 xl:mb-16">
           {loading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-[120px] rounded-[1.1rem] bg-white/45" />
+              ))}
             </div>
-          ) : error ? (
-            <p className="text-red-500 text-sm">{error}</p>
           ) : data ? (
-            <motion.div
-              className="grid grid-cols-2 lg:grid-cols-5 gap-4"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <KpiCard icon={DollarSign} label="Monetary Donations" value={formatUSD(data.kpis.monetaryThisMonth)} sub="this month" highlight="positive" />
-              <KpiCard icon={Package} label="In-Kind Value" value={formatUSD(data.kpis.inKindThisMonth)} sub="est. this month" />
-              <KpiCard icon={TrendingDown} label="Expenses" value={formatUSD(data.kpis.expensesThisMonth)} sub="this month" highlight={data.kpis.expensesThisMonth > 0 ? "negative" : "neutral"} />
-              <KpiCard
-                icon={data.kpis.netThisMonth >= 0 ? TrendingUp : TrendingDown}
-                label="Net Position"
-                value={formatUSD(data.kpis.netThisMonth)}
-                sub="donations − expenses"
-                highlight={data.kpis.netThisMonth >= 0 ? "positive" : "negative"}
+            <>
+              <DashboardSectionHeader
+                icon={DollarSign}
+                eyebrow="Key metrics"
+                title="Financial snapshot"
+                description={`Values reflect ${PERIOD_LABELS[period]} unless noted.`}
               />
-              <KpiCard icon={Users} label="Active Donors" value={data.kpis.activeDonorCount.toLocaleString()} sub="donated in last 90 days" />
-            </motion.div>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <CaseloadMetricCard
+                  label="Monetary donations"
+                  value={data.kpis.monetaryThisMonth}
+                  format={(n) => formatUSD(n, 0)}
+                  icon={DollarSign}
+                  motionDelay={0}
+                />
+                <CaseloadMetricCard
+                  label="In-kind value (est.)"
+                  value={data.kpis.inKindThisMonth}
+                  format={(n) => formatUSD(n, 0)}
+                  icon={Package}
+                  motionDelay={0.05}
+                />
+                <CaseloadMetricCard
+                  label="Expenses"
+                  value={data.kpis.expensesThisMonth}
+                  format={(n) => formatUSD(n, 0)}
+                  icon={TrendingDown}
+                  motionDelay={0.1}
+                  variant={data.kpis.expensesThisMonth > 0 ? "critical" : "neutral"}
+                />
+                <CaseloadMetricCard
+                  label="Net position"
+                  value={data.kpis.netThisMonth}
+                  format={(n) => formatUSD(n, 0)}
+                  icon={data.kpis.netThisMonth >= 0 ? TrendingUp : TrendingDown}
+                  motionDelay={0.14}
+                  variant={data.kpis.netThisMonth < 0 ? "critical" : "neutral"}
+                />
+                <CaseloadMetricCard
+                  label="Active donors"
+                  value={data.kpis.activeDonorCount}
+                  icon={Users}
+                  motionDelay={0.18}
+                />
+              </div>
+            </>
           ) : null}
         </section>
 
-        {/* Goal Progress */}
         {data && (data.donationGoal || data.expenseGoal) && (
-          <section className="grid sm:grid-cols-2 gap-4">
-            {data.donationGoal && <GoalBar goal={data.donationGoal} label="Donation Goal" />}
-            {data.expenseGoal && <GoalBar goal={data.expenseGoal} label="Expense Budget Goal" />}
+          <section className="mb-12 grid gap-4 sm:grid-cols-2">
+            {data.donationGoal && <GoalBar goal={data.donationGoal} label="Donation goal" />}
+            {data.expenseGoal && <GoalBar goal={data.expenseGoal} label="Expense budget goal" />}
           </section>
         )}
 
-        {/* Income vs Spending Chart */}
         {data && (
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <h3 className="font-display font-semibold text-base text-foreground mb-4">Income vs. Spending (12 months)</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.incomeVsSpending}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
-                <Tooltip {...softTooltip} formatter={(v: number) => formatUSD(v)} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="income" name="Donations" fill="#c8877a" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="spending" name="Expenses" fill="#a09090" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <section className="mb-12">
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Cash flow</p>
+              <p className={dashboardPanelSubtitleClass}>Income vs. spending (12 months)</p>
+              <div className="mt-6">
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={data.incomeVsSpending}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatUSDCompactThousands(v)} />
+                    <Tooltip {...softTooltip} formatter={(v: number) => formatUSD(v)} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="income" name="Donations" fill="#c8877a" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="spending" name="Expenses" fill="#a09090" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </DashboardGlassPanel>
           </section>
         )}
 
-        {/* Allocations + Spending by Category */}
         {data && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* By Program Area (donut) */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Donations by Program Area</h3>
+          <div className="mb-12 grid gap-8 lg:grid-cols-2">
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Allocations</p>
+              <p className={dashboardPanelSubtitleClass}>Donations by program area</p>
               {data.byProgramArea.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No allocation data.</p>
+                <p className="mt-4 font-body text-sm text-muted-foreground">No allocation data.</p>
               ) : (
-                <div className="flex items-center gap-6">
+                <div className="mt-6 flex items-center gap-6">
                   <PieChart width={160} height={160}>
                     <Pie data={data.byProgramArea} dataKey="total" nameKey="programArea" cx={75} cy={75} innerRadius={45} outerRadius={72}>
                       {data.byProgramArea.map((_, i) => (
@@ -230,31 +256,36 @@ export default function FinanceDashboardPage() {
                     </Pie>
                     <Tooltip formatter={(v: number) => formatUSD(v)} />
                   </PieChart>
-                  <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="min-w-0 flex-1 space-y-1.5">
                     {data.byProgramArea.map((row, i) => (
-                      <div key={row.programArea} className="flex items-center gap-2 text-xs">
-                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                        <span className="text-muted-foreground truncate">{row.programArea}</span>
+                      <div key={row.programArea} className="flex items-center gap-2 font-body text-xs">
+                        <span className="h-2.5 w-2.5 flex-shrink-0 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="truncate text-muted-foreground">{row.programArea}</span>
                         <span className="ml-auto font-medium text-foreground">{formatUSD(row.total)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-            </section>
+            </DashboardGlassPanel>
 
-            {/* Spending by Category */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display font-semibold text-base text-foreground">Spending by Category</h3>
-                <div className="flex rounded-lg overflow-hidden border border-border text-xs">
+            <DashboardGlassPanel>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className={dashboardPanelEyebrowClass}>Spending</p>
+                  <p className={dashboardPanelSubtitleClass}>By category</p>
+                </div>
+                <div className="flex items-center gap-1 rounded-2xl border border-white/50 bg-white/45 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.08]">
                   {(["month", "quarter", "year"] as const).map((p) => (
                     <button
                       key={p}
+                      type="button"
                       onClick={() => setPeriod(p)}
                       className={cn(
-                        "px-2.5 py-1 transition-colors",
-                        period === p ? "bg-sidebar-primary text-white" : "bg-background text-muted-foreground hover:bg-muted"
+                        "rounded-xl px-3 py-2 font-body text-xs font-medium transition-all",
+                        period === p
+                          ? "bg-white text-foreground shadow-sm dark:bg-white/15"
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {PERIOD_LABELS[p]}
@@ -263,7 +294,7 @@ export default function FinanceDashboardPage() {
                 </div>
               </div>
               {data.byCategory.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No expense data for this period.</p>
+                <p className="font-body text-sm text-muted-foreground">No expense data for this period.</p>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.byCategory} layout="vertical">
@@ -275,35 +306,48 @@ export default function FinanceDashboardPage() {
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </section>
+            </DashboardGlassPanel>
           </div>
         )}
 
-        {/* Top Donors */}
         {data && data.topDonors.length > 0 && (
-          <section>
-            <h2 className="font-display font-semibold text-lg text-foreground mb-4">Top Donors (by monetary total)</h2>
-            <div className="rounded-2xl border border-border overflow-hidden">
+          <section className="mb-6">
+            <DashboardSectionHeader
+              icon={Users}
+              eyebrow="Supporters"
+              title="Top donors"
+              description="Ranked by total monetary giving."
+            />
+            <div className={dashboardTableShellClass}>
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
+                <thead className={dashboardTableHeadRowClass}>
                   <tr>
-                    {["Donor", "Type", "Status", "Total Monetary", "Last Donation"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
+                    {["Donor", "Type", "Status", "Total monetary", "Last donation"].map((h) => (
+                      <th key={h} className={dashboardTableHeadCellClass}>
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={dashboardTableBodyClass}>
                   {data.topDonors.map((d) => (
-                    <tr key={d.supporterId} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">{d.displayName}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{d.supporterType ?? "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={cn("text-xs px-2 py-0.5 rounded-full", d.status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                    <tr key={d.supporterId} className={dashboardTableRowClass}>
+                      <td className={`${dashboardTableCellClass} font-medium`}>{d.displayName}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{d.supporterType ?? "—"}</td>
+                      <td className={dashboardTableCellClass}>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 font-body text-xs",
+                            d.status === "Active"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
                           {d.status ?? "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-foreground">{formatUSD(d.totalMonetary)}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{d.lastDonation}</td>
+                      <td className={`${dashboardTableCellClass} font-medium`}>{formatUSD(d.totalMonetary)}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{d.lastDonation}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -311,7 +355,7 @@ export default function FinanceDashboardPage() {
             </div>
           </section>
         )}
-      </div>
+      </StaffPageShell>
     </AdminLayout>
   );
 }

@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
@@ -184,7 +185,7 @@ const ReportsPage = () => {
   }, [analytics, donationsThisMonth]);
 
   return (
-    <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         eyebrow="Impact intelligence"
         eyebrowIcon={<BarChart3 className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
@@ -216,7 +217,7 @@ const ReportsPage = () => {
                 onClick={() =>
                   toast.success("PDF queued", { description: "You will receive a download link when export is enabled." })
                 }
-                className="h-11 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+                className="h-12 rounded-2xl border border-white/50 bg-white/50 px-6 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
                 <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
                 Export PDF
@@ -227,7 +228,7 @@ const ReportsPage = () => {
                 onClick={() => void handleExportCsv()}
                 disabled={exportingCsv || loading}
                 aria-busy={exportingCsv}
-                className="h-11 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+                className="h-12 rounded-2xl border border-white/50 bg-white/50 px-6 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
                 <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
                 Export CSV

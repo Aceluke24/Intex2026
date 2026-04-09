@@ -1,9 +1,19 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  dashboardFilterBarClass,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+  dashboardTableShellClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Receipt, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -154,45 +164,66 @@ export default function ExpensesPage() {
   const total = expenses.reduce((s, e) => s + e.amount, 0);
 
   return (
-    <AdminLayout contentClassName="max-w-6xl">
-      <div className="space-y-6">
-        {/* Filters + Add */}
-        <div className="flex flex-wrap items-end gap-3">
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Finance & contributions"
+        eyebrowIcon={<Receipt className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Expenses"
+        description="Record and review organizational spending with filters by category, program area, and date."
+        actions={
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_66%)] via-[hsl(350_40%_70%)] to-[hsl(10_44%_56%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.3)]"
+          >
+            <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/22 to-transparent opacity-90" />
+            <span className="relative z-[1] flex items-center">
+              <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+              Add expense
+            </span>
+          </Button>
+        }
+      >
+        <div className={`mb-10 flex flex-wrap items-end gap-3 ${dashboardFilterBarClass}`}>
           <select
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm min-w-[140px]"
+            className="min-w-[140px] rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
             <option value="">All Categories</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
           <select
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm min-w-[140px]"
+            className="min-w-[140px] rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
             value={filterArea}
             onChange={(e) => setFilterArea(e.target.value)}
           >
             <option value="">All Program Areas</option>
-            {PROGRAM_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+            {PROGRAM_AREAS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
           </select>
           <input
             type="date"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            className="rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
             value={filterFrom}
             onChange={(e) => setFilterFrom(e.target.value)}
             placeholder="From"
           />
           <input
             type="date"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            className="rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
             value={filterTo}
             onChange={(e) => setFilterTo(e.target.value)}
             placeholder="To"
           />
-          <div className="ml-auto">
-            <Button onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-1.5" /> Add Expense
-            </Button>
-          </div>
         </div>
 
         {/* Summary */}
@@ -210,65 +241,75 @@ export default function ExpensesPage() {
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
           </div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="rounded-2xl border border-border overflow-hidden"
-          >
+          <div className={dashboardTableShellClass}>
             {expenses.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-sm">
+              <div className="p-12 text-center font-body text-sm text-muted-foreground">
                 No expenses found. Adjust filters or add one above.
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
+                <thead className={dashboardTableHeadRowClass}>
                   <tr>
                     {["Date", "Category", "Program Area", "Safehouse", "Amount", "Description", "Recorded By", ""].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
+                      <th key={h} className={dashboardTableHeadCellClass}>
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={dashboardTableBodyClass}>
                   {expenses.map((e) => (
-                    <tr key={e.expenseId} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{e.expenseDate}</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{e.category}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{e.programArea}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{e.safehouseName ?? "Org-wide"}</td>
-                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{formatUSD(e.amount)}</td>
-                      <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{e.description ?? "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{e.recordedBy ?? "—"}</td>
-                      <td className="px-4 py-3">
+                    <tr key={e.expenseId} className={dashboardTableRowClass}>
+                      <td className={`${dashboardTableCellClass} whitespace-nowrap text-muted-foreground`}>{e.expenseDate}</td>
+                      <td className={`${dashboardTableCellClass} font-medium`}>{e.category}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{e.programArea}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{e.safehouseName ?? "Org-wide"}</td>
+                      <td className={`${dashboardTableCellClass} whitespace-nowrap font-medium`}>{formatUSD(e.amount)}</td>
+                      <td className={`${dashboardTableCellClass} max-w-[200px] truncate text-muted-foreground`}>{e.description ?? "—"}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{e.recordedBy ?? "—"}</td>
+                      <td className={dashboardTableCellClass}>
                         <div className="flex items-center gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(e)}>
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
                           <Button
+                            type="button"
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-600"
+                            className="h-8 w-8 rounded-xl p-0"
+                            onClick={() => openEdit(e)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-xl p-0 text-red-500 hover:text-red-600"
                             disabled={deletingId === e.expenseId}
                             onClick={() => void handleDelete(e.expenseId)}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                           </Button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-muted/30 border-t border-border">
+                <tfoot className="border-t border-white/40 bg-white/35 dark:border-white/10 dark:bg-white/[0.05]">
                   <tr>
-                    <td colSpan={4} className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</td>
-                    <td className="px-4 py-3 font-bold text-foreground">{formatUSD(total)}</td>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-3 text-right font-body text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                    >
+                      Total
+                    </td>
+                    <td className="px-4 py-3 font-display font-bold text-foreground">{formatUSD(total)}</td>
                     <td colSpan={3} />
                   </tr>
                 </tfoot>
               </table>
             )}
-          </motion.div>
+          </div>
         )}
-      </div>
+      </StaffPageShell>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

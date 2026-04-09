@@ -1,8 +1,22 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  DashboardGlassPanel,
+  DashboardSectionHeader,
+  dashboardFilterBarClass,
+  dashboardPanelEyebrowClass,
+  dashboardPanelSubtitleClass,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+  dashboardTableShellClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
-import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -13,7 +27,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import { Eye, TrendingUp, Gift, Share2, ExternalLink } from "lucide-react";
+import { Eye, TrendingUp, Gift, Megaphone, Share2, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { OutreachStatCard } from "@/components/outreach/OutreachStatCard";
 import { formatUSD, formatUSDCompactThousands } from "@/lib/currency";
@@ -239,21 +253,25 @@ export default function OutreachPage() {
   }, []);
 
   return (
-    <AdminLayout contentClassName="max-w-7xl">
-      <div className="space-y-8">
-        {/* KPI cards: unfiltered outreach payload + normalization (not month-scoped server kpis); own request so prod filters never zero these out */}
-        <section className="space-y-3">
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
-            Posts Count:{" "}
-            {headlineLoading ? "…" : headlineStats ? headlineStats.postsCount : "—"}
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Outreach"
+        eyebrowIcon={<Megaphone className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Social Media & Outreach"
+        description="Campaign reach, engagement, and estimated donation impact from social channels."
+      >
+        {error ? (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {error}
           </p>
-          <motion.div
-            className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
+        ) : null}
+
+        <section className="mb-12 space-y-4 xl:mb-16">
+          <p className="font-body text-xs tabular-nums text-muted-foreground" aria-live="polite">
+            Posts in aggregate sample: {headlineLoading ? "…" : headlineStats ? headlineStats.postsCount : "—"}
+          </p>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <OutreachStatCard
               label="Total Reach"
               icon={Eye}
@@ -290,15 +308,15 @@ export default function OutreachPage() {
               }
               trend={null}
             />
-          </motion.div>
+          </div>
         </section>
 
-        {/* Charts */}
         {data && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* By Platform */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Engagement by Platform</h3>
+          <div className="mb-12 grid gap-8 lg:grid-cols-2">
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Platforms</p>
+              <p className={dashboardPanelSubtitleClass}>Engagement by channel</p>
+              <div className="mt-6">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={data.byPlatform}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
@@ -313,11 +331,13 @@ export default function OutreachPage() {
                   <Bar yAxisId="rate" dataKey="avgEngagementRate" name="Avg Engagement Rate" fill="#a09090" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </section>
+              </div>
+            </DashboardGlassPanel>
 
-            {/* By Post Type */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Performance by Post Type</h3>
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Content</p>
+              <p className={dashboardPanelSubtitleClass}>Performance by post type</p>
+              <div className="mt-6">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={data.byPostType}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
@@ -329,78 +349,103 @@ export default function OutreachPage() {
                   <Bar dataKey="estimatedDonationValue" name="Est. Donation $" fill="#d4a5a0" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </section>
+              </div>
+            </DashboardGlassPanel>
           </div>
         )}
 
-        {/* Posts Table */}
         {data && (
-          <section>
-            {/* Filters */}
-            <div className="flex flex-wrap items-end gap-3 mb-4">
-              <h2 className="font-display font-semibold text-lg text-foreground mr-2">Posts</h2>
+          <section className="mb-6">
+            <DashboardSectionHeader
+              icon={Share2}
+              eyebrow="Content library"
+              title="Posts"
+              description="Filter the outreach feed; totals above use an unfiltered aggregate where available."
+            />
+            <div className={`mb-6 flex flex-wrap items-end gap-3 ${dashboardFilterBarClass}`}>
               <select
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                className="min-w-[140px] rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
                 value={filterPlatform}
                 onChange={(e) => setFilterPlatform(e.target.value)}
               >
                 <option value="">All Platforms</option>
-                {data.filterOptions.platforms.map((p) => <option key={p} value={p}>{p}</option>)}
+                {data.filterOptions.platforms.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
               <select
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                className="min-w-[140px] rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
                 <option value="">All Post Types</option>
-                {data.filterOptions.postTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                {data.filterOptions.postTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
               </select>
               {data.filterOptions.campaigns.length > 0 && (
                 <select
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  className="min-w-[140px] rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 font-body text-sm dark:border-white/10 dark:bg-white/10"
                   value={filterCampaign}
                   onChange={(e) => setFilterCampaign(e.target.value)}
                 >
                   <option value="">All Campaigns</option>
-                  {data.filterOptions.campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {data.filterOptions.campaigns.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
                 </select>
               )}
             </div>
 
-            <div className="rounded-2xl border border-border overflow-hidden">
+            <div className={dashboardTableShellClass}>
               {data.posts.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">No posts found.</div>
+                <div className="p-12 text-center font-body text-sm text-muted-foreground">No posts found.</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
+                  <thead className={dashboardTableHeadRowClass}>
                     <tr>
                       {["Platform", "Type", "Date", "Reach", "Likes", "Engagement", "Referrals", "Est. Value", ""].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
+                        <th key={h} className={dashboardTableHeadCellClass}>
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
+                  <tbody className={dashboardTableBodyClass}>
                     {data.posts.map((p) => (
-                      <tr key={p.postId} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3">
+                      <tr key={p.postId} className={dashboardTableRowClass}>
+                        <td className={dashboardTableCellClass}>
                           <span
-                            className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
+                            className="rounded-full px-2 py-0.5 font-body text-xs font-medium text-white"
                             style={{ background: PLATFORM_COLORS[p.platform] ?? "#888" }}
                           >
                             {p.platform}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{p.postType}</td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.date}</td>
-                        <td className="px-4 py-3 text-foreground">{p.reach.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{p.likes.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{(p.engagementRate * 100).toFixed(2)}%</td>
-                        <td className="px-4 py-3 text-muted-foreground">{p.donationReferrals}</td>
-                        <td className="px-4 py-3 font-medium text-foreground">{formatUSD(p.estimatedDonationValuePhp)}</td>
-                        <td className="px-4 py-3">
+                        <td className={`${dashboardTableCellClass} font-body text-xs text-muted-foreground`}>{p.postType}</td>
+                        <td className={`${dashboardTableCellClass} whitespace-nowrap text-muted-foreground`}>{p.date}</td>
+                        <td className={dashboardTableCellClass}>{p.reach.toLocaleString()}</td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>{p.likes.toLocaleString()}</td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>
+                          {(p.engagementRate * 100).toFixed(2)}%
+                        </td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>{p.donationReferrals}</td>
+                        <td className={`${dashboardTableCellClass} font-medium`}>{formatUSD(p.estimatedDonationValuePhp)}</td>
+                        <td className={dashboardTableCellClass}>
                           {p.postUrl ? (
-                            <a href={p.postUrl} target="_blank" rel="noreferrer" className="text-sidebar-primary hover:underline">
-                              <ExternalLink className="w-3.5 h-3.5" />
+                            <a
+                              href={p.postUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex text-sidebar-primary hover:underline"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
                             </a>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -414,7 +459,7 @@ export default function OutreachPage() {
             </div>
           </section>
         )}
-      </div>
+      </StaffPageShell>
     </AdminLayout>
   );
 }

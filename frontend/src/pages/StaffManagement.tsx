@@ -1,5 +1,18 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
+import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  DashboardGlassPanel,
+  dashboardFilterBarClass,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+  dashboardTableShellClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -15,7 +28,7 @@ import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { AlertCircle, CheckCircle, Mail, Search, Shield, Users, Loader2, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle, Heart, Mail, Search, Shield, UserCog, Users, Loader2, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -163,92 +176,86 @@ export const StaffManagement = () => {
   };
 
   return (
-    <AdminLayout contentClassName="max-w-6xl">
-      <div className="space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <p className="text-sm text-gray-600">Total Users</p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <p className="text-sm text-gray-600">Admins</p>
-            <p className="mt-1 text-2xl font-bold text-terracotta">{stats.admins}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <p className="text-sm text-gray-600">Donors</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">{stats.donors}</p>
-          </div>
-        </div>
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Settings & administration"
+        eyebrowIcon={<UserCog className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Staff & Users"
+        description="Manage roles, access, and two-factor status for organization accounts."
+      >
+        <section className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:mb-16">
+          <CaseloadMetricCard label="Total users" value={stats.total} icon={Users} motionDelay={0} />
+          <CaseloadMetricCard label="Admins" value={stats.admins} icon={Shield} motionDelay={0.05} />
+          <CaseloadMetricCard label="Donors" value={stats.donors} icon={Heart} motionDelay={0.1} />
+        </section>
 
-        {/* Status Message */}
-        {message && (
+        {message ? (
           <div
-            className={`flex items-center gap-3 rounded-md p-3 ${
+            className={`mb-8 flex items-center gap-3 rounded-lg border px-4 py-3 font-body text-sm ${
               status === "success"
-                ? "border border-green-200 bg-green-50"
-                : "border border-red-200 bg-red-50"
+                ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"
+                : "border-destructive/30 bg-destructive/5 text-destructive"
             }`}
           >
             {status === "success" ? (
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
             ) : (
-              <AlertCircle className="h-5 w-5 text-red-600" />
+              <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={1.5} />
             )}
-            <p className={status === "success" ? "text-green-800" : "text-red-800"}>
-              {message}
-            </p>
+            <p>{message}</p>
           </div>
-        )}
+        ) : null}
 
-        {/* Search and Filter */}
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="space-y-4">
-            {/* Search */}
+        <div className={`mb-10 ${dashboardFilterBarClass}`}>
+          <div className="space-y-5">
             <div>
-              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
-                Search Users
+              <label htmlFor="search" className="mb-2 block font-body text-xs font-medium text-muted-foreground">
+                Search users
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" strokeWidth={1.5} />
                 <input
                   id="search"
                   type="text"
                   value={searchEmail}
                   onChange={(e) => setSearchEmail(e.target.value)}
                   placeholder="Search by email or name..."
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pl-10 text-sm placeholder-gray-500 focus:border-terracotta focus:outline-none focus:ring-1 focus:ring-terracotta"
+                  className="w-full rounded-xl border border-white/60 bg-white/70 py-2.5 pl-10 pr-3 font-body text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/25 dark:border-white/10 dark:bg-white/10"
                 />
               </div>
             </div>
 
-            {/* Role Filter Buttons */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Role</label>
-              <div className="flex gap-2">
+              <label className="mb-2 block font-body text-xs font-medium text-muted-foreground">Filter by role</label>
+              <div className="flex flex-wrap gap-2">
                 <Button
+                  type="button"
                   onClick={() => setFilterRole("All")}
                   variant={filterRole === "All" ? "default" : "outline"}
                   size="sm"
+                  className="h-10 rounded-xl px-4 font-body font-medium"
                 >
-                  All Users ({stats.total})
+                  All users ({stats.total})
                 </Button>
                 <Button
+                  type="button"
                   onClick={() => setFilterRole("Admin")}
                   variant={filterRole === "Admin" ? "default" : "outline"}
                   size="sm"
-                  className={filterRole === "Admin" ? "bg-terracotta hover:bg-terracotta/90" : ""}
+                  className={`h-10 rounded-xl px-4 font-body font-medium ${filterRole === "Admin" ? "bg-terracotta hover:bg-terracotta/90" : ""}`}
                 >
-                  <Shield className="mr-2 h-4 w-4" />
+                  <Shield className="mr-2 h-4 w-4" strokeWidth={1.5} />
                   Admins ({stats.admins})
                 </Button>
                 <Button
+                  type="button"
                   onClick={() => setFilterRole("Donor")}
                   variant={filterRole === "Donor" ? "default" : "outline"}
                   size="sm"
-                  className={filterRole === "Donor" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                  className={`h-10 rounded-xl px-4 font-body font-medium ${filterRole === "Donor" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
                 >
-                  <Users className="mr-2 h-4 w-4" />
+                  <Users className="mr-2 h-4 w-4" strokeWidth={1.5} />
                   Donors ({stats.donors})
                 </Button>
               </div>
@@ -256,124 +263,111 @@ export const StaffManagement = () => {
           </div>
         </div>
 
-        {/* Users Table */}
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <div className={dashboardTableShellClass}>
           {loadingUsers ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <div className="flex items-center justify-center p-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center p-8">
-              <Users className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-              <p className="text-gray-600">No users found.</p>
+            <div className="p-12 text-center">
+              <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" strokeWidth={1.5} />
+              <p className="font-body text-sm text-muted-foreground">No users found.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-gray-200 bg-gray-50">
+              <table className="w-full min-w-[640px]">
+                <thead className={dashboardTableHeadRowClass}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                      Roles
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                      2FA
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
-                      Actions
-                    </th>
+                    {["Email", "Name", "Roles", "2FA", "Actions"].map((h) => (
+                      <th key={h} className={dashboardTableHeadCellClass}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={dashboardTableBodyClass}>
                   {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                    <tr key={user.id} className={dashboardTableRowClass}>
+                      <td className={dashboardTableCellClass}>
                         <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400" />
-                          {user.email}
+                          <Mail className="h-4 w-4 shrink-0 text-muted-foreground/70" strokeWidth={1.5} />
+                          <span className="text-foreground/95">{user.email}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{user.displayName}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex gap-2">
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{user.displayName}</td>
+                      <td className={dashboardTableCellClass}>
+                        <div className="flex flex-wrap gap-2">
                           {user.roles.map((role) => (
                             <span
                               key={role}
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              className={`inline-flex rounded-full px-2 py-0.5 font-body text-xs font-semibold ${
                                 role === "Admin"
                                   ? "bg-terracotta/10 text-terracotta"
-                                  : "bg-blue-100 text-blue-700"
+                                  : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                               }`}
                             >
                               {role}
                             </span>
                           ))}
-                          {user.roles.length === 0 && (
-                            <span className="text-xs text-gray-500">No roles</span>
-                          )}
+                          {user.roles.length === 0 ? (
+                            <span className="font-body text-xs text-muted-foreground">No roles</span>
+                          ) : null}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm">
+                      <td className={dashboardTableCellClass}>
                         {user.mfaEnabled ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-body text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                             Enabled
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-500">Disabled</span>
+                          <span className="font-body text-xs text-muted-foreground">Disabled</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex gap-2">
+                      <td className={dashboardTableCellClass}>
+                        <div className="flex flex-wrap gap-2">
                           <Button
+                            type="button"
                             onClick={() => handleToggleRole(user.id, "Admin")}
                             disabled={updatingUserId === user.id || deletingUserId === user.id}
                             variant={user.roles.includes("Admin") ? "default" : "outline"}
                             size="sm"
-                            className={
-                              user.roles.includes("Admin")
-                                ? "bg-terracotta hover:bg-terracotta/90"
-                                : ""
-                            }
+                            className={`h-9 rounded-xl ${user.roles.includes("Admin") ? "bg-terracotta hover:bg-terracotta/90" : ""}`}
                           >
                             {updatingUserId === user.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Shield className="h-4 w-4" />
+                              <Shield className="h-4 w-4" strokeWidth={1.5} />
                             )}
                           </Button>
                           <Button
+                            type="button"
                             onClick={() => handleToggleRole(user.id, "Donor")}
                             disabled={updatingUserId === user.id || deletingUserId === user.id}
                             variant={user.roles.includes("Donor") ? "default" : "outline"}
                             size="sm"
-                            className={
-                              user.roles.includes("Donor")
-                                ? "bg-blue-600 hover:bg-blue-700"
-                                : ""
-                            }
+                            className={`h-9 rounded-xl ${user.roles.includes("Donor") ? "bg-blue-600 hover:bg-blue-700" : ""}`}
                           >
                             {updatingUserId === user.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Users className="h-4 w-4" />
+                              <Users className="h-4 w-4" strokeWidth={1.5} />
                             )}
                           </Button>
                           <Button
+                            type="button"
                             onClick={() => setPendingDeleteUser(user)}
-                            disabled={updatingUserId === user.id || deletingUserId === user.id || user.id === currentUser?.id}
+                            disabled={
+                              updatingUserId === user.id || deletingUserId === user.id || user.id === currentUser?.id
+                            }
                             variant="destructive"
                             size="sm"
+                            className="h-9 rounded-xl"
                             aria-label={`Remove ${user.email}`}
                           >
                             {deletingUserId === user.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                             )}
                           </Button>
                         </div>
@@ -386,18 +380,16 @@ export const StaffManagement = () => {
           )}
         </div>
 
-        {/* Info Section */}
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="text-sm font-medium text-gray-900">How to use:</h3>
-          <ul className="mt-2 space-y-1 text-sm text-gray-700">
-            <li>• Use the search box to find users by email or name</li>
-            <li>• Click on "Admins" or "Donors" tabs to filter by role</li>
-            <li>• Click the shield icon to toggle Admin role on/off</li>
-            <li>• Click the users icon to toggle Donor role on/off</li>
-            <li>• Click the trash icon to remove a user profile</li>
-            <li>• Users can have multiple roles simultaneously</li>
+        <DashboardGlassPanel padding="sm" className="mt-10">
+          <h3 className="font-body text-sm font-semibold text-foreground">How to use</h3>
+          <ul className="mt-3 space-y-1.5 font-body text-sm text-muted-foreground">
+            <li>Use the search box to find users by email or name.</li>
+            <li>Use role chips to filter the directory.</li>
+            <li>Shield toggles Admin; people icon toggles Donor.</li>
+            <li>Trash removes a profile (not available for your own account).</li>
+            <li>Accounts may hold multiple roles at once.</li>
           </ul>
-        </div>
+        </DashboardGlassPanel>
 
         <AlertDialog open={pendingDeleteUser !== null} onOpenChange={(open) => !open && setPendingDeleteUser(null)}>
           <AlertDialogContent>
@@ -424,7 +416,7 @@ export const StaffManagement = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </StaffPageShell>
     </AdminLayout>
   );
 };

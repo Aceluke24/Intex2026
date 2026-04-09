@@ -1,9 +1,23 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { CaseloadMetricCard } from "@/components/caseload/CaseloadMetricCard";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  DashboardGlassPanel,
+  DashboardSectionHeader,
+  dashboardPanelEyebrowClass,
+  dashboardPanelSubtitleClass,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+  dashboardTableShellClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -128,21 +142,6 @@ const severityColor = (s: string) =>
 const progressColor = (pct: number) =>
   pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
 
-function KpiCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 flex items-start gap-4">
-      <div className="rounded-xl bg-sidebar-accent/50 p-2.5">
-        <Icon className="w-5 h-5 text-sidebar-primary" />
-      </div>
-      <div>
-        <p className="text-[11px] font-body font-medium uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className="text-2xl font-display font-bold text-foreground leading-tight">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 const emptyGoalForm = (): GoalFormData => ({
   goalCategory: "HomeVisits",
   safehouseId: "",
@@ -256,49 +255,100 @@ export default function ProgramsDashboardPage() {
   };
 
   return (
-    <AdminLayout contentClassName="max-w-7xl">
-      <div className="space-y-8">
-        {/* KPI Cards */}
-        <section>
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Programs & operations"
+        eyebrowIcon={<Activity className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Programs Dashboard"
+        description="Operations, goals, and safehouse performance at a glance."
+      >
+        {error ? (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <section className="mb-12 xl:mb-16">
           {loading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-[120px] rounded-[1.1rem] bg-white/45" />
+              ))}
             </div>
-          ) : error ? (
-            <p className="text-red-500 text-sm">{error}</p>
           ) : data ? (
-            <motion.div
-              className="grid grid-cols-2 lg:grid-cols-5 gap-4"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <KpiCard icon={Users} label="Active Residents" value={data.kpis.activeResidents.toLocaleString()} />
-              <KpiCard icon={AlertTriangle} label="High / Critical Risk" value={data.kpis.highRiskResidents.toLocaleString()} sub="active cases" />
-              <KpiCard icon={RefreshCw} label="Reintegration Rate" value={`${data.kpis.reintegrationRate}%`} sub="of those with a plan" />
-              <KpiCard icon={MessageSquare} label="Sessions This Month" value={data.kpis.sessionsThisMonth.toLocaleString()} />
-              <KpiCard icon={MapPin} label="Home Visits This Month" value={data.kpis.visitsThisMonth.toLocaleString()} />
-            </motion.div>
+            <>
+              <DashboardSectionHeader
+                icon={Activity}
+                eyebrow="Key metrics"
+                title="Program KPIs"
+                description="Live counts from resident and field activity."
+              />
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <CaseloadMetricCard
+                  label="Active residents"
+                  value={data.kpis.activeResidents}
+                  icon={Users}
+                  motionDelay={0}
+                />
+                <CaseloadMetricCard
+                  label="High / critical risk"
+                  value={data.kpis.highRiskResidents}
+                  icon={AlertTriangle}
+                  motionDelay={0.05}
+                  variant="critical"
+                />
+                <CaseloadMetricCard
+                  label="Reintegration rate"
+                  value={data.kpis.reintegrationRate}
+                  format={(n) => `${Math.round(n)}%`}
+                  icon={RefreshCw}
+                  motionDelay={0.1}
+                />
+                <CaseloadMetricCard
+                  label="Sessions this month"
+                  value={data.kpis.sessionsThisMonth}
+                  icon={MessageSquare}
+                  motionDelay={0.14}
+                />
+                <CaseloadMetricCard
+                  label="Home visits this month"
+                  value={data.kpis.visitsThisMonth}
+                  icon={MapPin}
+                  motionDelay={0.18}
+                />
+              </div>
+            </>
           ) : null}
         </section>
 
-        {/* Goal Progress */}
         {data && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold text-lg text-foreground">Active Goals</h2>
-              <Button size="sm" variant="outline" onClick={() => setGoalDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-1.5" /> Add Goal
-              </Button>
-            </div>
+          <section className="mb-12">
+            <DashboardSectionHeader
+              icon={Target}
+              eyebrow="Planning"
+              title="Active goals"
+              description="Track organizational targets for the current period."
+              right={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setGoalDialogOpen(true)}
+                  className="h-12 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+                >
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                  Add goal
+                </Button>
+              }
+            />
             {data.goalProgress.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
+              <div className="rounded-[1.1rem] border border-dashed border-white/50 bg-white/30 px-8 py-12 text-center font-body text-sm text-muted-foreground backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]">
                 No active goals for this period. Add one above.
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {data.goalProgress.map((g) => (
-                  <div key={g.goalId} className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                  <DashboardGlassPanel key={g.goalId} padding="sm" className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-sidebar-primary flex-shrink-0" />
                       <span className="text-sm font-medium text-foreground truncate">{g.goalCategory}</span>
@@ -322,39 +372,55 @@ export default function ProgramsDashboardPage() {
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">{g.periodStart} → {g.periodEnd}</p>
-                  </div>
+                  </DashboardGlassPanel>
                 ))}
               </div>
             )}
           </section>
         )}
 
-        {/* Safehouse Comparison Table */}
         {data && data.safehouseTable.length > 0 && (
-          <section>
-            <h2 className="font-display font-semibold text-lg text-foreground mb-4">Safehouse Overview</h2>
-            <div className="rounded-2xl border border-border overflow-hidden">
+          <section className="mb-12">
+            <DashboardSectionHeader
+              icon={MapPin}
+              eyebrow="Safehouses"
+              title="Safehouse overview"
+              description="Capacity, wellbeing scores, and monthly activity by location."
+            />
+            <div className={dashboardTableShellClass}>
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
+                <thead className={dashboardTableHeadRowClass}>
                   <tr>
                     {["Safehouse", "Residents / Capacity", "Avg Health", "Avg Education", "Incidents", "Sessions"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
+                      <th key={h} className={dashboardTableHeadCellClass}>
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={dashboardTableBodyClass}>
                   {data.safehouseTable.map((s) => (
-                    <tr key={s.safehouseId} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">{s.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.activeResidents} / {s.capacityGirls}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.avgHealthScore > 0 ? s.avgHealthScore.toFixed(1) : "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.avgEducationProgress > 0 ? `${s.avgEducationProgress.toFixed(0)}%` : "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={s.incidentsThisMonth > 0 ? "text-red-500 font-medium" : "text-muted-foreground"}>
+                    <tr key={s.safehouseId} className={dashboardTableRowClass}>
+                      <td className={`${dashboardTableCellClass} font-medium`}>{s.name}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>
+                        {s.activeResidents} / {s.capacityGirls}
+                      </td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>
+                        {s.avgHealthScore > 0 ? s.avgHealthScore.toFixed(1) : "—"}
+                      </td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>
+                        {s.avgEducationProgress > 0 ? `${s.avgEducationProgress.toFixed(0)}%` : "—"}
+                      </td>
+                      <td className={dashboardTableCellClass}>
+                        <span
+                          className={
+                            s.incidentsThisMonth > 0 ? "font-medium text-red-500" : "text-muted-foreground"
+                          }
+                        >
                           {s.incidentsThisMonth}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.sessionsThisMonth}</td>
+                      <td className={`${dashboardTableCellClass} text-muted-foreground`}>{s.sessionsThisMonth}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -363,110 +429,126 @@ export default function ProgramsDashboardPage() {
           </section>
         )}
 
-        {/* Charts row */}
         {data && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Admissions vs Closures */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Admissions vs. Closures (12 months)</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={admissionsChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip {...softTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="admissions" stroke="#c8877a" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="closures" stroke="#a09090" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </section>
+          <div className="mb-12 grid gap-8 lg:grid-cols-2">
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Admissions &amp; closures</p>
+              <p className={dashboardPanelSubtitleClass}>Twelve-month trend</p>
+              <div className="mt-6">
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={admissionsChart}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip {...softTooltip} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Line type="monotone" dataKey="admissions" stroke="#c8877a" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="closures" stroke="#a09090" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </DashboardGlassPanel>
 
-            {/* Reintegration Funnel */}
-            <section className="rounded-2xl border border-border bg-card p-5">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Reintegration Status</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.reintegrationFunnel} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} />
-                  <YAxis dataKey="status" type="category" tick={{ fontSize: 11 }} width={90} />
-                  <Tooltip {...softTooltip} />
-                  <Bar dataKey="count" fill="#c8877a" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </section>
+            <DashboardGlassPanel>
+              <p className={dashboardPanelEyebrowClass}>Reintegration status</p>
+              <p className={dashboardPanelSubtitleClass}>Cases by pipeline stage</p>
+              <div className="mt-6">
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={data.reintegrationFunnel} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis dataKey="status" type="category" tick={{ fontSize: 11 }} width={90} />
+                    <Tooltip {...softTooltip} />
+                    <Bar dataKey="count" fill="#c8877a" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </DashboardGlassPanel>
 
-            {/* Risk Trend */}
-            <section className="rounded-2xl border border-border bg-card p-5 lg:col-span-2">
-              <h3 className="font-display font-semibold text-base text-foreground mb-4">Risk Level Distribution (6 months)</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.riskTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip {...softTooltip} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="low" stackId="a" fill="#86efac" name="Low" />
-                  <Bar dataKey="medium" stackId="a" fill="#fcd34d" name="Medium" />
-                  <Bar dataKey="high" stackId="a" fill="#f97316" name="High" />
-                  <Bar dataKey="critical" stackId="a" fill="#ef4444" name="Critical" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </section>
+            <DashboardGlassPanel className="lg:col-span-2">
+              <p className={dashboardPanelEyebrowClass}>Risk distribution</p>
+              <p className={dashboardPanelSubtitleClass}>Six-month stacked levels</p>
+              <div className="mt-6">
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={data.riskTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(36 25% 90%)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 6)} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip {...softTooltip} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="low" stackId="a" fill="#86efac" name="Low" />
+                    <Bar dataKey="medium" stackId="a" fill="#fcd34d" name="Medium" />
+                    <Bar dataKey="high" stackId="a" fill="#f97316" name="High" />
+                    <Bar dataKey="critical" stackId="a" fill="#ef4444" name="Critical" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </DashboardGlassPanel>
           </div>
         )}
 
-        {/* Unresolved Incidents */}
         {data && data.unresolvedIncidents.length > 0 && (
-          <section>
-            <h2 className="font-display font-semibold text-lg text-foreground mb-4">
-              Unresolved Incidents
-              <span className="ml-2 text-sm font-body font-normal text-red-500">({data.unresolvedIncidents.length})</span>
-            </h2>
-            <div className="rounded-2xl border border-border overflow-hidden">
+          <section className="mb-6">
+            <DashboardSectionHeader
+              icon={AlertTriangle}
+              eyebrow="Incidents"
+              title="Unresolved incidents"
+              description={
+                <>
+                  <span className="text-red-500">{data.unresolvedIncidents.length}</span> open — resolve or escalate from this list.
+                </>
+              }
+            />
+            <div className={dashboardTableShellClass}>
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
+                <thead className={dashboardTableHeadRowClass}>
                   <tr>
                     {["Resident", "Safehouse", "Type", "Severity", "Date", "Follow-Up", ""].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
+                      <th key={h} className={dashboardTableHeadCellClass}>
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={dashboardTableBodyClass}>
                   {data.unresolvedIncidents.map((inc) => {
                     const rowId = getIncidentRowId(inc);
                     return (
-                    <tr key={rowId ?? `${inc.residentCode}-${inc.incidentDate}`} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-foreground">{inc.residentCode}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{inc.safehouseName ?? "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{inc.incidentType}</td>
-                      <td className={cn("px-4 py-3 font-medium", severityColor(inc.severity))}>{inc.severity}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{inc.incidentDate}</td>
-                      <td className="px-4 py-3">
-                        {inc.followUpRequired
-                          ? <Circle className="w-4 h-4 text-amber-500" />
-                          : <span className="text-muted-foreground">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={rowId == null || resolvingId === rowId}
-                          onClick={() => {
-                            if (rowId == null) {
-                              toast.error("Invalid incident.");
-                              return;
-                            }
-                            void handleResolve(rowId);
-                          }}
-                          className="text-xs h-7 px-2 cursor-pointer hover:bg-accent/80"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                          {resolvingId === rowId ? "…" : "Resolve"}
-                        </Button>
-                      </td>
-                    </tr>
+                      <tr key={rowId ?? `${inc.residentCode}-${inc.incidentDate}`} className={dashboardTableRowClass}>
+                        <td className={`${dashboardTableCellClass} font-mono text-xs`}>{inc.residentCode}</td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>{inc.safehouseName ?? "—"}</td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>{inc.incidentType}</td>
+                        <td className={cn(dashboardTableCellClass, "font-medium", severityColor(inc.severity))}>
+                          {inc.severity}
+                        </td>
+                        <td className={`${dashboardTableCellClass} text-muted-foreground`}>{inc.incidentDate}</td>
+                        <td className={dashboardTableCellClass}>
+                          {inc.followUpRequired ? (
+                            <Circle className="h-4 w-4 text-amber-500" strokeWidth={1.5} />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className={dashboardTableCellClass}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={rowId == null || resolvingId === rowId}
+                            onClick={() => {
+                              if (rowId == null) {
+                                toast.error("Invalid incident.");
+                                return;
+                              }
+                              void handleResolve(rowId);
+                            }}
+                            className="h-8 rounded-xl px-2 font-body text-xs hover:bg-white/50 dark:hover:bg-white/10"
+                          >
+                            <CheckCircle className="mr-1 h-3.5 w-3.5" strokeWidth={1.5} />
+                            {resolvingId === rowId ? "…" : "Resolve"}
+                          </Button>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
@@ -474,7 +556,7 @@ export default function ProgramsDashboardPage() {
             </div>
           </section>
         )}
-      </div>
+      </StaffPageShell>
 
       {/* Add Goal Dialog */}
       <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>

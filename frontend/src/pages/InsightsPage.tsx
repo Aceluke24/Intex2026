@@ -1,5 +1,15 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AIInsightCard } from "@/components/AIInsightCard";
+import {
+  DASHBOARD_CONTENT_MAX_WIDTH,
+  DashboardGlassPanel,
+  dashboardTableBodyClass,
+  dashboardTableCellClass,
+  dashboardTableHeadCellClass,
+  dashboardTableHeadRowClass,
+  dashboardTableRowClass,
+} from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
@@ -160,42 +170,36 @@ const InsightsPage = () => {
     return values.reduce((sum, v) => sum + v, 0) / values.length;
   }, [churn]);
 
-  return (
-    <AdminLayout contentClassName="max-w-[1000px]">
-      <div className="space-y-10 pb-12">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-4 rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[hsl(340_32%_94%)] dark:bg-[hsl(340_22%_18%)]">
-            <Brain className="h-6 w-6 text-[hsl(340_35%_48%)]" strokeWidth={1.5} />
-          </div>
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground lg:text-3xl">AI Insights</h1>
-            <p className="mt-2 font-body text-sm leading-relaxed text-muted-foreground">
-              {donorScoreSource === "ml"
-                ? "ML-powered donor retention scores are live, with automatic fallback to rule-based scoring if ML data is unavailable."
-                : "Rule-based fallback is active for donor retention while ML scores are unavailable."}
-            </p>
-            <p className="mt-1 font-body text-xs text-muted-foreground">
-              Source: {donorScoreSource === "ml" ? "ML" : "Rule-based"}
-              {donorModelVersion ? ` • Model: ${donorModelVersion}` : ""}
-              {donorScoredAt ? ` • Scored at: ${new Date(donorScoredAt).toLocaleString()}` : ""}
-            </p>
-          </div>
-        </motion.div>
+  const insightDescription =
+    donorScoreSource === "ml"
+      ? "ML-powered donor retention scores are live, with automatic fallback to rule-based scoring if ML data is unavailable."
+      : "Rule-based fallback is active for donor retention while ML scores are unavailable.";
 
-        {loadError && (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+  return (
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Machine learning"
+        eyebrowIcon={<Brain className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="AI Insights"
+        description={insightDescription}
+      >
+        <p className="mb-10 font-body text-xs text-muted-foreground">
+          Source: {donorScoreSource === "ml" ? "ML" : "Rule-based"}
+          {donorModelVersion ? ` • Model: ${donorModelVersion}` : ""}
+          {donorScoredAt ? ` • Scored at: ${new Date(donorScoredAt).toLocaleString()}` : ""}
+        </p>
+
+        {loadError ? (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
             {loadError}
           </p>
-        )}
+        ) : null}
 
         {loading ? (
           <p className="font-body text-sm text-muted-foreground">Loading insights…</p>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-10">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               {cards.map((insight, i) => (
                 <motion.div
@@ -213,83 +217,93 @@ const InsightsPage = () => {
             <motion.section
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
               aria-labelledby="top-risk-donors-heading"
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 id="top-risk-donors-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
-                    Top At-Risk Donors
-                  </h2>
-                  <p className="font-body text-xs text-muted-foreground">
-                    Ranked by predicted churn risk{avgRepeatProbability !== null ? ` • Avg repeat probability: ${(avgRepeatProbability * 100).toFixed(0)}%` : ""}
-                  </p>
+              <DashboardGlassPanel>
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2
+                      id="top-risk-donors-heading"
+                      className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+                    >
+                      Top at-risk donors
+                    </h2>
+                    <p className="mt-2 font-body text-sm text-muted-foreground">
+                      Ranked by predicted churn risk
+                      {avgRepeatProbability !== null
+                        ? ` • Avg repeat probability: ${(avgRepeatProbability * 100).toFixed(0)}%`
+                        : ""}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/50 bg-white/55 px-3 py-1 font-body text-xs text-foreground/80 dark:border-white/10 dark:bg-white/10">
+                    {donorScoreSource === "ml" ? "ML ranked" : "Rule-based ranked"}
+                  </span>
                 </div>
-                <span className="rounded-full border border-[hsl(340_26%_78%)] bg-[hsl(340_32%_94%)] px-3 py-1 font-body text-xs text-[hsl(340_35%_38%)]">
-                  {donorScoreSource === "ml" ? "ML ranked" : "Rule-based ranked"}
-                </span>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] text-left">
-                  <thead>
-                    <tr className="border-b border-[hsl(350,16%,92%)]/90 font-body text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="px-2 py-2">Donor</th>
-                      <th className="px-2 py-2">Risk Band</th>
-                      <th className="px-2 py-2">Churn Risk</th>
-                      <th className="px-2 py-2">Repeat Prob.</th>
-                      <th className="px-2 py-2">Last Donation</th>
-                      <th className="px-2 py-2">Suggested Outreach</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topAtRiskDonors.map((d) => {
-                      const category = d.riskCategory || "Low";
-                      const repeatProbability =
-                        typeof d.repeatProbability180d === "number"
-                          ? d.repeatProbability180d
-                          : Math.max(0, 1 - d.churnRisk);
-
-                      return (
-                        <tr key={d.supporterId} className="border-b border-[hsl(350,16%,94%)]/80 font-body text-sm text-foreground/90">
-                          <td className="px-2 py-2">
-                            <p className="font-medium text-foreground">{d.displayName || `Supporter #${d.supporterId}`}</p>
-                            <p className="text-xs text-muted-foreground">{d.supporterType ?? "Supporter"}</p>
-                          </td>
-                          <td className="px-2 py-2">
-                            <span
-                              className={[
-                                "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                                category === "Critical" ? "bg-rose-100 text-rose-700" : "",
-                                category === "High" ? "bg-amber-100 text-amber-700" : "",
-                                category === "Medium" ? "bg-sky-100 text-sky-700" : "",
-                                category === "Low" ? "bg-emerald-100 text-emerald-700" : "",
-                              ].join(" ")}
-                            >
-                              {category}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2">{(d.churnRisk * 100).toFixed(0)}%</td>
-                          <td className="px-2 py-2">{(repeatProbability * 100).toFixed(0)}%</td>
-                          <td className="px-2 py-2">{d.lastDonationDate ? new Date(d.lastDonationDate).toLocaleDateString() : "—"}</td>
-                          <td className="px-2 py-2">{actionByRiskCategory[category] ?? "Review donor profile"}</td>
-                        </tr>
-                      );
-                    })}
-                    {!topAtRiskDonors.length && (
+                <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
+                  <table className="w-full min-w-[780px] text-left">
+                    <thead className={dashboardTableHeadRowClass}>
                       <tr>
-                        <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={6}>
-                          No donor risk rows available.
-                        </td>
+                        {["Donor", "Risk band", "Churn risk", "Repeat prob.", "Last donation", "Suggested outreach"].map((h) => (
+                          <th key={h} className={dashboardTableHeadCellClass}>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className={dashboardTableBodyClass}>
+                      {topAtRiskDonors.map((d) => {
+                        const category = d.riskCategory || "Low";
+                        const repeatProbability =
+                          typeof d.repeatProbability180d === "number"
+                            ? d.repeatProbability180d
+                            : Math.max(0, 1 - d.churnRisk);
+
+                        return (
+                          <tr key={d.supporterId} className={dashboardTableRowClass}>
+                            <td className={dashboardTableCellClass}>
+                              <p className="font-medium text-foreground">{d.displayName || `Supporter #${d.supporterId}`}</p>
+                              <p className="font-body text-xs text-muted-foreground">{d.supporterType ?? "Supporter"}</p>
+                            </td>
+                            <td className={dashboardTableCellClass}>
+                              <span
+                                className={[
+                                  "inline-flex rounded-full px-2 py-0.5 font-body text-xs font-medium",
+                                  category === "Critical" ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" : "",
+                                  category === "High" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "",
+                                  category === "Medium" ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "",
+                                  category === "Low" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "",
+                                ].join(" ")}
+                              >
+                                {category}
+                              </span>
+                            </td>
+                            <td className={dashboardTableCellClass}>{(d.churnRisk * 100).toFixed(0)}%</td>
+                            <td className={dashboardTableCellClass}>{(repeatProbability * 100).toFixed(0)}%</td>
+                            <td className={`${dashboardTableCellClass} text-muted-foreground`}>
+                              {d.lastDonationDate ? new Date(d.lastDonationDate).toLocaleDateString() : "—"}
+                            </td>
+                            <td className={dashboardTableCellClass}>
+                              {actionByRiskCategory[category] ?? "Review donor profile"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!topAtRiskDonors.length ? (
+                        <tr>
+                          <td className={`${dashboardTableCellClass} text-muted-foreground`} colSpan={6}>
+                            No donor risk rows available.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </DashboardGlassPanel>
             </motion.section>
           </div>
         )}
-      </div>
+      </StaffPageShell>
     </AdminLayout>
   );
 };

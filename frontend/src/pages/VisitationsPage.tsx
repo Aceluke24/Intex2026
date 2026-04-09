@@ -1,5 +1,6 @@
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
+import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { SlideOverPanel } from "@/components/donors/SlideOverPanel";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
@@ -726,7 +727,7 @@ const VisitationsPage = () => {
   };
 
   return (
-    <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         eyebrow="Field operations"
         eyebrowIcon={<Home className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}

@@ -1,5 +1,7 @@
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { AdminLayout } from "@/components/AdminLayout";
+import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
 import { KpiStatCard } from "@/components/KpiStatCard";
@@ -30,10 +32,9 @@ import type {
 } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Download, Gift, HeartHandshake, Plus, Sparkles, TrendingUp, Users } from "lucide-react";
+import { Clock, Download, Gift, HeartHandshake, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import watermarkSrc from "@/img/NorthStarLogo.png";
 
 const EMPTY_METRICS: DonorsDashboardResponse["metrics"] = {
   totalSupporters: 0,
@@ -362,120 +363,59 @@ const DonorsPage = () => {
   };
 
   return (
-    <AdminLayout contentClassName="max-w-[min(100%,90rem)]">
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-[1.75rem] px-5 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-16",
-          "bg-gradient-to-b from-[hsl(36_36%_96%)] via-[hsl(350_32%_96%)] to-[hsl(340_28%_95%)]",
-          "shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]",
-          "dark:from-[hsl(213_40%_9%)] dark:via-[hsl(213_35%_10%)] dark:to-[hsl(340_25%_9%)]"
-        )}
-      >
-        {/* Radial hero glow */}
-        <div
-          className="pointer-events-none absolute -left-20 top-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle_at_center,hsl(340_42%_88%)/0.45_0%,transparent_68%)] blur-2xl dark:bg-[radial-gradient(circle_at_center,hsl(340_35%_35%)/0.25_0%,transparent_70%)]"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute right-0 top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,hsl(25_40%_88%)/0.35_0%,transparent_65%)] blur-3xl dark:opacity-40"
-          aria-hidden
-        />
-
-        {/* Film grain */}
-        <div className="donors-page-grain pointer-events-none absolute inset-0 rounded-[inherit] opacity-[0.4]" aria-hidden />
-
-        {/* Logo watermark */}
-        <img
-          src={watermarkSrc}
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute right-0 top-8 h-56 w-auto max-w-[min(40%,320px)] opacity-[0.06] select-none sm:h-72 lg:right-6 lg:top-12"
-        />
-
-        <div className="relative z-[1]">
-          {loadError && (
-            <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
-              {loadError}
-            </p>
-          )}
-          {/* Hero */}
-          <header className="relative mb-20 lg:mb-28">
-            <div className="pointer-events-none absolute -left-10 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-[hsl(340_45%_88%)]/20 blur-3xl dark:bg-[hsl(340_30%_40%)]/15" />
-
-            <div className="relative flex flex-col gap-12 lg:flex-row lg:items-end lg:justify-between lg:gap-16">
-              <div className="max-w-2xl">
-                <motion.p
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className="mb-4 inline-flex items-center gap-2 font-body text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/75"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-[hsl(340_42%_58%)]" strokeWidth={1.5} />
-                  Operations
-                </motion.p>
-                <motion.h1
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.55, delay: 0.04 }}
-                  className="font-display text-[2.35rem] font-bold leading-[1.08] tracking-[-0.035em] text-foreground sm:text-[2.85rem] lg:text-[3.15rem]"
-                >
-                  Donors & Contributions
-                </motion.h1>
-                <motion.p
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                  className="mt-6 max-w-lg font-body text-[1.05rem] font-normal leading-[1.65] text-muted-foreground/95 sm:text-lg"
-                >
-                  Manage supporters and track impact across programs.
-                </motion.p>
-              </div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.14 }}
-                className="flex flex-wrap items-center gap-3"
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Philanthropy"
+        eyebrowIcon={<HeartHandshake className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Donors & Contributions"
+        description="Manage supporters and track impact across programs."
+        actions={
+          <>
+            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
+              <Button
+                type="button"
+                onClick={handleAddSupporter}
+                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
               >
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
-                  <Button
-                    type="button"
-                    onClick={handleAddSupporter}
-                    className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-                  >
-                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-                    <span className="relative z-[1] flex items-center">
-                      <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                      Add Supporter
-                    </span>
-                  </Button>
-                </motion.div>
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => void handleExport()}
-                    disabled={exporting || loading}
-                    aria-busy={exporting}
-                    className="h-12 rounded-2xl border border-white/50 bg-white/55 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.06)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/85 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
-                  >
-                    <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
-                    Export Data
-                  </Button>
-                </motion.div>
-              </motion.div>
-            </div>
-          </header>
+                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                <span className="relative z-[1] flex items-center">
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                  Add supporter
+                </span>
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void handleExport()}
+                disabled={exporting || loading}
+                aria-busy={exporting}
+                className="h-12 rounded-2xl border border-white/50 bg-white/55 px-6 font-body font-medium text-foreground/80 shadow-[0_4px_24px_rgba(45,35,48,0.06)] backdrop-blur-md transition-all hover:border-white/80 hover:bg-white/85 hover:text-foreground dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
+              >
+                <Download className="mr-2 h-4 w-4 opacity-70" strokeWidth={1.5} />
+                Export data
+              </Button>
+            </motion.div>
+          </>
+        }
+      >
+        {loadError ? (
+          <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
+            {loadError}
+          </p>
+        ) : null}
 
           {/* Metrics */}
           {loading ? (
-            <div className="mb-24 grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="mb-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className={cn("h-[132px] rounded-[1.15rem] bg-white/50", i === 2 && "xl:col-span-2")} />
               ))}
             </div>
           ) : (
-            <section className="mb-24 xl:mb-32">
+            <section className="mb-12 xl:mb-16">
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
                 <KpiStatCard
                   variant="glass"
@@ -538,13 +478,13 @@ const DonorsPage = () => {
           )}
 
           {!loading && (
-            <section className="mb-14 mt-4">
+            <section className="mb-12 mt-2">
               <div className="mb-8">
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
                   Highlights
                 </p>
-                <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[1.85rem]">
-                  Top Donors
+                <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
+                  Top donors
                 </h2>
                 <p className="mt-2 font-body text-sm text-muted-foreground">By lifetime contribution value</p>
               </div>
@@ -586,16 +526,16 @@ const DonorsPage = () => {
           {!loading && <ImpactOverview feed={contributionTimelineFeed} allocation={allocationByDestination} />}
 
           {/* Directory */}
-          <section className="mb-8 mt-8">
-            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <section className="mb-8 mt-6">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
                   Community
                 </p>
-                <h2 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-[2.1rem]">
-                  Supporter Directory
+                <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
+                  Supporter directory
                 </h2>
-                <p className="mt-3 font-body text-base text-muted-foreground/95">
+                <p className="mt-2 font-body text-sm text-muted-foreground">
                   {filtered.length} {filtered.length === 1 ? "person" : "people"} match your filters
                 </p>
               </div>
@@ -603,15 +543,15 @@ const DonorsPage = () => {
                 type="button"
                 onClick={() => setAddOpen(true)}
                 variant="ghost"
-                className="self-start rounded-2xl border border-transparent bg-white/40 px-4 py-2 font-body font-medium text-[hsl(340_38%_38%)] shadow-sm backdrop-blur-sm transition-all hover:border-[hsl(340_35%_85%)] hover:bg-white/70 hover:text-[hsl(340_35%_28%)] dark:bg-white/5 dark:hover:bg-white/10"
+                className="h-12 self-start rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium text-foreground/85 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
               >
-                <Plus className="mr-1.5 h-4 w-4" strokeWidth={2} />
+                <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
                 Log contribution
               </Button>
             </div>
 
             {!loading && (
-              <div className="mb-10">
+              <div className="mb-8">
                 <FilterBar
                   search={search}
                   onSearchChange={setSearch}
@@ -670,7 +610,7 @@ const DonorsPage = () => {
               )}
             </div>
           </section>
-        </div>
+      </StaffPageShell>
 
         <motion.button
           type="button"
@@ -685,7 +625,6 @@ const DonorsPage = () => {
         >
           <Plus className="h-6 w-6" strokeWidth={2} />
         </motion.button>
-      </div>
 
       <SlideOverPanel open={sheetOpen} onOpenChange={setSheetOpen}>
         {selected && (

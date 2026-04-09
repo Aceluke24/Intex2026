@@ -1,5 +1,7 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { CommandCenterKpis, PriorityCallouts, ResidentsList, DonationChart } from "@/components/dashboard";
+import { DASHBOARD_CONTENT_MAX_WIDTH, DashboardGlassPanel } from "@/components/dashboard-shell";
+import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import type {
   AttentionItem,
   DashboardMetric,
@@ -8,6 +10,7 @@ import type {
   ResidentRow,
 } from "@/lib/dashboardTypes";
 import { usePageHeader } from "@/contexts/AdminChromeContext";
+import { LayoutDashboard } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetchJson } from "@/lib/apiFetch";
@@ -42,7 +45,7 @@ type DashboardApiResponse = {
 };
 
 const DashboardPage = () => {
-  usePageHeader("Dashboard", "Live operations overview");
+  usePageHeader("Command Center", "Live operations overview");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -143,46 +146,36 @@ const DashboardPage = () => {
   const supportingForKpis = supportingMetrics.filter((s) => s.key !== "retention");
 
   return (
-    <AdminLayout contentClassName="max-w-[1200px]">
-      <div className="relative pb-24">
-        <div
-          className="pointer-events-none fixed inset-0 -z-10 opacity-95"
-          style={{
-            background:
-              "radial-gradient(ellipse 110% 70% at 0% 0%, hsl(350 36% 96% / 0.85) 0%, transparent 48%), radial-gradient(ellipse 90% 55% at 100% 15%, hsl(36 38% 98% / 0.95) 0%, transparent 44%), hsl(36 32% 99%)",
-          }}
-        />
-
-        {loadError && (
-          <div
-            className="mb-8 rounded-xl border border-[hsl(0,30%,88%)] bg-[hsl(0,40%,97%)] px-4 py-3 font-body text-sm text-[hsl(0,35%,28%)]"
+    <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
+      <StaffPageShell
+        tone="quiet"
+        eyebrow="Overview"
+        eyebrowIcon={<LayoutDashboard className="h-3.5 w-3.5 text-[hsl(340_38%_52%)]" strokeWidth={1.5} />}
+        title="Command Center"
+        description="What needs attention today — data from your connected systems."
+      >
+        {loadError ? (
+          <p
+            className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive"
             role="alert"
           >
             Could not load live data: {loadError}. Check that the API is running and you are signed in as an admin.
-          </div>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease }}
-          className="mb-14 max-w-2xl lg:mb-16"
-        >
-          <p className="font-body text-[15px] leading-relaxed text-muted-foreground">
-            What needs attention today — data from your connected systems.
           </p>
-        </motion.div>
+        ) : null}
 
         {loading || !primaryMetric || !reintegrationMetric || !liveContext ? (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/40 px-6 py-16">
+          <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-16 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
             <p className="font-display text-lg font-semibold text-foreground">Loading dashboard…</p>
             <p className="font-body text-sm text-muted-foreground">Fetching command center data.</p>
           </div>
         ) : (
           <>
-            <section className="mb-16 lg:mb-20" aria-labelledby="kpi-heading">
-              <h2 id="kpi-heading" className="mb-8 font-display text-xl font-semibold tracking-tight text-foreground">
-                Operations At A Glance
+            <section className="mb-12 lg:mb-16" aria-labelledby="kpi-heading">
+              <h2
+                id="kpi-heading"
+                className="mb-8 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Operations at a glance
               </h2>
               <CommandCenterKpis
                 primary={primaryMetric}
@@ -194,9 +187,12 @@ const DashboardPage = () => {
               />
             </section>
 
-            <section className="mb-20 lg:mb-24" aria-labelledby="priority-heading">
-              <h2 id="priority-heading" className="mb-3 font-display text-xl font-semibold tracking-tight text-foreground">
-                Priority Intelligence
+            <section className="mb-12 lg:mb-16" aria-labelledby="priority-heading">
+              <h2
+                id="priority-heading"
+                className="mb-3 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Priority intelligence
               </h2>
               <p className="mb-8 font-body text-sm text-muted-foreground">Signals that may need a response this week</p>
               <PriorityCallouts items={priorityCallouts} />
@@ -207,16 +203,19 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 lg:mb-24"
+              className="mb-12 lg:mb-16"
               aria-labelledby="donor-insights-heading"
             >
-              <h2 id="donor-insights-heading" className="mb-3 font-display text-xl font-semibold tracking-tight text-foreground">
-                Donor Insights Panel
+              <h2
+                id="donor-insights-heading"
+                className="mb-3 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Donor insights panel
               </h2>
               <p className="mb-8 font-body text-sm text-muted-foreground">
                 Risk, value, and action suggestions operationalized from pipeline features.
               </p>
-              <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+              <DashboardGlassPanel padding="sm">
                 <p className="mb-4 font-body text-sm text-muted-foreground">{donorAnalytics?.impactSummary ?? "Loading donor impact linkage..."}</p>
                 <div className="mb-4 grid gap-3 sm:grid-cols-3">
                   {(donorAnalytics?.retentionTrend ?? []).slice(-3).map((r) => (
@@ -259,7 +258,7 @@ const DashboardPage = () => {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </DashboardGlassPanel>
             </motion.section>
 
             <motion.section
@@ -267,17 +266,20 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 lg:mb-24"
+              className="mb-12 lg:mb-16"
               aria-labelledby="resident-insights-heading"
             >
-              <h2 id="resident-insights-heading" className="mb-3 font-display text-xl font-semibold tracking-tight text-foreground">
-                Resident Risk &amp; Progress Panel
+              <h2
+                id="resident-insights-heading"
+                className="mb-3 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Resident risk &amp; progress panel
               </h2>
               <p className="mb-8 font-body text-sm text-muted-foreground">
                 Case lifecycle, alerts, and intervention timeline for case management.
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+                <DashboardGlassPanel padding="sm">
                   <h3 className="mb-3 font-display text-lg font-semibold text-foreground">At-Risk Alerts</h3>
                   <ul className="space-y-2 font-body text-sm text-foreground/90">
                     {(residentAnalytics?.alerts ?? []).slice(0, 6).map((a) => (
@@ -287,8 +289,8 @@ const DashboardPage = () => {
                     ))}
                   {!(residentAnalytics?.alerts?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
-                </div>
-                <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+                </DashboardGlassPanel>
+                <DashboardGlassPanel padding="sm">
                   <h3 className="mb-3 font-display text-lg font-semibold text-foreground">Case Lifecycle</h3>
                   <div className="space-y-2 font-body text-sm text-foreground/90">
                     <p>Intake: {residentAnalytics?.caseLifecycle.activeIntake ?? 0}</p>
@@ -296,9 +298,9 @@ const DashboardPage = () => {
                     <p>Home visits: {residentAnalytics?.caseLifecycle.homeVisits ?? 0}</p>
                     <p>Outcome (reintegration completed): {residentAnalytics?.caseLifecycle.reintegrationCompleted ?? 0}</p>
                   </div>
-                </div>
+                </DashboardGlassPanel>
               </div>
-              <div className="mt-4 rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+              <DashboardGlassPanel padding="sm" className="mt-4">
                 <h3 className="mb-3 font-display text-lg font-semibold text-foreground">Recent Interventions Timeline</h3>
                 <ul className="space-y-2 font-body text-sm text-foreground/90">
                   {(residentAnalytics?.timeline ?? []).slice(0, 8).map((t, idx) => (
@@ -308,7 +310,7 @@ const DashboardPage = () => {
                   ))}
                   {!(residentAnalytics?.timeline?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                 </ul>
-              </div>
+              </DashboardGlassPanel>
             </motion.section>
 
             <motion.section
@@ -316,17 +318,20 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 lg:mb-24"
+              className="mb-12 lg:mb-16"
               aria-labelledby="social-insights-heading"
             >
-              <h2 id="social-insights-heading" className="mb-3 font-display text-xl font-semibold tracking-tight text-foreground">
-                Social Media Insights Panel
+              <h2
+                id="social-insights-heading"
+                className="mb-3 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Social media insights panel
               </h2>
               <p className="mb-8 font-body text-sm text-muted-foreground">
                 What is working, when to post, and donation impact by platform.
               </p>
               <div className="grid gap-4 lg:grid-cols-3">
-                <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+                <DashboardGlassPanel padding="sm">
                   <h3 className="mb-3 font-display text-lg font-semibold text-foreground">Best Posting Times</h3>
                   <ul className="space-y-2 font-body text-sm text-foreground/90">
                     {(socialAnalytics?.bestPostingTimes ?? []).slice(0, 4).map((w, idx) => (
@@ -336,8 +341,8 @@ const DashboardPage = () => {
                     ))}
                     {!(socialAnalytics?.bestPostingTimes?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
-                </div>
-                <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+                </DashboardGlassPanel>
+                <DashboardGlassPanel padding="sm">
                   <h3 className="mb-3 font-display text-lg font-semibold text-foreground">Best Content Types</h3>
                   <ul className="space-y-2 font-body text-sm text-foreground/90">
                     {(socialAnalytics?.bestContentTypes ?? []).slice(0, 4).map((c) => (
@@ -347,8 +352,8 @@ const DashboardPage = () => {
                     ))}
                     {!(socialAnalytics?.bestContentTypes?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
-                </div>
-                <div className="rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+                </DashboardGlassPanel>
+                <DashboardGlassPanel padding="sm">
                   <h3 className="mb-3 font-display text-lg font-semibold text-foreground">Platform Comparison</h3>
                   <ul className="space-y-2 font-body text-sm text-foreground/90">
                     {(socialAnalytics?.platformPerformance ?? []).slice(0, 4).map((p) => (
@@ -358,9 +363,9 @@ const DashboardPage = () => {
                     ))}
                     {!(socialAnalytics?.platformPerformance?.length ?? 0) && <li className="text-muted-foreground">No analytics yet.</li>}
                   </ul>
-                </div>
+                </DashboardGlassPanel>
               </div>
-              <div className="mt-4 rounded-2xl border border-[hsl(350,16%,92%)]/80 bg-white/80 p-5">
+              <DashboardGlassPanel padding="sm" className="mt-4">
                 <p className="font-body text-sm text-muted-foreground">
                   Engagement-to-donation correlation: {socialAnalytics?.engagementDonationCorrelation?.toFixed(3) ?? "0.000"}
                 </p>
@@ -372,7 +377,7 @@ const DashboardPage = () => {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </DashboardGlassPanel>
             </motion.section>
 
             <motion.section
@@ -380,11 +385,14 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 space-y-8 lg:mb-24"
+              className="mb-12 space-y-8 lg:mb-16"
               aria-labelledby="context-heading"
             >
-              <h2 id="context-heading" className="font-display text-xl font-semibold tracking-tight text-foreground">
-                Live Context
+              <h2
+                id="context-heading"
+                className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Live context
               </h2>
               <div className="max-w-3xl space-y-6 font-body text-[17px] leading-[1.65] text-foreground/88 sm:text-lg">
                 <p>
@@ -407,11 +415,14 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 lg:mb-24"
+              className="mb-12 lg:mb-16"
               aria-labelledby="donations-heading"
             >
-              <h2 id="donations-heading" className="mb-8 font-display text-xl font-semibold tracking-tight text-foreground">
-                Donation Trends
+              <h2
+                id="donations-heading"
+                className="mb-8 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
+                Donation trends
               </h2>
               <DonationChart
                 data={
@@ -428,13 +439,16 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-20 lg:mb-24"
+              className="mb-12 lg:mb-16"
               aria-labelledby="residents-heading"
             >
               <div className="mb-8 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
                 <div>
-                  <h2 id="residents-heading" className="font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                    Resident Overview
+                  <h2
+                    id="residents-heading"
+                    className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+                  >
+                    Resident overview
                   </h2>
                   <p className="mt-2 font-body text-sm text-muted-foreground">Status and last touchpoint</p>
                 </div>
@@ -453,10 +467,13 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="border-t border-[hsl(350,16%,92%)]/80 pt-16"
+              className="border-t border-white/35 pt-12 dark:border-white/10"
               aria-labelledby="insights-heading"
             >
-              <h2 id="insights-heading" className="font-display text-xl font-semibold tracking-tight text-foreground">
+              <h2
+                id="insights-heading"
+                className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              >
                 Insights
               </h2>
               <p className="mt-2 font-body text-sm text-muted-foreground">Light signals from your data</p>
@@ -470,7 +487,7 @@ const DashboardPage = () => {
             </motion.section>
           </>
         )}
-      </div>
+      </StaffPageShell>
     </AdminLayout>
   );
 };
