@@ -48,32 +48,23 @@ function ImpactCampaignRowView({
   const widthPct = animateBars ? percentage : 0;
 
   return (
-    <article className="border-b border-white/10 py-8 last:border-b-0 space-y-3">
-      <div className="flex justify-between items-start gap-6">
+    <article className="space-y-3 border-b border-border py-8 last:border-b-0">
+      <div className="flex items-start justify-between gap-6">
         <div className="flex min-w-0 items-center gap-3">
-          <Heart
-            className="h-4 w-4 shrink-0 text-[#E07A5F]"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <h3 className="font-display text-lg font-semibold tracking-tight text-white leading-snug">
-            {campaign.name}
-          </h3>
+          <Heart className="h-4 w-4 shrink-0 text-terracotta" strokeWidth={1.75} aria-hidden />
+          <h3 className="font-display text-lg font-semibold leading-snug tracking-tight text-foreground">{campaign.name}</h3>
         </div>
         <p
-          className="shrink-0 text-right font-body text-sm tabular-nums tracking-tight text-neutral-300"
+          className="shrink-0 text-right font-body text-sm tabular-nums tracking-tight text-foreground"
           title={`$${formatCurrency(raised)} raised of $${formatCurrency(goal)} goal`}
         >
-          ${formatCurrency(raised)}{" "}
-          <span className="text-neutral-500">/</span> ${formatCurrency(goal)}
+          ${formatCurrency(raised)} <span className="text-muted-foreground">/</span> ${formatCurrency(goal)}
         </p>
       </div>
 
-      <div
-          className={cn("space-y-2", motionSafe && "opacity-0 animate-impact-row-in")}
-      >
+      <div className={cn("space-y-2", motionSafe && "opacity-0 animate-impact-row-in")}>
         <div
-          className="relative h-2 w-full overflow-hidden rounded-full bg-white/10"
+          className="relative h-2 w-full overflow-hidden rounded-full bg-muted"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -81,14 +72,14 @@ function ImpactCampaignRowView({
           aria-label={`${campaign.name}: ${percentage}% funded`}
         >
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-[#E07A5F]"
+            className="absolute inset-y-0 left-0 rounded-full bg-terracotta"
             style={{
               width: `${widthPct}%`,
               transition: motionSafe ? "width 900ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
             }}
           />
         </div>
-        <p className="text-right font-body text-xs tabular-nums text-neutral-400">{percentage}%</p>
+        <p className="text-right font-body text-xs tabular-nums text-muted-foreground">{percentage}%</p>
       </div>
     </article>
   );
@@ -98,21 +89,17 @@ export function ImpactCampaignsSection({ campaigns, animateBars }: ImpactCampaig
   const motionSafe = !usePrefersReducedMotion();
 
   return (
-    <section className="border-t border-white/10">
-      <div className="mx-auto max-w-7xl px-6 py-20 lg:px-12 space-y-12">
+    <section className="border-t border-border">
+      <div className="mx-auto max-w-7xl space-y-12 px-6 py-20 lg:px-12">
         <header className="space-y-4 text-left">
-          <h2 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Our Impact
-          </h2>
-          <p className="max-w-2xl font-body text-lg leading-relaxed text-neutral-400">
+          <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">Our Impact</h2>
+          <p className="max-w-2xl font-body text-lg leading-relaxed text-muted-foreground">
             Transparent progress on the initiatives your support makes possible.
           </p>
         </header>
 
         {campaigns.length === 0 ? (
-          <p className="font-body text-sm text-neutral-400">
-            No campaign-tagged data is available yet.
-          </p>
+          <p className="font-body text-sm text-muted-foreground">No campaign-tagged data is available yet.</p>
         ) : (
           <div className="space-y-0">
             {campaigns.map((campaign) => (
@@ -126,7 +113,7 @@ export function ImpactCampaignsSection({ campaigns, animateBars }: ImpactCampaig
           </div>
         )}
 
-        <PublicSafetyNote className="text-neutral-400" />
+        <PublicSafetyNote />
       </div>
     </section>
   );
