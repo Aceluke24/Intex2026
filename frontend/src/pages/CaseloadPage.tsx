@@ -23,7 +23,8 @@ import {
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { exportToCSV } from "@/lib/exportToCSV";
 import { API_PREFIX } from "@/lib/apiBase";
-import { format } from "date-fns";
+import { endOfDay, format, isValid, startOfDay } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -178,27 +179,41 @@ const defaultFilters: CaseloadFilters = {
   dateRange: undefined,
 };
 
-/** Calendar YYYY-MM-DD for comparisons; strips time and avoids lexicographic bugs (e.g. "2024-01-15T00:00:00Z" > "2024-01-15"). */
-function normalizeAdmissionDateToIso(value: string | null | undefined): string | null {
+/**
+ * Inclusive local-time bounds for admission filtering (matches calendar picker TZ).
+ * Single-day when `to` is missing (partial range selection).
+ */
+function admissionFilterInclusiveLocalBounds(dateRange: DateRange | undefined): { start: number; end: number } | null {
+  if (!dateRange?.from || !isValid(dateRange.from)) return null;
+  const from = dateRange.from;
+  const rawTo = dateRange.to;
+  const to = rawTo != null && isValid(rawTo) ? rawTo : from;
+  const fromDay = startOfDay(from);
+  const toDay = startOfDay(to);
+  const startDay = fromDay <= toDay ? fromDay : toDay;
+  const endDay = fromDay <= toDay ? toDay : fromDay;
+  return { start: startOfDay(startDay).getTime(), end: endOfDay(endDay).getTime() };
+}
+
+/** Local start-of-day for a stored admission value (date-only uses literal Y-M-D as local calendar day). */
+function admissionDateLocalStartMs(value: string | null | undefined): number | null {
   if (value == null) return null;
   const t = value.trim();
   if (!t) return null;
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(t);
-  if (m) return m[1]!;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+    return startOfDay(dt).getTime();
+  }
   const ms = Date.parse(t);
   if (Number.isNaN(ms)) return null;
-  const d = new Date(ms);
-  const y = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${mo}-${day}`;
-}
-
-/** Inclusive local calendar bounds from the date picker (single-day range when `to` is missing). */
-function inclusiveLocalIsoRange(from: Date, to: Date): { start: string; end: string } {
-  const a = format(from, "yyyy-MM-dd");
-  const b = format(to, "yyyy-MM-dd");
-  return a <= b ? { start: a, end: b } : { start: b, end: a };
+  const dt = new Date(ms);
+  if (!isValid(dt)) return null;
+  return startOfDay(dt).getTime();
 }
 
 function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
@@ -213,32 +228,11 @@ function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
   if (f.safehouse !== "All" && c.safehouse !== f.safehouse) return false;
   if (f.category !== "All" && c.category !== f.category) return false;
   if (f.worker !== "All" && c.assignedWorker !== f.worker) return false;
-  if (f.dateRange?.from) {
-    const { start, end } = inclusiveLocalIsoRange(f.dateRange.from, f.dateRange.to ?? f.dateRange.from);
-    const adm = normalizeAdmissionDateToIso(c.admissionDate);
-    if (!adm) {
-      console.debug("[Caseload admission filter] case", {
-        caseId: c.id,
-        admissionRaw: c.admissionDate,
-        normalizedAdmission: null,
-        start,
-        end,
-        inRange: false,
-        excludeReason: "missing_or_invalid_admission_date",
-      });
-      return false;
-    }
-    const inRange = adm >= start && adm <= end;
-    console.debug("[Caseload admission filter] case", {
-      caseId: c.id,
-      admissionRaw: c.admissionDate,
-      normalizedAdmission: adm,
-      start,
-      end,
-      inRange,
-      ...(!inRange && { excludeReason: adm < start ? "before_start" : "after_end" }),
-    });
-    if (!inRange) return false;
+  const bounds = admissionFilterInclusiveLocalBounds(f.dateRange);
+  if (bounds) {
+    const adm = admissionDateLocalStartMs(c.admissionDate);
+    if (adm == null) return false;
+    if (adm < bounds.start || adm > bounds.end) return false;
   }
   return true;
 }
@@ -326,16 +320,7 @@ const CaseloadPage = () => {
   const shForUi = safehouseNames.length > 0 ? safehouseNames : Array.from(new Set(cases.map((c) => c.safehouse))).filter(Boolean);
   const workersForUi = workerOptions.length > 0 ? workerOptions : ["—"];
 
-  const filtered = useMemo(() => {
-    if (filters.dateRange?.from) {
-      const { start, end } = inclusiveLocalIsoRange(
-        filters.dateRange.from,
-        filters.dateRange.to ?? filters.dateRange.from
-      );
-      console.debug("[Caseload admission filter] inclusive range (applied)", { start, end, caseCount: cases.length });
-    }
-    return cases.filter((c) => matchesFilters(c, filters));
-  }, [cases, filters]);
+  const filtered = useMemo(() => cases.filter((c) => matchesFilters(c, filters)), [cases, filters]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -358,7 +343,7 @@ const CaseloadPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [filtered.length, sortKey]);
+  }, [filters, sortKey]);
 
   const selected = useMemo(() => cases.find((c) => c.id === selectedId) ?? null, [cases, selectedId]);
 
