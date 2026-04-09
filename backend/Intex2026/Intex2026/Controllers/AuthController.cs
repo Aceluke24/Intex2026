@@ -307,6 +307,9 @@ public class AuthController(
                 await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 return Redirect(BuildFrontendErrorUrl("Unable to create a local account for the external login.", frontendBase));
             }
+
+            // Assign donor role to new users from external login
+            await userManager.AddToRoleAsync(user, AuthRoles.Donor);
         }
 
         var supporter = await EnsureSupporterLinkedAsync(user);
