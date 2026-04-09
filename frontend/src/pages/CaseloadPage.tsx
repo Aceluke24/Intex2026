@@ -104,11 +104,20 @@ function mapSubcategoryFlags(category: ResidentCase["category"], subcategory: st
   };
 }
 
+/** Primary card label: real/synthetic resident line only — never repeat the system case id (C####). */
+function deriveResidentPrimaryLabel(row: CaseApiRow): string {
+  const caseId = (row.caseId ?? "").trim();
+  const residentName = (row.residentName ?? "").trim();
+  if (!residentName) return "Resident";
+  if (caseId && residentName.toUpperCase() === caseId.toUpperCase()) return "Resident";
+  return residentName;
+}
+
 function mapCaseRow(row: CaseApiRow): ResidentCase {
   const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
   return {
     id: row.caseId || `R-${row.residentId}`,
-    displayName: row.caseId || row.residentName,
+    displayName: deriveResidentPrimaryLabel(row),
     anonymized: true,
     age: 0,
     ageUponAdmission: row.ageUponAdmission ?? "",

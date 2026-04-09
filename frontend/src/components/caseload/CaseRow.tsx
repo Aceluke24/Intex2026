@@ -1,10 +1,12 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ResidentCase } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type CaseRowProps = {
   residentCase: ResidentCase;
@@ -113,11 +115,30 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
           </Avatar>
         </div>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-display text-[0.95rem] font-semibold tracking-[-0.02em] text-foreground sm:text-base">
+          <div className="space-y-1">
+            <div className="font-display text-lg font-semibold leading-tight tracking-[-0.02em] text-foreground">
               {c.displayName}
-            </span>
-            <span className="font-mono text-[10px] font-medium text-muted-foreground/90">{c.id}</span>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="block max-w-full cursor-pointer rounded-sm text-left font-mono text-sm text-muted-foreground/65 outline-none transition-colors hover:text-muted-foreground/90 focus-visible:ring-2 focus-visible:ring-[hsl(340_32%_65%)]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent dark:text-muted-foreground/60 dark:hover:text-muted-foreground/85"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void navigator.clipboard.writeText(c.id).then(
+                      () => toast.success("Resident ID copied", { duration: 1800 }),
+                      () => toast.error("Could not copy ID", { duration: 2200 }),
+                    );
+                  }}
+                >
+                  {c.id}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="font-body text-xs">
+                Resident ID · click to copy
+              </TooltipContent>
+            </Tooltip>
           </div>
           <span
             className={cn(
