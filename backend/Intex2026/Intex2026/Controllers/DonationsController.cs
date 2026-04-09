@@ -47,6 +47,26 @@ public class DonationsController : ControllerBase
         return Ok(notes);
     }
 
+    [HttpGet("purposes")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDonationPurposes()
+    {
+        var rawNotes = await _db.Donations
+            .AsNoTracking()
+            .Select(d => d.Notes)
+            .ToListAsync();
+
+        var purposes = rawNotes
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n!.Trim())
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return Ok(purposes);
+    }
+
     [HttpGet]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll(

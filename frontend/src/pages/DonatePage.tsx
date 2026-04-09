@@ -37,9 +37,9 @@ export default function DonatePage() {
   }, [isAuthenticated, user]);
 
   useEffect(() => {
-    const fetchNotes = async () => {
+    const fetchPurposes = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/donation-notes-options`);
+        const res = await fetch(`${API_BASE}/api/donations/purposes`);
         if (!res.ok) {
           throw new Error("Unable to load donation purpose options.");
         }
@@ -58,7 +58,7 @@ export default function DonatePage() {
       }
     };
 
-    fetchNotes();
+    fetchPurposes();
   }, []);
 
   const canEditIdentity = useMemo(
@@ -211,21 +211,22 @@ export default function DonatePage() {
                       Sign in to keep a record of your generosity 💙
                     </p>
                   </div>
-                  <div className="flex w-full gap-2 sm:w-auto">
-                    <button
+                  <div className="flex w-full items-center gap-3 sm:w-auto">
+                    <Button
                       type="button"
+                      variant="secondary"
                       onClick={() => navigate("/login?redirect=/donate")}
-                      className="flex-1 rounded-lg border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 sm:flex-none"
+                      className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold border border-primary/30 bg-white text-primary hover:bg-primary/10 dark:bg-transparent dark:text-white dark:border-white/20 dark:hover:bg-white/10 sm:flex-none"
                     >
                       Sign In
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={() => navigate("/signup?redirect=/donate")}
-                      className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:flex-none"
+                      className="flex-1 rounded-lg px-4 py-2 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 sm:flex-none"
                     >
                       Create Account
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -348,9 +349,14 @@ export default function DonatePage() {
                 <select
                   value={selectedNote}
                   onChange={(e) => setSelectedNote(e.target.value)}
+                  disabled={noteOptions.length === 0}
                   className="w-full rounded-xl border border-input bg-background px-4 py-2.5 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Select purpose (optional)</option>
+                  <option value="">
+                    {noteOptions.length === 0
+                      ? "No preset purposes available"
+                      : "Select purpose (optional)"}
+                  </option>
                   {noteOptions.map((note, index) => (
                     <option key={`${note}-${index}`} value={note}>
                       {note}
