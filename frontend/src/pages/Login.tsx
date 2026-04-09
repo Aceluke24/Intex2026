@@ -17,6 +17,8 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [requiresMfa, setRequiresMfa] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const { refetch } = useAuth();
@@ -37,11 +39,14 @@ const Login = () => {
     setLoading(true);
     setError(null);
     try {
+      const body: Record<string, string> = { email, password };
+      if (requiresMfa && mfaCode) body.mfaCode = mfaCode;
+
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -49,6 +54,10 @@ const Login = () => {
         return;
       }
       const data = await res.json();
+      if (data.requiresMfa) {
+        setRequiresMfa(true);
+        return;
+      }
       await refetch();
       redirectByRole(data.roles ?? []);
     } catch {
@@ -106,61 +115,100 @@ const Login = () => {
             <span className="font-display text-base font-semibold text-foreground">North Star</span>
           </div>
 
-          <h1 className="font-display text-3xl font-bold text-foreground mb-2">Welcome back</h1>
-          <p className="font-body text-sm text-muted-foreground mb-10">Sign in to your dashboard</p>
+          <h1 className="font-display text-3xl font-bold text-foreground mb-2">
+            {requiresMfa ? "Two-Factor Authentication" : "Welcome back"}
+          </h1>
+          <p className="font-body text-sm text-muted-foreground mb-10">
+            {requiresMfa
+              ? "Enter the 6-digit code from your authenticator app"
+              : "Sign in to your dashboard"}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@organization.org" className="h-12 rounded-xl border-0 bg-secondary font-body" required />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wider">Password</Label>
-                <a href="#" className="text-xs text-terracotta hover:underline font-body">Forgot?</a>
-              </div>
-              <div className="relative">
-                <Input id="password" type={showPw ? "text" : "password"} value={password}
-                  onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
-                  className="h-12 rounded-xl border-0 bg-secondary pr-10 font-body" required />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {!requiresMfa ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</Label>
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@organization.org" className="h-12 rounded-xl border-0 bg-secondary font-body" required />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wider">Password</Label>
+                    <a href="#" className="text-xs text-terracotta hover:underline font-body">Forgot?</a>
+                  </div>
+                  <div className="relative">
+                    <Input id="password" type={showPw ? "text" : "password"} value={password}
+                      onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
+                      className="h-12 rounded-xl border-0 bg-secondary pr-10 font-body" required />
+                    <button type="button" onClick={() => setShowPw(!showPw)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="mfaCode" className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wider">Authenticator Code</Label>
+                <Input
+                  id="mfaCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  className="h-12 rounded-xl border-0 bg-secondary font-body text-center text-xl tracking-widest"
+                  required
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => { setRequiresMfa(false); setMfaCode(""); setError(null); }}
+                  className="text-xs text-muted-foreground hover:text-foreground font-body underline"
+                >
+                  ← Back to sign in
                 </button>
               </div>
-            </div>
+            )}
             {error && <p className="text-sm text-red-500 font-body">{error}</p>}
             <Button type="submit" disabled={loading}
               className="w-full h-12 rounded-xl bg-terracotta text-terracotta-foreground hover:bg-terracotta/90 font-body font-medium gap-2 transition-all hover:shadow-lg hover:shadow-terracotta/15">
-              {loading ? "Signing in..." : <><span>Sign In</span><ArrowRight className="w-4 h-4" /></>}
+              {loading
+                ? (requiresMfa ? "Verifying..." : "Signing in...")
+                : <><span>{requiresMfa ? "Verify" : "Sign In"}</span><ArrowRight className="w-4 h-4" /></>}
             </Button>
           </form>
 
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
-              <div className="relative flex justify-center text-[11px]"><span className="bg-background px-4 text-muted-foreground font-body uppercase tracking-wider">or</span></div>
-            </div>
-            <div className="mt-5 grid grid-cols-1 gap-3">
-              <Button
-                variant="ghost"
-                className="h-12 rounded-xl bg-secondary font-body text-sm"
-                type="button"
-                onClick={handleGoogleLogin}
-              >
-                Continue with Google
-              </Button>
-            </div>
-          </div>
+          {!requiresMfa && (
+            <>
+              <div className="mt-8">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
+                  <div className="relative flex justify-center text-[11px]"><span className="bg-background px-4 text-muted-foreground font-body uppercase tracking-wider">or</span></div>
+                </div>
+                <div className="mt-5 grid grid-cols-1 gap-3">
+                  <Button
+                    variant="ghost"
+                    className="h-12 rounded-xl bg-secondary font-body text-sm"
+                    type="button"
+                    onClick={handleGoogleLogin}
+                  >
+                    Continue with Google
+                  </Button>
+                </div>
+              </div>
 
-          <p className="mt-8 text-center text-xs text-muted-foreground font-body">
-            New donor?{" "}
-            <Link to="/signup" className="text-terracotta hover:underline">Create an account</Link>
-          </p>
-          <p className="mt-3 text-center text-xs text-muted-foreground font-body">
-            <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>
-          </p>
+              <p className="mt-8 text-center text-xs text-muted-foreground font-body">
+                New donor?{" "}
+                <Link to="/signup" className="text-terracotta hover:underline">Create an account</Link>
+              </p>
+              <p className="mt-3 text-center text-xs text-muted-foreground font-body">
+                <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>
+              </p>
+            </>
+          )}
         </motion.div>
       </div>
     </div>

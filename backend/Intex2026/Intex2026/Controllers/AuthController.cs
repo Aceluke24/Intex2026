@@ -10,7 +10,8 @@ using Intex2026.Models;
 
 namespace Intex2026.Controllers;
 
-public record CustomLoginRequest(string Email, string Password);
+public record CustomLoginRequest(string Email, string Password, string? MfaCode = null);
+public record MfaCodeRequest(string Code);
 public record RegisterDonorRequest(string Email, string Password, string ConfirmPassword, string? DisplayName);
 
 [ApiController]
@@ -23,7 +24,7 @@ public class AuthController(
     AppDbContext db) : ControllerBase
 {
     private const string DefaultFrontendUrl = "http://localhost:3000";
-    private const string DefaultExternalReturnPath = "/catalog";
+    private const string DefaultExternalReturnPath = "/google-callback";
 
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentSession()
@@ -80,6 +81,22 @@ public class AuthController(
 
         if (passwordResult == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Invalid credentials." });
+
+        // If MFA is enabled, require a TOTP code
+        if (user.TwoFactorEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(req.MfaCode))
+                return Ok(new { requiresMfa = true });
+
+            var stripped = req.MfaCode.Replace(" ", "").Replace("-", "");
+            var isValidTotp = await userManager.VerifyTwoFactorTokenAsync(
+                user,
+                userManager.Options.Tokens.AuthenticatorTokenProvider,
+                stripped);
+
+            if (!isValidTotp)
+                return Unauthorized(new { message = "Invalid verification code." });
+        }
 
         var roles = await GetRolesForUserAsync(user.Id);
 
@@ -278,10 +295,68 @@ public class AuthController(
         });
     }
 
+    [HttpGet("mfa/setup")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> GetMfaSetup()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var key = await userManager.GetAuthenticatorKeyAsync(user);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            await userManager.ResetAuthenticatorKeyAsync(user);
+            key = await userManager.GetAuthenticatorKeyAsync(user);
+        }
+
+        const string issuer = "NorthStarSanctuary";
+        var email = user.Email ?? user.UserName ?? "";
+        var otpUri = $"otpauth://totp/{Uri.EscapeDataString(issuer)}:{Uri.EscapeDataString(email)}" +
+                     $"?secret={key}&issuer={Uri.EscapeDataString(issuer)}&digits=6";
+
+        return Ok(new { key, otpUri, isEnabled = user.TwoFactorEnabled });
+    }
+
+    [HttpPost("mfa/enable")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> EnableMfa([FromBody] MfaCodeRequest req)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var stripped = req.Code.Replace(" ", "").Replace("-", "");
+        var isValid = await userManager.VerifyTwoFactorTokenAsync(
+            user,
+            userManager.Options.Tokens.AuthenticatorTokenProvider,
+            stripped);
+
+        if (!isValid)
+            return BadRequest(new { message = "Invalid verification code. Try again." });
+
+        await userManager.SetTwoFactorEnabledAsync(user, true);
+        return Ok(new { message = "Two-factor authentication enabled." });
+    }
+
+    [HttpPost("mfa/disable")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> DisableMfa()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        await userManager.SetTwoFactorEnabledAsync(user, false);
+        await userManager.ResetAuthenticatorKeyAsync(user);
+        return Ok(new { message = "Two-factor authentication disabled." });
+    }
+
     private bool IsGoogleConfigured()
     {
-        return !string.IsNullOrWhiteSpace(configuration["Authentication:Google:ClientId"]) &&
-            !string.IsNullOrWhiteSpace(configuration["Authentication:Google:ClientSecret"]);
+        var id = configuration["Authentication:Google:ClientId"];
+        var secret = configuration["Authentication:Google:ClientSecret"];
+        return !string.IsNullOrWhiteSpace(id) &&
+               !string.IsNullOrWhiteSpace(secret) &&
+               !id.Contains("SET_VIA_ENVIRONMENT_VARIABLE") &&
+               !secret.Contains("SET_VIA_ENVIRONMENT_VARIABLE");
     }
 
     private string NormalizeReturnPath(string? returnPath)

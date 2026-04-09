@@ -182,6 +182,20 @@ builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<AuthIdentityDbContext>();
 
+// Register Google OAuth only when real credentials are provided
+if (!string.IsNullOrWhiteSpace(googleClientId) &&
+    !string.IsNullOrWhiteSpace(googleClientSecret) &&
+    !googleClientId.Contains("SET_VIA_ENVIRONMENT_VARIABLE") &&
+    !googleClientSecret.Contains("SET_VIA_ENVIRONMENT_VARIABLE"))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(options =>
+        {
+            options.ClientId = googleClientId;
+            options.ClientSecret = googleClientSecret;
+        });
+}
+
 // ── Authentication & Authorization ───────────────────────────────────────────
 builder.Services.AddAuthorization(options =>
 {
