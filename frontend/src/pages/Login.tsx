@@ -24,8 +24,9 @@ const Login = () => {
   const { refetch } = useAuth();
   const [searchParams] = useSearchParams();
 
+  const initialError = searchParams.get("externalError") ?? searchParams.get("error");
   const [error, setError] = useState<string | null>(
-    searchParams.get("error") ? decodeURIComponent(searchParams.get("error")!) : null
+    initialError ? decodeURIComponent(initialError) : null
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +63,12 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/api/auth/external-login?provider=Google`;
+    const params = new URLSearchParams({
+      provider: "Google",
+      returnPath: "/google-callback",
+      frontendBase: window.location.origin,
+    });
+    window.location.assign(`${API_BASE}/api/auth/external-login?${params.toString()}`);
   };
 
   return (
@@ -197,6 +203,10 @@ const Login = () => {
               <p className="mt-8 text-center text-xs text-muted-foreground font-body">
                 New donor?{" "}
                 <Link to="/signup" className="text-terracotta hover:underline">Create an account</Link>
+              </p>
+              <p className="mt-3 text-center text-xs text-muted-foreground font-body">
+                Already signed in?{" "}
+                <Link to="/mfa-setup" className="text-terracotta hover:underline">Set up 2FA</Link>
               </p>
               <p className="mt-3 text-center text-xs text-muted-foreground font-body">
                 <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>

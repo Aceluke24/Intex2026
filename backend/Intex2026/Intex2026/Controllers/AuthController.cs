@@ -23,7 +23,7 @@ public class AuthController(
     ILogger<AuthController> logger,
     AppDbContext db) : ControllerBase
 {
-    private const string DefaultFrontendUrl = "http://localhost:3000";
+    private const string DefaultFrontendUrl = "http://localhost:8080";
     private const string DefaultExternalReturnPath = "/google-callback";
 
     [HttpGet("me")]
@@ -216,7 +216,8 @@ public class AuthController(
     [HttpGet("external-login")]
     public IActionResult ExternalLogin(
         [FromQuery] string provider,
-        [FromQuery] string? returnPath = null)
+        [FromQuery] string? returnPath = null,
+        [FromQuery] string? frontendBase = null)
     {
         if (!string.Equals(provider, GoogleDefaults.AuthenticationScheme, StringComparison.OrdinalIgnoreCase) ||
             !IsGoogleConfigured())
@@ -229,7 +230,8 @@ public class AuthController(
 
         var callbackUrl = Url.Action(nameof(ExternalLoginCallback), new
         {
-            returnPath = NormalizeReturnPath(returnPath)
+            returnPath = NormalizeReturnPath(returnPath),
+            frontendBase = NormalizeFrontendBase(frontendBase)
         });
 
         if (string.IsNullOrWhiteSpace(callbackUrl))
@@ -245,18 +247,21 @@ public class AuthController(
     }
 
     [HttpGet("external-callback")]
-    public async Task<IActionResult> ExternalLoginCallback([FromQuery] string? returnPath = null, [FromQuery] string? remoteError = null)
+    public async Task<IActionResult> ExternalLoginCallback(
+        [FromQuery] string? returnPath = null,
+        [FromQuery] string? remoteError = null,
+        [FromQuery] string? frontendBase = null)
     {
         if (!string.IsNullOrWhiteSpace(remoteError))
         {
-            return Redirect(BuildFrontendErrorUrl("External login failed."));
+            return Redirect(BuildFrontendErrorUrl("External login failed.", frontendBase));
         }
 
         var info = await signInManager.GetExternalLoginInfoAsync();
 
         if (info is null)
         {
-            return Redirect(BuildFrontendErrorUrl("External login information was unavailable."));
+            return Redirect(BuildFrontendErrorUrl("External login information was unavailable.", frontendBase));
         }
 
         var signInResult = await signInManager.ExternalLoginSignInAsync(
@@ -267,7 +272,7 @@ public class AuthController(
 
         if (signInResult.Succeeded)
         {
-            return Redirect(BuildFrontendSuccessUrl(returnPath));
+            return Redirect(BuildFrontendSuccessUrl(returnPath, frontendBase));
         }
 
         var externalEmail = info.Principal.FindFirstValue(ClaimTypes.Email) ??
@@ -275,7 +280,7 @@ public class AuthController(
 
         if (string.IsNullOrWhiteSpace(externalEmail))
         {
-            return Redirect(BuildFrontendErrorUrl("The external provider did not return an email address."));
+            return Redirect(BuildFrontendErrorUrl("The external provider did not return an email address.", frontendBase));
         }
 
         var email = NormalizeEmail(externalEmail);
@@ -294,7 +299,7 @@ public class AuthController(
 
             if (!createUserResult.Succeeded)
             {
-                return Redirect(BuildFrontendErrorUrl("Unable to create a local account for the external login."));
+                return Redirect(BuildFrontendErrorUrl("Unable to create a local account for the external login.", frontendBase));
             }
         }
 
@@ -309,11 +314,11 @@ public class AuthController(
 
         if (!addLoginResult.Succeeded)
         {
-            return Redirect(BuildFrontendErrorUrl("Unable to associate the external login with the local account."));
+            return Redirect(BuildFrontendErrorUrl("Unable to associate the external login with the local account.", frontendBase));
         }
 
         await signInManager.SignInAsync(user, isPersistent: false, info.LoginProvider);
-        return Redirect(BuildFrontendSuccessUrl(returnPath));
+        return Redirect(BuildFrontendSuccessUrl(returnPath, frontendBase));
     }
 
     [HttpPost("logout")]
@@ -401,23 +406,56 @@ public class AuthController(
         return returnPath;
     }
 
-    private string BuildFrontendSuccessUrl(string? returnPath)
+    private string BuildFrontendSuccessUrl(string? returnPath, string? frontendBaseOverride)
     {
-        var frontendUrl =
-            configuration["Frontend:BaseUrl"] ??
-            configuration["FrontendUrl"] ??
-            DefaultFrontendUrl;
-        return $"{frontendUrl.TrimEnd('/')}{NormalizeReturnPath(returnPath)}";
+        var frontendBase = ResolveFrontendBase(frontendBaseOverride);
+        return $"{frontendBase}{NormalizeReturnPath(returnPath)}";
     }
 
-    private string BuildFrontendErrorUrl(string errorMessage)
+    private string BuildFrontendErrorUrl(string errorMessage, string? frontendBaseOverride)
     {
-        var frontendUrl =
-            configuration["Frontend:BaseUrl"] ??
-            configuration["FrontendUrl"] ??
-            DefaultFrontendUrl;
-        var loginUrl = $"{frontendUrl.TrimEnd('/')}/login";
+        var loginUrl = $"{ResolveFrontendBase(frontendBaseOverride)}/login";
         return QueryHelpers.AddQueryString(loginUrl, "externalError", errorMessage);
+    }
+
+    private string ResolveFrontendBase(string? frontendBaseOverride)
+    {
+        var candidates = new[]
+        {
+            NormalizeFrontendBase(frontendBaseOverride),
+            NormalizeFrontendBase(configuration["Frontend:BaseUrl"]),
+            NormalizeFrontendBase(configuration["FrontendUrl"]),
+            NormalizeFrontendBase(DefaultFrontendUrl)
+        };
+
+        return candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+    }
+
+    private static string? NormalizeFrontendBase(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Contains("SET_VIA_ENVIRONMENT_VARIABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
     }
 
     private async Task<ApplicationUser?> FindUserByEmailAsync(string email)
