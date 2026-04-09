@@ -14,7 +14,9 @@ dist-ssr
 
 # .NET build outputs
 **/bin/
+**/bin\\*
 **/obj/
+**/obj\\*
 *.user
 
 # Editor directories and files
