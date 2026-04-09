@@ -10,7 +10,11 @@ Intended to be run on a schedule (e.g., nightly).
 
 import pandas as pd
 import joblib
-from datetime import datetime
+import os
+import json
+from datetime import datetime, timezone
+
+import pyodbc
 
 
 # =========================
@@ -19,6 +23,9 @@ from datetime import datetime
 DATA_DIR = "ML pipelines/lighthouse_csv_files"
 ARTIFACT_DIR = "artifacts/donor_retention"
 OUTPUT_PATH = "artifacts/donor_retention/donor_scores.csv"
+METADATA_PATH = "artifacts/donor_retention/metadata.json"
+
+SQL_TABLE = "ml.donor_scores"
 
 HORIZON_DAYS = 180
 
@@ -119,13 +126,21 @@ def score():
 
     probs = model.predict_proba(X)[:, 1]
 
-    scored = pd.DataFrame({
+    scored = pd.DataFrame(
+        {
         "supporter_id": df["supporter_id"],
         "donation_id": df["donation_id"],
         "donation_date": df["donation_date"],
         "repeat_probability_180d": probs,
-        "scored_at": datetime.utcnow().isoformat(),
-    })
+        }
+    )
+
+    # Keep one score per supporter using the latest donation event.
+    scored = (
+        scored.sort_values(["supporter_id", "donation_date", "donation_id"])
+        .drop_duplicates(subset=["supporter_id"], keep="last")
+        .reset_index(drop=True)
+    )
 
     return scored
 
@@ -133,11 +148,121 @@ def score():
 # =========================
 # SAVE OUTPUT
 # =========================
-def save(scored_df):
-    scored_df.to_csv(OUTPUT_PATH, index=False)
+def resolve_model_version():
+    model_version = os.getenv("MODEL_VERSION")
+    if model_version:
+        return model_version[:50]
+
+    with open(METADATA_PATH, "r", encoding="utf-8") as f:
+        metadata = json.load(f)
+
+    trained_at = metadata.get("trained_at")
+    if trained_at:
+        return str(trained_at)[:50]
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def get_sql_connection_string():
+    required_env = [
+        "AZURE_SQL_SERVER",
+        "AZURE_SQL_DB",
+        "AZURE_SQL_USER",
+        "AZURE_SQL_PASSWORD",
+    ]
+
+    missing = [name for name in required_env if not os.getenv(name)]
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+    server = os.getenv("AZURE_SQL_SERVER")
+    database = os.getenv("AZURE_SQL_DB")
+    user = os.getenv("AZURE_SQL_USER")
+    password = os.getenv("AZURE_SQL_PASSWORD")
+
+    return (
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        f"SERVER={server};"
+        f"DATABASE={database};"
+        f"UID={user};"
+        f"PWD={password};"
+        "Encrypt=yes;"
+        "TrustServerCertificate=no;"
+        "Connection Timeout=30;"
+    )
+
+
+def upsert_scores(scored_df, model_version):
+    scored_at_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    rows = [
+        (
+            int(row.supporter_id),
+            int(row.donation_id),
+            float(row.repeat_probability_180d),
+            scored_at_utc,
+            model_version,
+        )
+        for row in scored_df.itertuples(index=False)
+    ]
+
+    merge_sql = f"""
+MERGE INTO {SQL_TABLE} AS target
+USING (VALUES (?, ?, ?, ?, ?)) AS source (
+    supporter_id,
+    donation_id,
+    repeat_probability_180d,
+    scored_at,
+    model_version
+)
+ON target.supporter_id = source.supporter_id
+WHEN MATCHED THEN
+    UPDATE SET
+        donation_id = source.donation_id,
+        repeat_probability_180d = source.repeat_probability_180d,
+        scored_at = source.scored_at,
+        model_version = source.model_version
+WHEN NOT MATCHED THEN
+    INSERT (
+        supporter_id,
+        donation_id,
+        repeat_probability_180d,
+        scored_at,
+        model_version
+    )
+    VALUES (
+        source.supporter_id,
+        source.donation_id,
+        source.repeat_probability_180d,
+        source.scored_at,
+        source.model_version
+    );
+"""
+
+    conn_str = get_sql_connection_string()
+    with pyodbc.connect(conn_str) as conn:
+        with conn.cursor() as cur:
+            cur.fast_executemany = True
+            cur.executemany(merge_sql, rows)
+        conn.commit()
+
+    return len(rows)
+
+
+def save(scored_df, model_version):
+    save_df = scored_df.copy()
+    save_df["model_version"] = model_version
+    save_df["scored_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    save_df.to_csv(OUTPUT_PATH, index=False)
 
 
 if __name__ == "__main__":
     scores = score()
-    save(scores)
-    print(f"Scoring complete. Output written to {OUTPUT_PATH}")
+    version = resolve_model_version()
+    upserted = upsert_scores(scores, version)
+
+    if os.getenv("SAVE_LOCAL_CSV", "false").lower() == "true":
+        save(scores, version)
+        print(f"Scoring complete. Upserted {upserted} rows into {SQL_TABLE}. CSV written to {OUTPUT_PATH}")
+    else:
+        print(f"Scoring complete. Upserted {upserted} rows into {SQL_TABLE}")
