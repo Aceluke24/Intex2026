@@ -211,15 +211,6 @@ const Login = () => {
                 <Link to={safeRedirect ? `/signup?redirect=${encodeURIComponent(safeRedirect)}` : "/signup"} className="text-terracotta hover:underline">Create an account</Link>
               </p>
               <p className="mt-3 text-center text-xs text-muted-foreground font-body">
-                Already signed in?{" "}
-                <Link
-                  to="/mfa-setup"
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-gray-100"
-                >
-                  Set up 2FA
-                </Link>
-              </p>
-              <p className="mt-3 text-center text-xs text-muted-foreground font-body">
                 <Link to="/" className="text-terracotta hover:underline">← Back to Home</Link>
               </p>
             </>
