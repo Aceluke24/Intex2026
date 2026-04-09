@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Intex2026.Data;
 using Intex2026.Models;
@@ -108,17 +109,53 @@ public class HomeVisitationsController : ControllerBase
             }
         }
 
-        var total = await pageQuery.CountAsync(ct);
+        var isConferenceView = !string.IsNullOrWhiteSpace(coordinationKind)
+            && string.Equals(coordinationKind.Trim(), "CaseConference", StringComparison.OrdinalIgnoreCase);
 
-        var rows = await pageQuery
-            .Include(h => h.Resident)
-            .OrderByDescending(h => h.VisitDate)
-            .ThenByDescending(h => h.VisitationId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
+        List<HomeVisitation> rows;
+        int total;
 
-        var items = rows.Select(MapToListDto).ToList();
+        if (isConferenceView)
+        {
+            var all = await pageQuery
+                .Include(h => h.Resident)
+                .ToListAsync(ct);
+
+            var withWhen = all
+                .Select(h => (h, when: ResolveVisitDateTime(h, _logger)))
+                .ToList();
+
+            var now = DateTimeOffset.Now;
+            var upcoming = withWhen
+                .Where(x => x.when >= now)
+                .OrderBy(x => x.when)
+                .ThenBy(x => x.h.VisitationId)
+                .Select(x => x.h)
+                .ToList();
+            var past = withWhen
+                .Where(x => x.when < now)
+                .OrderByDescending(x => x.when)
+                .ThenByDescending(x => x.h.VisitationId)
+                .Select(x => x.h)
+                .ToList();
+
+            var ordered = upcoming.Concat(past).ToList();
+            total = ordered.Count;
+            rows = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        }
+        else
+        {
+            total = await pageQuery.CountAsync(ct);
+            rows = await pageQuery
+                .Include(h => h.Resident)
+                .OrderByDescending(h => h.VisitDate)
+                .ThenByDescending(h => h.VisitationId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+        }
+
+        var items = rows.Select(h => MapToListDto(h, _logger)).ToList();
         sw.Stop();
 
         if (_env.IsDevelopment())
@@ -245,8 +282,26 @@ public class HomeVisitationsController : ControllerBase
         return string.IsNullOrEmpty(s) ? "item" : s;
     }
 
-    private static VisitationListItemDto MapToListDto(HomeVisitation v)
+    private static DateTimeOffset ResolveVisitDateTime(HomeVisitation v, ILogger? logger)
     {
+        var d = v.VisitDate;
+        var ts = (v.VisitTime ?? "").Trim();
+        if (string.IsNullOrEmpty(ts) || ts is "\u2014" or "—")
+            return new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue));
+
+        var combined = $"{d:yyyy-MM-dd} {ts}";
+        if (DateTime.TryParse(combined, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt))
+            return new DateTimeOffset(dt);
+        if (DateTime.TryParse(combined, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out dt))
+            return new DateTimeOffset(dt);
+
+        logger?.LogWarning("VisitationId {VisitationId}: could not parse VisitTime {VisitTime}; using midnight", v.VisitationId, ts);
+        return new DateTimeOffset(d.ToDateTime(TimeOnly.MinValue));
+    }
+
+    private static VisitationListItemDto MapToListDto(HomeVisitation v, ILogger? logger = null)
+    {
+        var visitAt = ResolveVisitDateTime(v, logger);
         var r = v.Resident;
         var caseId = r == null
             ? ""
@@ -287,7 +342,7 @@ public class HomeVisitationsController : ControllerBase
             v.Purpose,
             v.FollowUpNotes,
             v.SocialWorker,
-            DeriveStatus(v.VisitDate, v.FollowUpNeeded),
+            DeriveStatus(visitAt, v.FollowUpNeeded),
             v.SafetyConcernsNoted);
     }
 
@@ -303,10 +358,9 @@ public class HomeVisitationsController : ControllerBase
         return "RoutineFollowUp";
     }
 
-    private static string DeriveStatus(DateOnly visitDate, bool followUpNeeded)
+    private static string DeriveStatus(DateTimeOffset visitAt, bool followUpNeeded)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        if (visitDate > today)
+        if (visitAt > DateTimeOffset.Now)
             return "Scheduled";
         if (followUpNeeded)
             return "Pending";

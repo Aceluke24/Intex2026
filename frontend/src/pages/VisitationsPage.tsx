@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import { motion } from "framer-motion";
 import { AlertTriangle, Calendar, Clock, Home, MapPin, Plus, Shield, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -123,6 +123,11 @@ const parseTokenString = (raw: string | null | undefined): SelectOption[] =>
     .map((label) => ({ value: tokenId(label), label }));
 
 const toTokenString = (items: SelectOption[]) => items.map((i) => i.label.trim()).filter(Boolean).join("; ");
+
+function formatVisitationDateLabel(dateStr: string): string {
+  const d = parse(dateStr, "yyyy-MM-dd", new Date());
+  return isValid(d) ? format(d, "MMMM d, yyyy") : dateStr;
+}
 
 function mapVisitationItemToRow(item: VisitationListItemApi): VisitationRow {
   return {
@@ -411,7 +416,7 @@ function DetailSheet({ v }: { v: VisitationRow }) {
         <p className="mt-3 flex flex-wrap items-center gap-3 font-body text-sm text-foreground/90">
           <span className="inline-flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 opacity-60" />
-            {format(new Date(v.date), "MMMM d, yyyy")}
+            {formatVisitationDateLabel(v.date)}
           </span>
           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
             <Clock className="h-3.5 w-3.5 opacity-60" />
@@ -574,12 +579,13 @@ const VisitationsPage = () => {
     };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageOverride?: number) => {
+    const pageToUse = pageOverride ?? page;
     setLoading(true);
     setLoadError(null);
     try {
       const params = new URLSearchParams();
-      params.set("page", String(page));
+      params.set("page", String(pageToUse));
       params.set("pageSize", String(PAGE_SIZE));
       params.set("coordinationKind", tab === "visits" ? "HomeVisit" : "CaseConference");
       if (residentFilter) params.set("residentId", residentFilter);
@@ -597,7 +603,7 @@ const VisitationsPage = () => {
       if (import.meta.env.DEV) {
         const ms = performance.now() - t0;
         console.info(
-          `[visitations] ${ms.toFixed(0)}ms ~${text.length} bytes page=${data.page} items=${data.items.length} total=${data.total}`
+          `[visitations] ${ms.toFixed(0)}ms ~${text.length} bytes page=${data.page} items=${data.items.length} total=${data.total} reqPage=${pageToUse}`
         );
       }
       setTotal(data.total ?? 0);
@@ -616,6 +622,18 @@ const VisitationsPage = () => {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const intervalId = window.setInterval(() => void load(), 120_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(intervalId);
+    };
   }, [load]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
@@ -672,7 +690,12 @@ const VisitationsPage = () => {
         : await apiFetch(`${API_PREFIX}/visitations`, { method: "POST", body: JSON.stringify(body) });
       if (!res.ok) throw new Error(await res.text());
       toast.success(payload.id ? "Visit updated." : "Visit logged successfully.");
-      await load();
+      if (!payload.id) {
+        setPage(1);
+        await load(1);
+      } else {
+        await load();
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save.");
       throw e;
