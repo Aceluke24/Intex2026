@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { CaseCategory, CaseStatus } from "@/lib/caseloadTypes";
+import type { CaseStatus, SchemaCaseCategory } from "@/lib/caseloadTypes";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarIcon, Search, SlidersHorizontal, X } from "lucide-react";
@@ -14,7 +14,7 @@ export type CaseloadFilters = {
   search: string;
   status: CaseStatus | "All";
   safehouse: string | "All";
-  category: CaseCategory | "All";
+  category: SchemaCaseCategory | "All";
   worker: string | "All";
   dateRange: DateRange | undefined;
 };
@@ -124,7 +124,7 @@ export function CaseloadFilterBar({
             </SelectContent>
           </Select>
 
-          <Select value={filters.category} onValueChange={(v) => set({ category: v as CaseCategory | "All" })}>
+          <Select value={filters.category} onValueChange={(v) => set({ category: v as SchemaCaseCategory | "All" })}>
             <SelectTrigger className="h-10 w-[168px] rounded-xl border-white/50 bg-white/60 font-body text-xs dark:border-white/10 dark:bg-white/10">
               <SelectValue placeholder="Category" />
             </SelectTrigger>

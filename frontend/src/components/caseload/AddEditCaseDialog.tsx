@@ -12,14 +12,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { CaseCategory, ResidentCase, SocioDemoProfile } from "@/lib/caseloadTypes";
-import { caseCategories, reintegrationPhases } from "@/lib/caseloadTypes";
+import type { DbCaseStatus, ResidentCase, SchemaCaseCategory, SchemaRiskLevel } from "@/lib/caseloadTypes";
+import {
+  birthStatuses,
+  buildSubcategorySummary,
+  caseCategories,
+  caseStatuses,
+  referralSources,
+  reintegrationPhases,
+  reintegrationStatuses,
+  reintegrationTypes,
+  schemaRiskLevels,
+  sexOptions,
+  subcategoryFormFields,
+  uiRiskFromSchemaCurrent,
+} from "@/lib/caseloadTypes";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const STEPS = ["Profile", "Case classification", "Family context", "Admission & assignment"] as const;
+const STEPS = ["Profile", "Case Classification", "Family Context", "Admission & Assignment"] as const;
 
 type AddEditCaseDialogProps = {
   open: boolean;
@@ -32,12 +45,10 @@ type AddEditCaseDialogProps = {
   suggestedNextDisplayName: string | null;
 };
 
-const emptySocio: SocioDemoProfile = {
-  fourPsBeneficiary: false,
-  soloParentHousehold: false,
-  indigenousGroup: "",
-  informalSettler: false,
-};
+function defaultDobIso(): string {
+  const y = new Date().getFullYear() - 10;
+  return `${y}-01-01`;
+}
 
 function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerOptions: string[]): FormState {
   const sh = safehouseOptions[0] ?? "—";
@@ -45,98 +56,141 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
   if (!c) {
     return {
       displayName: "",
-      anonymized: true,
-      age: "25",
-      ageUponAdmission: "",
-      presentAge: "",
-      lengthOfStay: "",
-      gender: "Female",
+      caseStatus: "Active",
+      sex: "F",
+      dateOfBirth: defaultDobIso(),
       birthStatus: "",
+      placeOfBirth: "",
       religion: "",
-      category: "Domestic violence" as CaseCategory,
-      subcategory: "",
-      disability: "",
-      socio: { ...emptySocio },
+      caseCategory: "Neglected",
+      subCatOrphaned: false,
+      subCatTrafficked: false,
+      subCatChildLabor: false,
+      subCatPhysicalAbuse: false,
+      subCatSexualAbuse: false,
+      subCatOsaec: false,
+      subCatCicl: false,
+      subCatAtRisk: false,
+      subCatStreetChild: false,
+      subCatChildWithHiv: false,
+      isPwd: false,
+      pwdType: "",
+      hasSpecialNeeds: false,
+      specialNeedsDiagnosis: "",
+      familyIs4ps: false,
+      familySoloParent: false,
+      familyIndigenous: false,
       familyParentPwd: false,
+      familyInformalSettler: false,
       admissionDate: new Date().toISOString().slice(0, 10),
+      dateEnrolled: new Date().toISOString().slice(0, 10),
       referralSource: "",
       referringAgencyPerson: "",
-      originLocation: "",
       dateColbRegistered: "",
       dateColbObtained: "",
       dateCaseStudyPrepared: "",
-      safehouse: sh,
-      assignedWorker: wk,
+      initialCaseAssessment: "",
       reintegrationType: "",
       reintegrationStatus: "",
+      initialRiskLevel: "Low",
+      currentRiskLevel: "Low",
       dateClosed: "",
-      caseNotes: "",
+      notesRestricted: "",
+      safehouse: sh,
+      assignedWorker: wk,
     };
   }
   return {
     displayName: c.displayName,
-    anonymized: c.anonymized,
-    age: String(c.age),
-    ageUponAdmission: c.ageUponAdmission ?? "",
-    presentAge: c.presentAge ?? "",
-    lengthOfStay: c.lengthOfStay ?? "",
-    gender: c.gender,
+    caseStatus: c.caseStatus,
+    sex: c.sex || "F",
+    dateOfBirth: c.dateOfBirth?.slice(0, 10) ?? defaultDobIso(),
     birthStatus: c.birthStatus ?? "",
+    placeOfBirth: c.placeOfBirth ?? "",
     religion: c.religion ?? "",
-    category: c.category,
-    subcategory: c.subcategory,
-    disability: c.disability ?? "",
-    socio: {
-      fourPsBeneficiary: c.socio.fourPsBeneficiary,
-      soloParentHousehold: c.socio.soloParentHousehold,
-      indigenousGroup: c.socio.indigenousGroup ?? "",
-      informalSettler: c.socio.informalSettler,
-    },
+    caseCategory: c.caseCategory,
+    subCatOrphaned: c.subCatOrphaned,
+    subCatTrafficked: c.subCatTrafficked,
+    subCatChildLabor: c.subCatChildLabor,
+    subCatPhysicalAbuse: c.subCatPhysicalAbuse,
+    subCatSexualAbuse: c.subCatSexualAbuse,
+    subCatOsaec: c.subCatOsaec,
+    subCatCicl: c.subCatCicl,
+    subCatAtRisk: c.subCatAtRisk,
+    subCatStreetChild: c.subCatStreetChild,
+    subCatChildWithHiv: c.subCatChildWithHiv,
+    isPwd: c.isPwd,
+    pwdType: c.pwdType ?? "",
+    hasSpecialNeeds: c.hasSpecialNeeds,
+    specialNeedsDiagnosis: c.specialNeedsDiagnosis ?? "",
+    familyIs4ps: c.familyIs4ps,
+    familySoloParent: c.familySoloParent,
+    familyIndigenous: c.familyIndigenous,
     familyParentPwd: c.familyParentPwd,
-    admissionDate: c.admissionDate,
-    referralSource: c.referralSource,
+    familyInformalSettler: c.familyInformalSettler,
+    admissionDate: c.admissionDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    dateEnrolled: c.dateEnrolled?.slice(0, 10) ?? c.admissionDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    referralSource: c.referralSource ?? "",
     referringAgencyPerson: c.referringAgencyPerson ?? "",
-    originLocation: c.originLocation,
     dateColbRegistered: c.dateColbRegistered ?? "",
     dateColbObtained: c.dateColbObtained ?? "",
     dateCaseStudyPrepared: c.dateCaseStudyPrepared ?? "",
-    safehouse: c.safehouse,
-    assignedWorker: c.assignedWorker,
+    initialCaseAssessment: c.initialCaseAssessment ?? "",
     reintegrationType: c.reintegrationType ?? "",
     reintegrationStatus: c.reintegrationStatus ?? "",
+    initialRiskLevel: c.initialRiskLevel,
+    currentRiskLevel: c.currentRiskLevel,
     dateClosed: c.dateClosed ?? "",
-    caseNotes: c.caseNotes,
+    notesRestricted: c.notesRestricted ?? "",
+    safehouse: c.safehouse,
+    assignedWorker: c.assignedWorker,
   };
 }
 
 type FormState = {
   displayName: string;
-  anonymized: boolean;
-  age: string;
-  ageUponAdmission: string;
-  presentAge: string;
-  lengthOfStay: string;
-  gender: string;
+  caseStatus: DbCaseStatus;
+  sex: string;
+  dateOfBirth: string;
   birthStatus: string;
+  placeOfBirth: string;
   religion: string;
-  category: CaseCategory;
-  subcategory: string;
-  disability: string;
-  socio: SocioDemoProfile & { indigenousGroup: string };
+  caseCategory: SchemaCaseCategory;
+  subCatOrphaned: boolean;
+  subCatTrafficked: boolean;
+  subCatChildLabor: boolean;
+  subCatPhysicalAbuse: boolean;
+  subCatSexualAbuse: boolean;
+  subCatOsaec: boolean;
+  subCatCicl: boolean;
+  subCatAtRisk: boolean;
+  subCatStreetChild: boolean;
+  subCatChildWithHiv: boolean;
+  isPwd: boolean;
+  pwdType: string;
+  hasSpecialNeeds: boolean;
+  specialNeedsDiagnosis: string;
+  familyIs4ps: boolean;
+  familySoloParent: boolean;
+  familyIndigenous: boolean;
   familyParentPwd: boolean;
+  familyInformalSettler: boolean;
   admissionDate: string;
+  dateEnrolled: string;
   referralSource: string;
   referringAgencyPerson: string;
-  originLocation: string;
   dateColbRegistered: string;
   dateColbObtained: string;
   dateCaseStudyPrepared: string;
-  safehouse: string;
-  assignedWorker: string;
+  initialCaseAssessment: string;
   reintegrationType: string;
   reintegrationStatus: string;
+  initialRiskLevel: SchemaRiskLevel;
+  currentRiskLevel: SchemaRiskLevel;
   dateClosed: string;
-  caseNotes: string;
+  notesRestricted: string;
+  safehouse: string;
+  assignedWorker: string;
 };
 
 export function AddEditCaseDialog({
@@ -176,46 +230,62 @@ export function AddEditCaseDialog({
   const buildCase = (): ResidentCase => {
     const base = editing;
     const id = base?.id ?? `CS-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
-    const parsedAge = Number.parseInt(form.age, 10);
-    const normalizedAge = Number.isNaN(parsedAge) ? 0 : parsedAge;
-    const socio: SocioDemoProfile = {
-      fourPsBeneficiary: form.socio.fourPsBeneficiary,
-      soloParentHousehold: form.socio.soloParentHousehold,
-      indigenousGroup: form.socio.indigenousGroup.trim() || null,
-      informalSettler: form.socio.informalSettler,
+    const residentId = base?.residentId ?? 0;
+
+    const subPick = {
+      subCatOrphaned: form.subCatOrphaned,
+      subCatTrafficked: form.subCatTrafficked,
+      subCatChildLabor: form.subCatChildLabor,
+      subCatPhysicalAbuse: form.subCatPhysicalAbuse,
+      subCatSexualAbuse: form.subCatSexualAbuse,
+      subCatOsaec: form.subCatOsaec,
+      subCatCicl: form.subCatCicl,
+      subCatAtRisk: form.subCatAtRisk,
+      subCatStreetChild: form.subCatStreetChild,
+      subCatChildWithHiv: form.subCatChildWithHiv,
     };
+
     return {
+      residentId,
       id,
-      displayName: form.displayName.trim() || "Resident (unnamed)",
-      anonymized: form.anonymized,
-      age: normalizedAge,
-      ageUponAdmission: form.ageUponAdmission.trim(),
-      presentAge: form.presentAge.trim(),
-      lengthOfStay: form.lengthOfStay.trim(),
-      gender: form.gender,
+      displayName: form.displayName.trim() || "LS-0001",
+      caseStatus: form.caseStatus,
+      sex: form.sex,
+      dateOfBirth: form.dateOfBirth,
       birthStatus: form.birthStatus.trim() || null,
+      placeOfBirth: form.placeOfBirth.trim() || null,
       religion: form.religion.trim() || null,
-      category: form.category,
-      subcategory: form.subcategory.trim() || "—",
-      disability: form.disability.trim() || null,
-      socio,
+      caseCategory: form.caseCategory,
+      subcategory: buildSubcategorySummary(subPick),
+      ...subPick,
+      isPwd: form.isPwd,
+      pwdType: form.pwdType.trim() || null,
+      hasSpecialNeeds: form.hasSpecialNeeds,
+      specialNeedsDiagnosis: form.specialNeedsDiagnosis.trim() || null,
+      familyIs4ps: form.familyIs4ps,
+      familySoloParent: form.familySoloParent,
+      familyIndigenous: form.familyIndigenous,
       familyParentPwd: form.familyParentPwd,
+      familyInformalSettler: form.familyInformalSettler,
       admissionDate: form.admissionDate,
-      referralSource: form.referralSource.trim() || "—",
+      dateEnrolled: form.dateEnrolled,
+      referralSource: form.referralSource.trim() || null,
       referringAgencyPerson: form.referringAgencyPerson.trim() || null,
-      originLocation: form.originLocation.trim() || "—",
       dateColbRegistered: form.dateColbRegistered || null,
       dateColbObtained: form.dateColbObtained || null,
       dateCaseStudyPrepared: form.dateCaseStudyPrepared || null,
-      safehouse: form.safehouse,
-      assignedWorker: form.assignedWorker,
+      initialCaseAssessment: form.initialCaseAssessment.trim() || null,
       reintegrationType: form.reintegrationType.trim() || null,
       reintegrationStatus: form.reintegrationStatus.trim() || null,
       dateClosed: form.dateClosed || null,
-      caseNotes: form.caseNotes.trim() || "—",
-      status: base?.status ?? "Pending",
-      riskLevel: base?.riskLevel ?? "Standard",
-      reintegrationProgress: base?.reintegrationProgress ?? 5,
+      initialRiskLevel: form.initialRiskLevel,
+      currentRiskLevel: form.currentRiskLevel,
+      notesRestricted: form.notesRestricted.trim() || null,
+      safehouse: form.safehouse,
+      assignedWorker: form.assignedWorker,
+      status: base?.status ?? "Active",
+      riskLevel: uiRiskFromSchemaCurrent(form.currentRiskLevel),
+      reintegrationProgress: base?.reintegrationProgress ?? 0,
       phaseIndex: base?.phaseIndex ?? 0,
       lastUpdate: new Date().toISOString().slice(0, 10),
       keywords: base?.keywords ?? [],
@@ -295,67 +365,55 @@ export function AddEditCaseDialog({
                       displayNameEditedRef.current = true;
                       setField("displayName", e.target.value);
                     }}
-                    readOnly={!editing}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    placeholder="e.g. Resident A."
+                    placeholder="Internal code (e.g. LS-0067)"
                   />
-                </div>
-                <div className="flex items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]">
-                  <Checkbox
-                    id="anon"
-                    checked={form.anonymized}
-                    onCheckedChange={(v) => setField("anonymized", !!v)}
-                  />
-                  <Label htmlFor="anon" className="font-body text-sm font-normal text-foreground/90">
-                    Use anonymized display (recommended for reports)
-                  </Label>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="age" className="font-body text-xs">
-                      Age
+                    <Label htmlFor="dob" className="font-body text-xs">
+                      Date of birth
                     </Label>
                     <Input
-                      id="age"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      min={1}
-                      max={120}
-                      value={form.age ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^\d*$/.test(val)) {
-                          setField("age", val);
-                        }
-                      }}
+                      id="dob"
+                      type="date"
+                      value={form.dateOfBirth}
+                      onChange={(e) => setField("dateOfBirth", e.target.value)}
                       className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gender" className="font-body text-xs">
-                      Gender
-                    </Label>
-                    <Input
-                      id="gender"
-                      value={form.gender}
-                      onChange={(e) => setField("gender", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    />
+                    <Label className="font-body text-xs">Sex</Label>
+                    <Select value={form.sex} onValueChange={(v) => setField("sex", v)}>
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sexOptions.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s === "F" ? "F" : "M"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="birthStatus" className="font-body text-xs">
-                      Birth status
-                    </Label>
-                    <Input
-                      id="birthStatus"
-                      value={form.birthStatus}
-                      onChange={(e) => setField("birthStatus", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                      placeholder="Marital / Non-Marital"
-                    />
+                    <Label className="font-body text-xs">Birth status</Label>
+                    <Select value={form.birthStatus || "__none__"} onValueChange={(v) => setField("birthStatus", v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue placeholder="Optional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        {birthStatuses.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="religion" className="font-body text-xs">
@@ -370,6 +428,18 @@ export function AddEditCaseDialog({
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pob" className="font-body text-xs">
+                    Place of birth
+                  </Label>
+                  <Input
+                    id="pob"
+                    value={form.placeOfBirth}
+                    onChange={(e) => setField("placeOfBirth", e.target.value)}
+                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    placeholder="Optional"
+                  />
+                </div>
               </motion.div>
             )}
 
@@ -382,8 +452,26 @@ export function AddEditCaseDialog({
                 className="space-y-4"
               >
                 <div className="space-y-2">
-                  <Label className="font-body text-xs">Primary category</Label>
-                  <Select value={form.category} onValueChange={(v) => setField("category", v as CaseCategory)}>
+                  <Label className="font-body text-xs">Case status</Label>
+                  <Select value={form.caseStatus} onValueChange={(v) => setField("caseStatus", v as DbCaseStatus)}>
+                    <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {caseStatuses.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-body text-xs">Case category</Label>
+                  <Select
+                    value={form.caseCategory}
+                    onValueChange={(v) => setField("caseCategory", v as SchemaCaseCategory)}
+                  >
                     <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
                       <SelectValue />
                     </SelectTrigger>
@@ -397,27 +485,57 @@ export function AddEditCaseDialog({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sub" className="font-body text-xs">
-                    Subcategory
+                  <Label className="font-body text-xs">Subcategory flags</Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {subcategoryFormFields.map(({ key, label }) => (
+                      <label
+                        key={key}
+                        className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]"
+                      >
+                        <Checkbox
+                          checked={form[key]}
+                          onCheckedChange={(v) => setField(key, !!v)}
+                        />
+                        <span className="font-body text-sm">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]">
+                    <Checkbox checked={form.isPwd} onCheckedChange={(v) => setField("isPwd", !!v)} />
+                    <span className="font-body text-sm">PWD</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]">
+                    <Checkbox
+                      checked={form.hasSpecialNeeds}
+                      onCheckedChange={(v) => setField("hasSpecialNeeds", !!v)}
+                    />
+                    <span className="font-body text-sm">Special needs</span>
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pwdType" className="font-body text-xs">
+                    PWD type
                   </Label>
                   <Input
-                    id="sub"
-                    value={form.subcategory}
-                    onChange={(e) => setField("subcategory", e.target.value)}
+                    id="pwdType"
+                    value={form.pwdType}
+                    onChange={(e) => setField("pwdType", e.target.value)}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    placeholder="Brief descriptor"
+                    placeholder="Optional"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dis" className="font-body text-xs">
-                    Disability & accessibility needs
+                  <Label htmlFor="snd" className="font-body text-xs">
+                    Special needs diagnosis
                   </Label>
                   <Textarea
-                    id="dis"
-                    value={form.disability}
-                    onChange={(e) => setField("disability", e.target.value)}
-                    className="min-h-[100px] rounded-xl border-white/60 bg-white/70 font-body text-sm dark:border-white/10 dark:bg-white/10"
-                    placeholder="Leave blank if none, or describe supports required"
+                    id="snd"
+                    value={form.specialNeedsDiagnosis}
+                    onChange={(e) => setField("specialNeedsDiagnosis", e.target.value)}
+                    className="min-h-[88px] rounded-xl border-white/60 bg-white/70 font-body text-sm dark:border-white/10 dark:bg-white/10"
+                    placeholder="Optional"
                   />
                 </div>
               </motion.div>
@@ -434,30 +552,31 @@ export function AddEditCaseDialog({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
                     <Checkbox
-                      checked={form.socio.fourPsBeneficiary}
-                      onCheckedChange={(v) =>
-                        setForm((f) => ({ ...f, socio: { ...f.socio, fourPsBeneficiary: !!v } }))
-                      }
+                      checked={form.familyIs4ps}
+                      onCheckedChange={(v) => setField("familyIs4ps", !!v)}
                     />
                     <span className="font-body text-sm">4Ps beneficiary</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
                     <Checkbox
-                      checked={form.socio.soloParentHousehold}
-                      onCheckedChange={(v) =>
-                        setForm((f) => ({ ...f, socio: { ...f.socio, soloParentHousehold: !!v } }))
-                      }
+                      checked={form.familySoloParent}
+                      onCheckedChange={(v) => setField("familySoloParent", !!v)}
                     />
                     <span className="font-body text-sm">Solo parent household</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
                     <Checkbox
-                      checked={form.socio.informalSettler}
-                      onCheckedChange={(v) =>
-                        setForm((f) => ({ ...f, socio: { ...f.socio, informalSettler: !!v } }))
-                      }
+                      checked={form.familyIndigenous}
+                      onCheckedChange={(v) => setField("familyIndigenous", !!v)}
                     />
-                    <span className="font-body text-sm">Informal settler status</span>
+                    <span className="font-body text-sm">Indigenous</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
+                    <Checkbox
+                      checked={form.familyInformalSettler}
+                      onCheckedChange={(v) => setField("familyInformalSettler", !!v)}
+                    />
+                    <span className="font-body text-sm">Informal settler</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
                     <Checkbox
@@ -466,20 +585,6 @@ export function AddEditCaseDialog({
                     />
                     <span className="font-body text-sm">Parent/guardian with disability</span>
                   </label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ind" className="font-body text-xs">
-                    Indigenous group (if applicable)
-                  </Label>
-                  <Input
-                    id="ind"
-                    value={form.socio.indigenousGroup}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, socio: { ...f.socio, indigenousGroup: e.target.value } }))
-                    }
-                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    placeholder="e.g. Lumad — or leave blank"
-                  />
                 </div>
               </motion.div>
             )}
@@ -495,7 +600,7 @@ export function AddEditCaseDialog({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="adm" className="font-body text-xs">
-                      Admission date
+                      Date of admission
                     </Label>
                     <Input
                       id="adm"
@@ -505,6 +610,20 @@ export function AddEditCaseDialog({
                       className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="enr" className="font-body text-xs">
+                      Date enrolled
+                    </Label>
+                    <Input
+                      id="enr"
+                      type="date"
+                      value={form.dateEnrolled}
+                      onChange={(e) => setField("dateEnrolled", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="font-body text-xs">Safehouse</Label>
                     <Select value={form.safehouse} onValueChange={(v) => setField("safehouse", v)}>
@@ -520,28 +639,40 @@ export function AddEditCaseDialog({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="font-body text-xs">Assigned social worker</Label>
+                    <Select value={form.assignedWorker} onValueChange={(v) => setField("assignedWorker", v)}>
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {wOpts.map((w) => (
+                          <SelectItem key={w} value={w}>
+                            {w}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="ref" className="font-body text-xs">
-                    Referral source
-                  </Label>
-                  <Input
-                    id="ref"
-                    value={form.referralSource}
-                    onChange={(e) => setField("referralSource", e.target.value)}
-                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="origin" className="font-body text-xs">
-                    Origin location
-                  </Label>
-                  <Input
-                    id="origin"
-                    value={form.originLocation}
-                    onChange={(e) => setField("originLocation", e.target.value)}
-                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                  />
+                  <Label className="font-body text-xs">Referral source</Label>
+                  <Select
+                    value={form.referralSource || "__none__"}
+                    onValueChange={(v) => setField("referralSource", v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                      <SelectValue placeholder="Optional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      {referralSources.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="refPerson" className="font-body text-xs">
@@ -553,41 +684,6 @@ export function AddEditCaseDialog({
                     onChange={(e) => setField("referringAgencyPerson", e.target.value)}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                   />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="ageAdmission" className="font-body text-xs">
-                      Age upon admission
-                    </Label>
-                    <Input
-                      id="ageAdmission"
-                      value={form.ageUponAdmission}
-                      onChange={(e) => setField("ageUponAdmission", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="presentAge" className="font-body text-xs">
-                      Present age
-                    </Label>
-                    <Input
-                      id="presentAge"
-                      value={form.presentAge}
-                      onChange={(e) => setField("presentAge", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lengthStay" className="font-body text-xs">
-                      Length of stay
-                    </Label>
-                    <Input
-                      id="lengthStay"
-                      value={form.lengthOfStay}
-                      onChange={(e) => setField("lengthOfStay", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    />
-                  </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -615,10 +711,10 @@ export function AddEditCaseDialog({
                     />
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="caseStudyDate" className="font-body text-xs">
-                      Case study prepared
+                      Date case study prepared
                     </Label>
                     <Input
                       id="caseStudyDate"
@@ -629,69 +725,121 @@ export function AddEditCaseDialog({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reinType" className="font-body text-xs">
-                      Reintegration type
+                    <Label htmlFor="dateClosed" className="font-body text-xs">
+                      Date closed
                     </Label>
                     <Input
-                      id="reinType"
-                      value={form.reintegrationType}
-                      onChange={(e) => setField("reintegrationType", e.target.value)}
-                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reinStatus" className="font-body text-xs">
-                      Reintegration status
-                    </Label>
-                    <Input
-                      id="reinStatus"
-                      value={form.reintegrationStatus}
-                      onChange={(e) => setField("reintegrationStatus", e.target.value)}
+                      id="dateClosed"
+                      type="date"
+                      value={form.dateClosed}
+                      onChange={(e) => setField("dateClosed", e.target.value)}
                       className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                     />
                   </div>
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="font-body text-xs">Initial risk level</Label>
+                    <Select
+                      value={form.initialRiskLevel}
+                      onValueChange={(v) => setField("initialRiskLevel", v as SchemaRiskLevel)}
+                    >
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schemaRiskLevels.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-body text-xs">Current risk level</Label>
+                    <Select
+                      value={form.currentRiskLevel}
+                      onValueChange={(v) => setField("currentRiskLevel", v as SchemaRiskLevel)}
+                    >
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schemaRiskLevels.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="font-body text-xs">Reintegration type</Label>
+                    <Select
+                      value={form.reintegrationType || "__none__"}
+                      onValueChange={(v) => setField("reintegrationType", v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue placeholder="Optional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        {reintegrationTypes.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-body text-xs">Reintegration status</Label>
+                    <Select
+                      value={form.reintegrationStatus || "__none__"}
+                      onValueChange={(v) => setField("reintegrationStatus", v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
+                        <SelectValue placeholder="Optional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not specified</SelectItem>
+                        {reintegrationStatuses.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dateClosed" className="font-body text-xs">
-                    Date closed
+                  <Label htmlFor="ica" className="font-body text-xs">
+                    Initial case assessment
                   </Label>
-                  <Input
-                    id="dateClosed"
-                    type="date"
-                    value={form.dateClosed}
-                    onChange={(e) => setField("dateClosed", e.target.value)}
-                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                  <Textarea
+                    id="ica"
+                    value={form.initialCaseAssessment}
+                    onChange={(e) => setField("initialCaseAssessment", e.target.value)}
+                    className="min-h-[88px] rounded-xl border-white/60 bg-white/70 font-body text-sm dark:border-white/10 dark:bg-white/10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-body text-xs">Assigned social worker</Label>
-                  <Select value={form.assignedWorker} onValueChange={(v) => setField("assignedWorker", v)}>
-                    <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {wOpts.map((w) => (
-                        <SelectItem key={w} value={w}>
-                          {w}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes" className="font-body text-xs">
-                    Notes
+                  <Label htmlFor="notesRest" className="font-body text-xs">
+                    Notes (restricted)
                   </Label>
                   <Textarea
-                    id="notes"
-                    value={form.caseNotes}
-                    onChange={(e) => setField("caseNotes", e.target.value)}
+                    id="notesRest"
+                    value={form.notesRestricted}
+                    onChange={(e) => setField("notesRestricted", e.target.value)}
                     className="min-h-[88px] rounded-xl border-white/60 bg-white/70 font-body text-sm dark:border-white/10 dark:bg-white/10"
                   />
                 </div>
                 <p className="rounded-xl bg-white/45 px-3 py-2 font-body text-[11px] leading-relaxed text-muted-foreground dark:bg-white/[0.06]">
-                  Phases tracked: {reintegrationPhases.join(" → ")}. Status and risk level are assigned by supervisors
-                  after review.
+                  Phases tracked: {reintegrationPhases.join(" → ")}. List status reflects case status, risk, and
+                  reintegration rules after save.
                 </p>
               </motion.div>
             )}

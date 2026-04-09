@@ -145,7 +145,7 @@ export function CaseRow({ residentCase: c, onView, onEdit, onDelete, index = 0 }
               "mt-1.5 inline-flex rounded-full border border-[hsl(340_28%_88%)]/85 bg-white/55 px-2.5 py-0.5 font-body text-[10px] font-semibold uppercase tracking-wide text-[hsl(340_32%_32%)] backdrop-blur-sm dark:border-white/12 dark:bg-white/10 dark:text-[hsl(340_35%_88%)]"
             )}
           >
-            {c.category}
+            {c.caseCategory}
           </span>
           <p className="mt-1 font-body text-[11px] text-muted-foreground/95">{c.subcategory}</p>
         </div>

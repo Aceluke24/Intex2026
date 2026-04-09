@@ -17,8 +17,11 @@ import {
   computeCaseloadMetrics,
   caseCategories,
   type CaseStatus,
+  type DbCaseStatus,
   type ResidentCase,
   type RiskLevel,
+  type SchemaCaseCategory,
+  type SchemaRiskLevel,
 } from "@/lib/caseloadTypes";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { exportToCSV } from "@/lib/exportToCSV";
@@ -46,24 +49,50 @@ type CaseApiRow = {
   residentId: number;
   caseId: string;
   residentName: string;
+  internalCode: string;
+  caseStatusRaw: string;
   category: string;
   subcategory: string;
   birthStatus: string | null;
   religion: string | null;
+  sex: string;
+  dateOfBirth: string;
+  placeOfBirth: string | null;
+  subCatOrphaned: boolean;
+  subCatTrafficked: boolean;
+  subCatChildLabor: boolean;
+  subCatPhysicalAbuse: boolean;
+  subCatSexualAbuse: boolean;
+  subCatOsaec: boolean;
+  subCatCicl: boolean;
+  subCatAtRisk: boolean;
+  subCatStreetChild: boolean;
+  subCatChildWithHiv: boolean;
+  isPwd: boolean;
+  pwdType: string | null;
+  hasSpecialNeeds: boolean;
+  specialNeedsDiagnosis: string | null;
+  familyIs4ps: boolean;
+  familySoloParent: boolean;
+  familyIndigenous: boolean;
+  familyParentPwd: boolean;
+  familyInformalSettler: boolean;
   safehouse: string;
   assignedWorker: string | null;
   admissionDate: string;
-  ageUponAdmission: string | null;
-  presentAge: string | null;
-  lengthOfStay: string | null;
+  dateEnrolled: string;
+  referralSource: string | null;
   referringAgencyPerson: string | null;
   dateColbRegistered: string | null;
   dateColbObtained: string | null;
   dateCaseStudyPrepared: string | null;
+  initialCaseAssessment: string | null;
   reintegrationType: string | null;
   reintegrationStatus: string | null;
   dateClosed: string | null;
-  familyParentPwd: boolean;
+  initialRiskLevel: string;
+  currentRiskLevel: string;
+  notesRestricted: string | null;
   status: string;
   reintegrationProgress: number;
   lastUpdated: string;
@@ -90,22 +119,6 @@ function mapRisk(r: string): RiskLevel {
   return "Standard";
 }
 
-function mapSubcategoryFlags(category: ResidentCase["category"], subcategory: string) {
-  const sub = subcategory.toLowerCase();
-  return {
-    subCatOrphaned: sub.includes("orphan") || category === "Abandonment",
-    subCatTrafficked: sub.includes("traffick") || category === "Trafficking",
-    subCatChildLabor: sub.includes("labor") || sub.includes("labour"),
-    subCatPhysicalAbuse: sub.includes("physical") || category === "Abuse",
-    subCatSexualAbuse: sub.includes("sexual"),
-    subCatOsaec: sub.includes("osaec") || sub.includes("online sexual"),
-    subCatCicl: sub.includes("cicl") || sub.includes("conflict with law"),
-    subCatAtRisk: sub.includes("at risk") || category === "Domestic violence",
-    subCatStreetChild: sub.includes("street") || category === "Displacement",
-    subCatChildWithHiv: sub.includes("hiv"),
-  };
-}
-
 /** Primary card label: real/synthetic resident line only — never repeat the system case id (C####). */
 function deriveResidentPrimaryLabel(row: CaseApiRow): string {
   const caseId = (row.caseId ?? "").trim();
@@ -124,42 +137,77 @@ function residentDisplayCodeFromApiLabel(label: string): string {
   return t;
 }
 
+function normalizeDbCaseStatus(s: string): DbCaseStatus {
+  const t = (s ?? "").trim();
+  if (t === "Closed" || t === "Transferred") return t;
+  return "Active";
+}
+
+function normalizeSchemaCategory(s: string): SchemaCaseCategory {
+  const t = (s ?? "").trim();
+  if (t === "Abandoned" || t === "Foundling" || t === "Surrendered" || t === "Neglected") return t;
+  return "Neglected";
+}
+
+function normalizeSchemaRisk(s: string): SchemaRiskLevel {
+  const t = (s ?? "").trim();
+  if (t === "Low" || t === "Medium" || t === "High" || t === "Critical") return t;
+  return "Low";
+}
+
 function mapCaseRow(row: CaseApiRow): ResidentCase {
   const phaseIndex = Math.min(3, Math.max(0, Math.floor(row.reintegrationProgress / 25)));
+  const internal = (row.internalCode ?? "").trim();
+  const displayName = internal || residentDisplayCodeFromApiLabel(deriveResidentPrimaryLabel(row));
+  const initialRl = normalizeSchemaRisk(row.initialRiskLevel);
+  const currentRl = normalizeSchemaRisk(row.currentRiskLevel);
   return {
+    residentId: row.residentId,
     id: row.caseId || `R-${row.residentId}`,
-    displayName: residentDisplayCodeFromApiLabel(deriveResidentPrimaryLabel(row)),
-    anonymized: true,
-    age: 0,
-    ageUponAdmission: row.ageUponAdmission ?? "",
-    presentAge: row.presentAge ?? "",
-    lengthOfStay: row.lengthOfStay ?? "",
-    gender: "—",
+    displayName,
+    caseStatus: normalizeDbCaseStatus(row.caseStatusRaw),
+    sex: (row.sex ?? "F").trim() || "F",
+    dateOfBirth: (row.dateOfBirth ?? "").slice(0, 10),
     birthStatus: row.birthStatus,
+    placeOfBirth: row.placeOfBirth,
     religion: row.religion,
-    category: row.category as ResidentCase["category"],
+    caseCategory: normalizeSchemaCategory(row.category),
     subcategory: row.subcategory,
-    disability: null,
-    socio: {
-      fourPsBeneficiary: false,
-      soloParentHousehold: false,
-      indigenousGroup: null,
-      informalSettler: false,
-    },
+    subCatOrphaned: row.subCatOrphaned,
+    subCatTrafficked: row.subCatTrafficked,
+    subCatChildLabor: row.subCatChildLabor,
+    subCatPhysicalAbuse: row.subCatPhysicalAbuse,
+    subCatSexualAbuse: row.subCatSexualAbuse,
+    subCatOsaec: row.subCatOsaec,
+    subCatCicl: row.subCatCicl,
+    subCatAtRisk: row.subCatAtRisk,
+    subCatStreetChild: row.subCatStreetChild,
+    subCatChildWithHiv: row.subCatChildWithHiv,
+    isPwd: row.isPwd,
+    pwdType: row.pwdType,
+    hasSpecialNeeds: row.hasSpecialNeeds,
+    specialNeedsDiagnosis: row.specialNeedsDiagnosis,
+    familyIs4ps: row.familyIs4ps,
+    familySoloParent: row.familySoloParent,
+    familyIndigenous: row.familyIndigenous,
     familyParentPwd: row.familyParentPwd,
+    familyInformalSettler: row.familyInformalSettler,
     admissionDate: row.admissionDate,
-    referralSource: "—",
+    dateEnrolled: (row.dateEnrolled ?? row.admissionDate).slice(0, 10),
+    referralSource: row.referralSource,
     referringAgencyPerson: row.referringAgencyPerson,
-    originLocation: "—",
     dateColbRegistered: row.dateColbRegistered,
     dateColbObtained: row.dateColbObtained,
     dateCaseStudyPrepared: row.dateCaseStudyPrepared,
-    safehouse: row.safehouse,
-    assignedWorker: row.assignedWorker ?? "—",
+    initialCaseAssessment: row.initialCaseAssessment,
     reintegrationType: row.reintegrationType,
     reintegrationStatus: row.reintegrationStatus,
     dateClosed: row.dateClosed,
-    caseNotes: "—",
+    initialRiskLevel: initialRl,
+    currentRiskLevel: currentRl,
+    notesRestricted: row.notesRestricted,
+    safehouse: row.safehouse,
+    assignedWorker: row.assignedWorker ?? "—",
     status: mapApiStatus(row.status),
     riskLevel: mapRisk(row.riskLevel),
     reintegrationProgress: row.reintegrationProgress,
@@ -219,14 +267,24 @@ function admissionDateLocalStartMs(value: string | null | undefined): number | n
 function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
   const q = f.search.toLowerCase().trim();
   if (q) {
-    const blob = [c.displayName, c.id, c.category, c.subcategory, c.keywords.join(" "), c.caseNotes]
+    const blob = [
+      c.displayName,
+      c.id,
+      c.caseCategory,
+      c.subcategory,
+      c.keywords.join(" "),
+      c.notesRestricted ?? "",
+      c.initialCaseAssessment ?? "",
+      c.placeOfBirth ?? "",
+      c.referralSource ?? "",
+    ]
       .join(" ")
       .toLowerCase();
     if (!blob.includes(q)) return false;
   }
   if (f.status !== "All" && c.status !== f.status) return false;
   if (f.safehouse !== "All" && c.safehouse !== f.safehouse) return false;
-  if (f.category !== "All" && c.category !== f.category) return false;
+  if (f.category !== "All" && c.caseCategory !== f.category) return false;
   if (f.worker !== "All" && c.assignedWorker !== f.worker) return false;
   const bounds = admissionFilterInclusiveLocalBounds(f.dateRange);
   if (bounds) {
@@ -311,7 +369,7 @@ const CaseloadPage = () => {
 
   const categoryOptions = useMemo(() => {
     const u = new Set<string>(caseCategories);
-    cases.forEach((c) => u.add(c.category));
+    cases.forEach((c) => u.add(c.caseCategory));
     return Array.from(u);
   }, [cases]);
 
@@ -386,77 +444,57 @@ const CaseloadPage = () => {
   };
 
   const handleSaveCase = async (c: ResidentCase) => {
-    // Map UI category to API enum (Abandoned | Foundling | Surrendered | Neglected)
-    const categoryMap: Record<string, string> = {
-      Abandoned: "Abandoned", Foundling: "Foundling", Surrendered: "Surrendered",
-      Neglect: "Neglected", "Domestic violence": "Neglected", Trafficking: "Neglected",
-      Abuse: "Neglected", Exploitation: "Neglected", Displacement: "Abandoned",
-    };
-    const riskMap: Record<string, string> = { Standard: "Low", Elevated: "Medium", High: "High" };
-
-    const residentId = residentIdMap[c.id];
+    const residentId = c.residentId || residentIdMap[c.id];
     const safehouse = safehouseList.find((sh) => sh.name === c.safehouse);
     const safehouseId = safehouse?.safehouseId ?? safehouseList[0]?.safehouseId ?? 1;
-    const fallbackDob = new Date(new Date().getFullYear() - (c.age || 18), 0, 1).toISOString().slice(0, 10);
-    let dateOfBirth = fallbackDob;
-
-    // Preserve existing DOB on updates to avoid overriding with synthetic age-derived values.
-    if (residentId) {
-      try {
-        const existing = await apiFetchJson<{ dateOfBirth?: string }>(`${API_PREFIX}/residents/${residentId}`);
-        if (existing?.dateOfBirth) {
-          dateOfBirth = String(existing.dateOfBirth).slice(0, 10);
-        }
-      } catch {
-        // Keep fallback DOB if resident detail cannot be loaded.
-      }
-    }
-
-    const apiStatus = c.status === "Reintegration" ? "Active" : (c.status === "Pending" ? "Active" : c.status);
-    const subFlags = mapSubcategoryFlags(c.category, c.subcategory ?? "");
-    const normalizedSex = c.gender?.toLowerCase().startsWith("m") ? "M" : "F";
-
-    const trimmedDisplay = c.displayName.trim();
-    const internalCode = /^LS-\d+$/i.test(trimmedDisplay) ? trimmedDisplay : undefined;
 
     const body = {
       safehouseId,
-      caseStatus: apiStatus,
-      sex: normalizedSex,
-      dateOfBirth,
+      caseStatus: c.caseStatus,
+      sex: (c.sex ?? "F").trim() || "F",
+      dateOfBirth: c.dateOfBirth.slice(0, 10),
       birthStatus: c.birthStatus,
       religion: c.religion,
-      caseCategory: categoryMap[c.category] ?? "Neglected",
-      placeOfBirth: c.originLocation !== "—" ? c.originLocation : null,
-      ...subFlags,
-      dateOfAdmission: c.admissionDate,
-      dateEnrolled: c.admissionDate,
-      ageUponAdmission: c.ageUponAdmission || null,
-      presentAge: c.presentAge || null,
-      lengthOfStay: c.lengthOfStay || null,
-      referralSource: c.referralSource !== "—" ? c.referralSource : "Community",
+      caseCategory: c.caseCategory,
+      placeOfBirth: c.placeOfBirth,
+      subCatOrphaned: c.subCatOrphaned,
+      subCatTrafficked: c.subCatTrafficked,
+      subCatChildLabor: c.subCatChildLabor,
+      subCatPhysicalAbuse: c.subCatPhysicalAbuse,
+      subCatSexualAbuse: c.subCatSexualAbuse,
+      subCatOsaec: c.subCatOsaec,
+      subCatCicl: c.subCatCicl,
+      subCatAtRisk: c.subCatAtRisk,
+      subCatStreetChild: c.subCatStreetChild,
+      subCatChildWithHiv: c.subCatChildWithHiv,
+      dateOfAdmission: c.admissionDate.slice(0, 10),
+      dateEnrolled: c.dateEnrolled.slice(0, 10),
+      ageUponAdmission: null,
+      presentAge: null,
+      lengthOfStay: null,
+      referralSource: c.referralSource,
       referringAgencyPerson: c.referringAgencyPerson,
       dateColbRegistered: dateToIsoOrNull(c.dateColbRegistered),
       dateColbObtained: dateToIsoOrNull(c.dateColbObtained),
       dateCaseStudyPrepared: dateToIsoOrNull(c.dateCaseStudyPrepared),
       assignedSocialWorker: c.assignedWorker !== "—" ? c.assignedWorker : null,
-      initialCaseAssessment: c.caseNotes !== "—" ? c.caseNotes : "Intake assessment",
-      initialRiskLevel: riskMap[c.riskLevel] ?? "Low",
-      currentRiskLevel: riskMap[c.riskLevel] ?? "Low",
+      initialCaseAssessment: c.initialCaseAssessment,
+      initialRiskLevel: c.initialRiskLevel,
+      currentRiskLevel: c.currentRiskLevel,
       reintegrationType: c.reintegrationType,
       reintegrationStatus: c.reintegrationStatus,
       dateClosed: dateToIsoOrNull(c.dateClosed),
-      familyIs4ps: c.socio.fourPsBeneficiary,
-      familySoloParent: c.socio.soloParentHousehold,
-      familyIndigenous: !!c.socio.indigenousGroup,
+      familyIs4ps: c.familyIs4ps,
+      familySoloParent: c.familySoloParent,
+      familyIndigenous: c.familyIndigenous,
       familyParentPwd: c.familyParentPwd,
-      familyInformalSettler: c.socio.informalSettler,
-      isPwd: !!c.disability,
-      pwdType: c.disability || null,
-      hasSpecialNeeds: !!c.disability,
-      specialNeedsDiagnosis: c.disability || null,
-      notesRestricted: c.caseNotes !== "—" ? c.caseNotes : null,
-      ...(internalCode ? { internalCode } : {}),
+      familyInformalSettler: c.familyInformalSettler,
+      isPwd: c.isPwd,
+      pwdType: c.pwdType,
+      hasSpecialNeeds: c.hasSpecialNeeds,
+      specialNeedsDiagnosis: c.specialNeedsDiagnosis,
+      notesRestricted: c.notesRestricted,
+      internalCode: c.displayName.trim(),
     };
 
     try {
