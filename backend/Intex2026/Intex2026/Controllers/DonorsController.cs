@@ -97,6 +97,11 @@ public class DonorsController : ControllerBase
         var volunteerHours = donations.Where(d => d.DonationType == "Time").Sum(d => d.Amount ?? 0);
         var inKindValue = donations.Where(d => d.DonationType == "InKind").Sum(d => d.EstimatedValue ?? d.Amount ?? 0);
 
+        var supporterIdsWithDonation = donations.Select(d => d.SupporterId).ToHashSet();
+        var repeatDonorCount = donationBySup.Count(kv => kv.Value.Count >= 2);
+        var donorDen = supporterIdsWithDonation.Count;
+        var donorRetentionRate = donorDen > 0 ? Math.Round(repeatDonorCount / (double)donorDen * 100, 1) : 0.0;
+
         var allocation = await BuildAllocationAsync(ct);
 
         var metrics = new DonorMetricsDto(
@@ -104,7 +109,8 @@ public class DonorsController : ControllerBase
             supporters.Count(s => s.Status == "Active"),
             (double)monthlyContributions,
             (double)volunteerHours,
-            (double)inKindValue);
+            (double)inKindValue,
+            donorRetentionRate);
 
         return Ok(new DonorsDashboardDto(items, feed, metrics, allocation));
     }
@@ -305,7 +311,8 @@ public class DonorsController : ControllerBase
         int ActiveDonors,
         double MonthlyContributions,
         double VolunteerHoursLogged,
-        double InKindValue);
+        double InKindValue,
+        double DonorRetentionRate);
 
     private sealed record ContributionBreakdownDto(
         double Monetary,

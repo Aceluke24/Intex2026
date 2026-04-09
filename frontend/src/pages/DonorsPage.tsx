@@ -32,7 +32,7 @@ import type {
 } from "@/lib/donorsTypes";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Download, Gift, HeartHandshake, Plus, TrendingUp, Users } from "lucide-react";
+import { Clock, Download, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -42,6 +42,7 @@ const EMPTY_METRICS: DonorsDashboardResponse["metrics"] = {
   monthlyContributions: 0,
   volunteerHoursLogged: 0,
   inKindValue: 0,
+  donorRetentionRate: 0,
 };
 
 function emptyBreakdown(): ContributionBreakdown {
@@ -143,6 +144,7 @@ const DonorsPage = () => {
         monthlyContributions: Number(dash.metrics.monthlyContributions) || 0,
         volunteerHoursLogged: Number(dash.metrics.volunteerHoursLogged) || 0,
         inKindValue: Number(dash.metrics.inKindValue) || 0,
+        donorRetentionRate: Number(dash.metrics.donorRetentionRate) || 0,
       });
       setAllocationByDestination(dash.allocationByDestination);
       const houseList = Array.isArray(housesRaw) ? housesRaw : [];
@@ -410,8 +412,8 @@ const DonorsPage = () => {
           {/* Metrics */}
           {loading ? (
             <div className="mb-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className={cn("h-[132px] rounded-[1.15rem] bg-white/50", i === 2 && "xl:col-span-2")} />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className={cn("h-[132px] rounded-[1.15rem] bg-white/50", i === 3 && "xl:col-span-2")} />
               ))}
             </div>
           ) : (
@@ -419,8 +421,21 @@ const DonorsPage = () => {
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-6">
                 <KpiStatCard
                   variant="glass"
-                  tone="rose"
+                  tone="blush"
                   motionDelay={0}
+                  label="Donor retention rate"
+                  value={`${donorMetrics.donorRetentionRate.toFixed(1)}%`}
+                  animateTo={donorMetrics.donorRetentionRate}
+                  formatAnimated={(n) => `${n.toFixed(1)}%`}
+                  icon={Percent}
+                  change="Repeat gift rate (2+ gifts)"
+                  changeType="neutral"
+                  className="sm:col-span-2 xl:col-span-6"
+                />
+                <KpiStatCard
+                  variant="glass"
+                  tone="rose"
+                  motionDelay={0.05}
                   label="Total supporters"
                   value={donorMetrics.totalSupporters}
                   animateTo={donorMetrics.totalSupporters}
