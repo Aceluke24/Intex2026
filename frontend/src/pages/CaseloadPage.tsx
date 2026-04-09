@@ -46,9 +46,22 @@ type CaseApiRow = {
   residentName: string;
   category: string;
   subcategory: string;
+  birthStatus: string | null;
+  religion: string | null;
   safehouse: string;
   assignedWorker: string | null;
   admissionDate: string;
+  ageUponAdmission: string | null;
+  presentAge: string | null;
+  lengthOfStay: string | null;
+  referringAgencyPerson: string | null;
+  dateColbRegistered: string | null;
+  dateColbObtained: string | null;
+  dateCaseStudyPrepared: string | null;
+  reintegrationType: string | null;
+  reintegrationStatus: string | null;
+  dateClosed: string | null;
+  familyParentPwd: boolean;
   status: string;
   reintegrationProgress: number;
   lastUpdated: string;
@@ -98,7 +111,12 @@ function mapCaseRow(row: CaseApiRow): ResidentCase {
     displayName: row.caseId || row.residentName,
     anonymized: true,
     age: 0,
+    ageUponAdmission: row.ageUponAdmission ?? "",
+    presentAge: row.presentAge ?? "",
+    lengthOfStay: row.lengthOfStay ?? "",
     gender: "—",
+    birthStatus: row.birthStatus,
+    religion: row.religion,
     category: row.category as ResidentCase["category"],
     subcategory: row.subcategory,
     disability: null,
@@ -108,11 +126,19 @@ function mapCaseRow(row: CaseApiRow): ResidentCase {
       indigenousGroup: null,
       informalSettler: false,
     },
+    familyParentPwd: row.familyParentPwd,
     admissionDate: row.admissionDate,
     referralSource: "—",
+    referringAgencyPerson: row.referringAgencyPerson,
     originLocation: "—",
+    dateColbRegistered: row.dateColbRegistered,
+    dateColbObtained: row.dateColbObtained,
+    dateCaseStudyPrepared: row.dateCaseStudyPrepared,
     safehouse: row.safehouse,
     assignedWorker: row.assignedWorker ?? "—",
+    reintegrationType: row.reintegrationType,
+    reintegrationStatus: row.reintegrationStatus,
+    dateClosed: row.dateClosed,
     caseNotes: "—",
     status: mapApiStatus(row.status),
     riskLevel: mapRisk(row.riskLevel),
@@ -156,6 +182,12 @@ function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
 type SortKey = "admission" | "name" | "updated";
 
 const PAGE_SIZE = 6;
+
+function dateToIsoOrNull(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 const CaseloadPage = () => {
   usePageHeader("Caseload Inventory", "Resident cases & reintegration");
@@ -282,19 +314,32 @@ const CaseloadPage = () => {
       caseStatus: apiStatus,
       sex: normalizedSex,
       dateOfBirth: dob,
+      birthStatus: c.birthStatus,
+      religion: c.religion,
       caseCategory: categoryMap[c.category] ?? "Neglected",
       placeOfBirth: c.originLocation !== "—" ? c.originLocation : null,
       ...subFlags,
       dateOfAdmission: c.admissionDate,
       dateEnrolled: c.admissionDate,
+      ageUponAdmission: c.ageUponAdmission || null,
+      presentAge: c.presentAge || null,
+      lengthOfStay: c.lengthOfStay || null,
       referralSource: c.referralSource !== "—" ? c.referralSource : "Community",
+      referringAgencyPerson: c.referringAgencyPerson,
+      dateColbRegistered: dateToIsoOrNull(c.dateColbRegistered),
+      dateColbObtained: dateToIsoOrNull(c.dateColbObtained),
+      dateCaseStudyPrepared: dateToIsoOrNull(c.dateCaseStudyPrepared),
       assignedSocialWorker: c.assignedWorker !== "—" ? c.assignedWorker : null,
       initialCaseAssessment: c.caseNotes !== "—" ? c.caseNotes : "Intake assessment",
       initialRiskLevel: riskMap[c.riskLevel] ?? "Low",
       currentRiskLevel: riskMap[c.riskLevel] ?? "Low",
+      reintegrationType: c.reintegrationType,
+      reintegrationStatus: c.reintegrationStatus,
+      dateClosed: dateToIsoOrNull(c.dateClosed),
       familyIs4ps: c.socio.fourPsBeneficiary,
       familySoloParent: c.socio.soloParentHousehold,
       familyIndigenous: !!c.socio.indigenousGroup,
+      familyParentPwd: c.familyParentPwd,
       familyInformalSettler: c.socio.informalSettler,
       isPwd: !!c.disability,
       pwdType: c.disability || null,

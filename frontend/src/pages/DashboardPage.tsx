@@ -42,7 +42,7 @@ type DashboardApiResponse = {
 };
 
 const DashboardPage = () => {
-  usePageHeader("Command Center", "Live operations overview");
+  usePageHeader("Dashboard", "Live operations overview");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

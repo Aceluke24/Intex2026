@@ -61,16 +61,29 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
       displayName: "",
       anonymized: true,
       age: "25",
+      ageUponAdmission: "",
+      presentAge: "",
+      lengthOfStay: "",
       gender: "Female",
+      birthStatus: "",
+      religion: "",
       category: "Domestic violence" as CaseCategory,
       subcategory: "",
       disability: "",
       socio: { ...emptySocio },
+      familyParentPwd: false,
       admissionDate: new Date().toISOString().slice(0, 10),
       referralSource: "",
+      referringAgencyPerson: "",
       originLocation: "",
+      dateColbRegistered: "",
+      dateColbObtained: "",
+      dateCaseStudyPrepared: "",
       safehouse: sh,
       assignedWorker: wk,
+      reintegrationType: "",
+      reintegrationStatus: "",
+      dateClosed: "",
       caseNotes: "",
     };
   }
@@ -78,7 +91,12 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
     displayName: c.displayName,
     anonymized: c.anonymized,
     age: String(c.age),
+    ageUponAdmission: c.ageUponAdmission ?? "",
+    presentAge: c.presentAge ?? "",
+    lengthOfStay: c.lengthOfStay ?? "",
     gender: c.gender,
+    birthStatus: c.birthStatus ?? "",
+    religion: c.religion ?? "",
     category: c.category,
     subcategory: c.subcategory,
     disability: c.disability ?? "",
@@ -88,11 +106,19 @@ function toFormState(c: ResidentCase | null, safehouseOptions: string[], workerO
       indigenousGroup: c.socio.indigenousGroup ?? "",
       informalSettler: c.socio.informalSettler,
     },
+    familyParentPwd: c.familyParentPwd,
     admissionDate: c.admissionDate,
     referralSource: c.referralSource,
+    referringAgencyPerson: c.referringAgencyPerson ?? "",
     originLocation: c.originLocation,
+    dateColbRegistered: c.dateColbRegistered ?? "",
+    dateColbObtained: c.dateColbObtained ?? "",
+    dateCaseStudyPrepared: c.dateCaseStudyPrepared ?? "",
     safehouse: c.safehouse,
     assignedWorker: c.assignedWorker,
+    reintegrationType: c.reintegrationType ?? "",
+    reintegrationStatus: c.reintegrationStatus ?? "",
+    dateClosed: c.dateClosed ?? "",
     caseNotes: c.caseNotes,
   };
 }
@@ -101,16 +127,29 @@ type FormState = {
   displayName: string;
   anonymized: boolean;
   age: string;
+  ageUponAdmission: string;
+  presentAge: string;
+  lengthOfStay: string;
   gender: string;
+  birthStatus: string;
+  religion: string;
   category: CaseCategory;
   subcategory: string;
   disability: string;
   socio: SocioDemoProfile & { indigenousGroup: string };
+  familyParentPwd: boolean;
   admissionDate: string;
   referralSource: string;
+  referringAgencyPerson: string;
   originLocation: string;
+  dateColbRegistered: string;
+  dateColbObtained: string;
+  dateCaseStudyPrepared: string;
   safehouse: string;
   assignedWorker: string;
+  reintegrationType: string;
+  reintegrationStatus: string;
+  dateClosed: string;
   caseNotes: string;
 };
 
@@ -163,16 +202,29 @@ export function AddEditCaseDialog({
       displayName: form.displayName.trim() || "Resident (unnamed)",
       anonymized: form.anonymized,
       age: normalizedAge,
+      ageUponAdmission: form.ageUponAdmission.trim(),
+      presentAge: form.presentAge.trim(),
+      lengthOfStay: form.lengthOfStay.trim(),
       gender: form.gender,
+      birthStatus: form.birthStatus.trim() || null,
+      religion: form.religion.trim() || null,
       category: form.category,
       subcategory: form.subcategory.trim() || "—",
       disability: form.disability.trim() || null,
       socio,
+      familyParentPwd: form.familyParentPwd,
       admissionDate: form.admissionDate,
       referralSource: form.referralSource.trim() || "—",
+      referringAgencyPerson: form.referringAgencyPerson.trim() || null,
       originLocation: form.originLocation.trim() || "—",
+      dateColbRegistered: form.dateColbRegistered || null,
+      dateColbObtained: form.dateColbObtained || null,
+      dateCaseStudyPrepared: form.dateCaseStudyPrepared || null,
       safehouse: form.safehouse,
       assignedWorker: form.assignedWorker,
+      reintegrationType: form.reintegrationType.trim() || null,
+      reintegrationStatus: form.reintegrationStatus.trim() || null,
+      dateClosed: form.dateClosed || null,
       caseNotes: form.caseNotes.trim() || "—",
       status: base?.status ?? "Pending",
       riskLevel: base?.riskLevel ?? "Standard",
@@ -302,6 +354,32 @@ export function AddEditCaseDialog({
                     />
                   </div>
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="birthStatus" className="font-body text-xs">
+                      Birth status
+                    </Label>
+                    <Input
+                      id="birthStatus"
+                      value={form.birthStatus}
+                      onChange={(e) => setField("birthStatus", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                      placeholder="Marital / Non-Marital"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="religion" className="font-body text-xs">
+                      Religion
+                    </Label>
+                    <Input
+                      id="religion"
+                      value={form.religion}
+                      onChange={(e) => setField("religion", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -391,6 +469,13 @@ export function AddEditCaseDialog({
                     />
                     <span className="font-body text-sm">Informal settler status</span>
                   </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/50 bg-white/40 px-3 py-3 dark:border-white/10 dark:bg-white/[0.06]">
+                    <Checkbox
+                      checked={form.familyParentPwd}
+                      onCheckedChange={(v) => setField("familyParentPwd", !!v)}
+                    />
+                    <span className="font-body text-sm">Parent/guardian with disability</span>
+                  </label>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ind" className="font-body text-xs">
@@ -465,6 +550,126 @@ export function AddEditCaseDialog({
                     id="origin"
                     value={form.originLocation}
                     onChange={(e) => setField("originLocation", e.target.value)}
+                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="refPerson" className="font-body text-xs">
+                    Referring agency person
+                  </Label>
+                  <Input
+                    id="refPerson"
+                    value={form.referringAgencyPerson}
+                    onChange={(e) => setField("referringAgencyPerson", e.target.value)}
+                    className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="ageAdmission" className="font-body text-xs">
+                      Age upon admission
+                    </Label>
+                    <Input
+                      id="ageAdmission"
+                      value={form.ageUponAdmission}
+                      onChange={(e) => setField("ageUponAdmission", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="presentAge" className="font-body text-xs">
+                      Present age
+                    </Label>
+                    <Input
+                      id="presentAge"
+                      value={form.presentAge}
+                      onChange={(e) => setField("presentAge", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lengthStay" className="font-body text-xs">
+                      Length of stay
+                    </Label>
+                    <Input
+                      id="lengthStay"
+                      value={form.lengthOfStay}
+                      onChange={(e) => setField("lengthOfStay", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="colbReg" className="font-body text-xs">
+                      Date COLB registered
+                    </Label>
+                    <Input
+                      id="colbReg"
+                      type="date"
+                      value={form.dateColbRegistered}
+                      onChange={(e) => setField("dateColbRegistered", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="colbObtained" className="font-body text-xs">
+                      Date COLB obtained
+                    </Label>
+                    <Input
+                      id="colbObtained"
+                      type="date"
+                      value={form.dateColbObtained}
+                      onChange={(e) => setField("dateColbObtained", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="caseStudyDate" className="font-body text-xs">
+                      Case study prepared
+                    </Label>
+                    <Input
+                      id="caseStudyDate"
+                      type="date"
+                      value={form.dateCaseStudyPrepared}
+                      onChange={(e) => setField("dateCaseStudyPrepared", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reinType" className="font-body text-xs">
+                      Reintegration type
+                    </Label>
+                    <Input
+                      id="reinType"
+                      value={form.reintegrationType}
+                      onChange={(e) => setField("reintegrationType", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reinStatus" className="font-body text-xs">
+                      Reintegration status
+                    </Label>
+                    <Input
+                      id="reinStatus"
+                      value={form.reintegrationStatus}
+                      onChange={(e) => setField("reintegrationStatus", e.target.value)}
+                      className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dateClosed" className="font-body text-xs">
+                    Date closed
+                  </Label>
+                  <Input
+                    id="dateClosed"
+                    type="date"
+                    value={form.dateClosed}
+                    onChange={(e) => setField("dateClosed", e.target.value)}
                     className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10"
                   />
                 </div>

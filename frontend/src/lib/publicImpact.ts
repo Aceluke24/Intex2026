@@ -98,13 +98,13 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
 
   try {
     const [
-      statsRes,
-      residentsRes,
-      safehousesCountRes,
-      recordingsRes,
-      reintRes,
-      safehousesListRes,
-    ] = await Promise.all([
+      statsResult,
+      residentsResult,
+      safehousesCountResult,
+      recordingsResult,
+      reintResult,
+      safehousesListResult,
+    ] = await Promise.allSettled([
       fetch(apiUrl("/api/public/stats")),
       fetch(apiUrl("/api/public/residents/count")),
       fetch(apiUrl("/api/public/safehouses/count")),
@@ -113,13 +113,18 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
       fetch(apiUrl("/api/public/safehouses")),
     ]);
 
+    const parseSettled = async (result: PromiseSettledResult<Response>): Promise<unknown> => {
+      if (result.status !== "fulfilled") return {};
+      return parseJson(result.value);
+    };
+
     const [statsJson, residentsJson, shCountJson, recJson, reintJson, safehousesListJson] = await Promise.all([
-      parseJson(statsRes),
-      parseJson(residentsRes),
-      parseJson(safehousesCountRes),
-      parseJson(recordingsRes),
-      parseJson(reintRes),
-      parseJson(safehousesListRes),
+      parseSettled(statsResult),
+      parseSettled(residentsResult),
+      parseSettled(safehousesCountResult),
+      parseSettled(recordingsResult),
+      parseSettled(reintResult),
+      parseSettled(safehousesListResult),
     ]);
 
     if (import.meta.env.DEV) {
@@ -166,8 +171,11 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
   }
 }
 
-const toNumberOrNull = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
+const toNumberOrNull = (v: unknown): number | null => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
+  return null;
+};
 
 const defaultBundle: PublicImpactBundle = {
   residentsCount: null,
@@ -196,7 +204,14 @@ const defaultBundle: PublicImpactBundle = {
 
 export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
   try {
-    const [residentsRes, summaryRes, outcomesRes, campaignsRes, allocationRes, trendRes] = await Promise.all([
+    const [
+      residentsResult,
+      summaryResult,
+      outcomesResult,
+      campaignsResult,
+      allocationResult,
+      trendResult,
+    ] = await Promise.allSettled([
       fetch(apiUrl("/api/public/residents/count")),
       fetch(apiUrl("/api/public/impact/summary")),
       fetch(apiUrl("/api/public/impact/program-outcomes")),
@@ -205,34 +220,56 @@ export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
       fetch(apiUrl("/api/public/impact/donations-trend")),
     ]);
 
-    const residentsJson = residentsRes.ok ? await residentsRes.json().catch(() => ({})) : {};
-    const summaryJson = summaryRes.ok ? await summaryRes.json().catch(() => ({})) : {};
-    const outcomesJson = outcomesRes.ok ? await outcomesRes.json().catch(() => ({})) : {};
-    const campaignsJson = campaignsRes.ok ? await campaignsRes.json().catch(() => []) : [];
-    const allocationJson = allocationRes.ok ? await allocationRes.json().catch(() => ({})) : {};
-    const trendJson = trendRes.ok ? await trendRes.json().catch(() => []) : [];
+    const jsonOrDefault = async (result: PromiseSettledResult<Response>, fallback: unknown) => {
+      if (result.status !== "fulfilled") return fallback;
+      return result.value.ok ? await result.value.json().catch(() => fallback) : fallback;
+    };
+
+    const residentsJson = await jsonOrDefault(residentsResult, {});
+    const summaryJson = await jsonOrDefault(summaryResult, {});
+    const outcomesJson = await jsonOrDefault(outcomesResult, {});
+    const campaignsJson = await jsonOrDefault(campaignsResult, []);
+    const allocationJson = await jsonOrDefault(allocationResult, {});
+    const trendJson = await jsonOrDefault(trendResult, []);
+
+    const residentsCount = readNum(residentsJson, "count", "Count");
+    const survivors = readNum(summaryJson, "survivors", "Survivors");
+    const totalDonations = readNum(summaryJson, "totalDonations", "TotalDonations");
+    const activePrograms = readNum(summaryJson, "activePrograms", "ActivePrograms");
+    const completionRate = readNum(summaryJson, "completionRate", "CompletionRate");
+    const reintegrationRate = readNum(summaryJson, "reintegrationRate", "ReintegrationRate");
+    const safehouses = readNum(summaryJson, "safehouses", "Safehouses");
+
+    const safeHousing = readNum(outcomesJson, "safeHousing", "SafeHousing");
+    const education = readNum(outcomesJson, "education", "Education");
+    const counseling = readNum(outcomesJson, "counseling", "Counseling");
+    const interventionPlans = readNum(outcomesJson, "interventionPlans", "InterventionPlans");
+
+    const direct = readNum(allocationJson, "direct", "Direct");
+    const outreach = readNum(allocationJson, "outreach", "Outreach");
+    const operations = readNum(allocationJson, "operations", "Operations");
 
     return {
-      residentsCount: toNumberOrNull(residentsJson.count),
+      residentsCount,
       summary: {
-        survivors: toNumberOrNull(summaryJson.survivors),
-        totalDonations: toNumberOrNull(summaryJson.totalDonations),
-        activePrograms: toNumberOrNull(summaryJson.activePrograms),
-        completionRate: toNumberOrNull(summaryJson.completionRate),
-        reintegrationRate: toNumberOrNull(summaryJson.reintegrationRate),
-        safehouses: toNumberOrNull(summaryJson.safehouses),
+        survivors,
+        totalDonations,
+        activePrograms,
+        completionRate,
+        reintegrationRate,
+        safehouses,
       },
       outcomes: {
-        safeHousing: toNumberOrNull(outcomesJson.safeHousing),
-        education: toNumberOrNull(outcomesJson.education),
-        counseling: toNumberOrNull(outcomesJson.counseling),
-        interventionPlans: toNumberOrNull(outcomesJson.interventionPlans),
+        safeHousing,
+        education,
+        counseling,
+        interventionPlans,
       },
       campaigns: Array.isArray(campaignsJson) ? campaignsJson : [],
       allocation: {
-        direct: toNumberOrNull(allocationJson.direct),
-        outreach: toNumberOrNull(allocationJson.outreach),
-        operations: toNumberOrNull(allocationJson.operations),
+        direct,
+        outreach,
+        operations,
       },
       trend: Array.isArray(trendJson) ? trendJson : [],
     };

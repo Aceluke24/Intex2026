@@ -195,7 +195,7 @@ function MultiCreatableField({
         ))}
       </div>
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <Select value={pick} onValueChange={(val) => { setPick(val); const opt = options.find((o) => o.value === val); if (opt) addOption(opt); }}>
+        <Select value={pick} onValueChange={(val) => { setPick(val); const opt = availableOptions.find((o) => o.value === val); if (opt) addOption(opt); }}>
           <SelectTrigger className="rounded-xl border-white/60 bg-white/70 dark:border-white/10 dark:bg-white/10">
             <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
           </SelectTrigger>
@@ -548,9 +548,6 @@ const VisitationsPage = () => {
     if ((fieldOptions.residents?.length ?? 0) > 0) return;
     const data = await fetchFieldOptions();
     const residents = mapFieldOptionsResidentsToOptions(data.residents);
-    if (residents.length === 0) {
-      throw new Error("No residents available for visitation logging.");
-    }
     setFieldOptions({
       residents,
       interventionOptions: data.interventionOptions ?? [],
@@ -741,6 +738,12 @@ const VisitationsPage = () => {
         {loadError && (
           <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
             {loadError}
+          </p>
+        )}
+
+        {!loading && fieldOptions.residents.length === 0 && (
+          <p className="mb-6 rounded-lg border border-amber-200/60 bg-amber-50/70 px-4 py-3 font-body text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
+            No residents are available yet. Add resident case records first, then log a visit.
           </p>
         )}
 

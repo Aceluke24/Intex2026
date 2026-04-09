@@ -80,6 +80,8 @@ const App = () => (
                   <Route path="/dashboard/finance" element={<FinanceDashboardPage />} />
                   <Route path="/dashboard/expenses" element={<ExpensesPage />} />
                   <Route path="/dashboard/outreach" element={<OutreachPage />} />
+                  <Route path="/dashboard/social-media" element={<Navigate to="/dashboard/outreach" replace />} />
+                  <Route path="/dashboard/social" element={<Navigate to="/dashboard/outreach" replace />} />
                 </Route>
               </Route>
 
@@ -91,6 +93,8 @@ const App = () => (
               <Route path="/admin/visitations" element={<Navigate to="/dashboard/visitations" replace />} />
               <Route path="/admin/reports" element={<Navigate to="/dashboard/reports" replace />} />
               <Route path="/admin/insights" element={<Navigate to="/dashboard/reports" replace />} />
+              <Route path="/admin/social-media" element={<Navigate to="/dashboard/outreach" replace />} />
+              <Route path="/admin/outreach" element={<Navigate to="/dashboard/outreach" replace />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

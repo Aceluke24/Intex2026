@@ -82,6 +82,8 @@ public class ResidentsController : ControllerBase
             CaseStatus = req.CaseStatus,
             Sex = string.IsNullOrWhiteSpace(req.Sex) ? "F" : req.Sex,
             DateOfBirth = req.DateOfBirth,
+            BirthStatus = req.BirthStatus,
+            Religion = req.Religion,
             CaseCategory = req.CaseCategory,
             PlaceOfBirth = req.PlaceOfBirth,
             SubCatOrphaned = req.SubCatOrphaned,
@@ -96,19 +98,30 @@ public class ResidentsController : ControllerBase
             SubCatChildWithHiv = req.SubCatChildWithHiv,
             DateOfAdmission = req.DateOfAdmission,
             DateEnrolled = req.DateEnrolled,
+            AgeUponAdmission = req.AgeUponAdmission,
+            PresentAge = req.PresentAge,
+            LengthOfStay = req.LengthOfStay,
             ReferralSource = req.ReferralSource,
+            ReferringAgencyPerson = req.ReferringAgencyPerson,
+            DateColbRegistered = req.DateColbRegistered,
+            DateColbObtained = req.DateColbObtained,
             AssignedSocialWorker = req.AssignedSocialWorker,
             InitialCaseAssessment = req.InitialCaseAssessment,
+            DateCaseStudyPrepared = req.DateCaseStudyPrepared,
+            ReintegrationType = req.ReintegrationType,
+            ReintegrationStatus = req.ReintegrationStatus,
             InitialRiskLevel = req.InitialRiskLevel,
             CurrentRiskLevel = req.CurrentRiskLevel,
             FamilyIs4ps = req.FamilyIs4ps,
             FamilySoloParent = req.FamilySoloParent,
             FamilyIndigenous = req.FamilyIndigenous,
+            FamilyParentPwd = req.FamilyParentPwd,
             FamilyInformalSettler = req.FamilyInformalSettler,
             IsPwd = req.IsPwd,
             PwdType = req.PwdType,
             HasSpecialNeeds = req.HasSpecialNeeds,
             SpecialNeedsDiagnosis = req.SpecialNeedsDiagnosis,
+            DateClosed = req.DateClosed,
             NotesRestricted = req.NotesRestricted,
         };
         resident.CreatedAt = DateTime.UtcNow;
@@ -129,6 +142,8 @@ public class ResidentsController : ControllerBase
         resident.CaseStatus = req.CaseStatus;
         resident.Sex = string.IsNullOrWhiteSpace(req.Sex) ? resident.Sex : req.Sex;
         resident.DateOfBirth = req.DateOfBirth;
+        resident.BirthStatus = req.BirthStatus;
+        resident.Religion = req.Religion;
         resident.CaseCategory = req.CaseCategory;
         resident.PlaceOfBirth = req.PlaceOfBirth;
         resident.SubCatOrphaned = req.SubCatOrphaned;
@@ -143,19 +158,30 @@ public class ResidentsController : ControllerBase
         resident.SubCatChildWithHiv = req.SubCatChildWithHiv;
         resident.DateOfAdmission = req.DateOfAdmission;
         resident.DateEnrolled = req.DateEnrolled;
+        resident.AgeUponAdmission = req.AgeUponAdmission;
+        resident.PresentAge = req.PresentAge;
+        resident.LengthOfStay = req.LengthOfStay;
         resident.ReferralSource = req.ReferralSource;
+        resident.ReferringAgencyPerson = req.ReferringAgencyPerson;
+        resident.DateColbRegistered = req.DateColbRegistered;
+        resident.DateColbObtained = req.DateColbObtained;
         resident.AssignedSocialWorker = req.AssignedSocialWorker;
         resident.InitialCaseAssessment = req.InitialCaseAssessment;
+        resident.DateCaseStudyPrepared = req.DateCaseStudyPrepared;
+        resident.ReintegrationType = req.ReintegrationType;
+        resident.ReintegrationStatus = req.ReintegrationStatus;
         resident.InitialRiskLevel = req.InitialRiskLevel;
         resident.CurrentRiskLevel = req.CurrentRiskLevel;
         resident.FamilyIs4ps = req.FamilyIs4ps;
         resident.FamilySoloParent = req.FamilySoloParent;
         resident.FamilyIndigenous = req.FamilyIndigenous;
+        resident.FamilyParentPwd = req.FamilyParentPwd;
         resident.FamilyInformalSettler = req.FamilyInformalSettler;
         resident.IsPwd = req.IsPwd;
         resident.PwdType = req.PwdType;
         resident.HasSpecialNeeds = req.HasSpecialNeeds;
         resident.SpecialNeedsDiagnosis = req.SpecialNeedsDiagnosis;
+        resident.DateClosed = req.DateClosed;
         resident.NotesRestricted = req.NotesRestricted;
 
         await _db.SaveChangesAsync();
@@ -181,6 +207,8 @@ public record ResidentUpsertRequest(
     string CaseStatus,
     string Sex,
     DateOnly DateOfBirth,
+    string? BirthStatus,
+    string? Religion,
     string CaseCategory,
     string? PlaceOfBirth,
     bool SubCatOrphaned,
@@ -195,18 +223,29 @@ public record ResidentUpsertRequest(
     bool SubCatChildWithHiv,
     DateOnly DateOfAdmission,
     DateOnly DateEnrolled,
+    string? AgeUponAdmission,
+    string? PresentAge,
+    string? LengthOfStay,
     string? ReferralSource,
+    string? ReferringAgencyPerson,
+    DateOnly? DateColbRegistered,
+    DateOnly? DateColbObtained,
     string? AssignedSocialWorker,
     string? InitialCaseAssessment,
+    DateOnly? DateCaseStudyPrepared,
+    string? ReintegrationType,
+    string? ReintegrationStatus,
     string InitialRiskLevel,
     string CurrentRiskLevel,
     bool FamilyIs4ps,
     bool FamilySoloParent,
     bool FamilyIndigenous,
+    bool FamilyParentPwd,
     bool FamilyInformalSettler,
     bool IsPwd,
     string? PwdType,
     bool HasSpecialNeeds,
     string? SpecialNeedsDiagnosis,
+    DateOnly? DateClosed,
     string? NotesRestricted
 );
