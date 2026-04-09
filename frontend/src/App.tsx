@@ -101,6 +101,8 @@ const App = () => (
                   <Route path="/dashboard/social-media" element={<Navigate to="/dashboard/outreach" replace />} />
                   <Route path="/dashboard/social" element={<Navigate to="/dashboard/outreach" replace />} />
                 </Route>
+                <Route path="/staff" element={<Navigate to="/dashboard/staff" replace />} />
+                <Route path="/users" element={<Navigate to="/dashboard/staff" replace />} />
               </Route>
 
               {/* Legacy redirects */}
