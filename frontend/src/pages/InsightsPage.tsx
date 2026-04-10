@@ -85,56 +85,56 @@ const InsightsPage = () => {
   const [residentScoreSource, setResidentScoreSource] = useState<"ml" | "rule-based">("rule-based");
   const [residentModelVersion, setResidentModelVersion] = useState<string | null>(null);
   const [residentScoredAt, setResidentScoredAt] = useState<string | null>(null);
-  const [residentViewMode, setResidentViewMode] = useState<"all" | "flagged" | "high-priority">("high-priority");
+  const [residentViewMode, setResidentViewMode] = useState<"all" | "flagged" | "high-priority">("all");
   const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    try {
-      const [retentionResult, r] = await Promise.allSettled([
-        apiFetchJson<DonorRetentionResponse>(`${API_PREFIX}/insights/donor-retention`),
-        apiFetchJson<ResidentRiskResponse>(`${API_PREFIX}/insights/resident-risk-ml`),
-      ]);
+    const loadErrors: string[] = [];
 
-      if (retentionResult.status === "fulfilled") {
-        setChurn(retentionResult.value.rows ?? []);
-        setDonorScoreSource(retentionResult.value.source ?? "rule-based");
-        setDonorModelVersion(retentionResult.value.modelVersion ?? null);
-        setDonorScoredAt(retentionResult.value.scoredAt ?? null);
-      } else {
+    const [retentionResult, residentResult] = await Promise.allSettled([
+      apiFetchJson<DonorRetentionResponse>(`${API_PREFIX}/insights/donor-retention`),
+      apiFetchJson<ResidentRiskResponse>(`${API_PREFIX}/insights/resident-risk-ml`),
+    ]);
+
+    if (retentionResult.status === "fulfilled") {
+      setChurn(retentionResult.value.rows ?? []);
+      setDonorScoreSource(retentionResult.value.source ?? "rule-based");
+      setDonorModelVersion(retentionResult.value.modelVersion ?? null);
+      setDonorScoredAt(retentionResult.value.scoredAt ?? null);
+    } else {
+      try {
         const fallback = await apiFetchJson<DonorChurnRow[]>(`${API_PREFIX}/insights/donor-churn`);
         setChurn(fallback);
         setDonorScoreSource("rule-based");
         setDonorModelVersion(null);
         setDonorScoredAt(null);
+      } catch (fallbackError) {
+        console.error(fallbackError);
+        setChurn([]);
+        setDonorScoreSource("rule-based");
+        setDonorModelVersion(null);
+        setDonorScoredAt(null);
+        loadErrors.push("Donor insights are temporarily unavailable.");
       }
+    }
 
-      if (r.status === "fulfilled") {
-        setResidentRisk(r.value.rows ?? []);
-        setResidentScoreSource(r.value.source ?? "rule-based");
-        setResidentModelVersion(r.value.modelVersion ?? null);
-        setResidentScoredAt(r.value.scoredAt ?? null);
-      } else {
-        setResidentRisk([]);
-        setResidentScoreSource("rule-based");
-        setResidentModelVersion(null);
-        setResidentScoredAt(null);
-      }
-    } catch (e) {
-      console.error(e);
-      setLoadError(e instanceof Error ? e.message : "Failed to load insights.");
-      setChurn([]);
+    if (residentResult.status === "fulfilled") {
+      setResidentRisk(residentResult.value.rows ?? []);
+      setResidentScoreSource(residentResult.value.source ?? "rule-based");
+      setResidentModelVersion(residentResult.value.modelVersion ?? null);
+      setResidentScoredAt(residentResult.value.scoredAt ?? null);
+    } else {
       setResidentRisk([]);
-      setDonorScoreSource("rule-based");
-      setDonorModelVersion(null);
-      setDonorScoredAt(null);
       setResidentScoreSource("rule-based");
       setResidentModelVersion(null);
       setResidentScoredAt(null);
-    } finally {
-      setLoading(false);
+      loadErrors.push("Resident risk insights are temporarily unavailable.");
     }
+
+    setLoadError(loadErrors.length ? loadErrors.join(" ") : null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
