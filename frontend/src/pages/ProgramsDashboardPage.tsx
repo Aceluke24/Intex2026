@@ -449,7 +449,7 @@ export default function ProgramsDashboardPage() {
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
-        title="Programs Dashboard"
+        title="Admin Dashboard"
         description="Operations, goals, and safehouse performance at a glance."
       >
         {error ? (

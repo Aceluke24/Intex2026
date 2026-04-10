@@ -1,7 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/lib/theme";
 import {
-  LayoutDashboard,
   FileText,
   BarChart3,
   Moon,
@@ -27,7 +26,6 @@ import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetch } from "@/lib/apiFetch";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
-  if (itemPath === "/dashboard") return pathname === "/dashboard";
   if (itemPath === "/dashboard/donors") {
     return pathname === "/dashboard/donors" || pathname === "/dashboard/contributions";
   }
@@ -36,18 +34,12 @@ function navItemActive(pathname: string, itemPath: string): boolean {
 
 const navGroups = [
   {
-    label: "Overview",
-    items: [
-      { label: "Overview Command Center", path: "/dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
     label: "Programs & Operations",
     items: [
+      { label: "Admin Dashboard", path: "/dashboard/programs", icon: Activity },
       { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
       { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
       { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
-      { label: "Programs Dashboard", path: "/dashboard/programs", icon: Activity },
     ],
   },
   {

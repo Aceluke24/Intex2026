@@ -23,7 +23,6 @@ import ReportsPage from "./pages/ReportsPage.tsx";
 import InsightsPage from "./pages/InsightsPage.tsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import About from "./pages/About.tsx";
-import DashboardPage from "./pages/DashboardPage.tsx";
 import DonorPortal from "./pages/DonorPortal.tsx";
 import DonatePage from "./pages/DonatePage.tsx";
 import Mission from "./pages/Mission.tsx";
@@ -89,7 +88,7 @@ const App = () => (
               {/* Admin-only routes */}
               <Route element={<ProtectedRoute requiredRole="Admin" />}>
                 <Route element={<DashboardChromeLayout />}>
-                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/dashboard" element={<Navigate to="/dashboard/programs" replace />} />
                   <Route path="/dashboard/donors" element={<DonorsPage />} />
                   <Route path="/dashboard/contributions" element={<DonorsPage />} />
                   <Route path="/dashboard/caseload" element={<CaseloadPage />} />
@@ -100,7 +99,7 @@ const App = () => (
                   <Route
                     path="/dashboard/programs"
                     element={
-                      <PageErrorBoundary title="Programs Dashboard">
+                      <PageErrorBoundary title="Admin Dashboard">
                         <ProgramsDashboardPage />
                       </PageErrorBoundary>
                     }
@@ -118,7 +117,7 @@ const App = () => (
               </Route>
 
               {/* Legacy redirects */}
-              <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/admin" element={<Navigate to="/dashboard/programs" replace />} />
               <Route path="/admin/donors" element={<Navigate to="/dashboard/donors" replace />} />
               <Route path="/admin/caseload" element={<Navigate to="/dashboard/caseload" replace />} />
               <Route path="/admin/recordings" element={<Navigate to="/dashboard/recordings" replace />} />

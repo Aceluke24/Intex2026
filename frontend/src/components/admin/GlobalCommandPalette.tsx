@@ -13,7 +13,7 @@ import {
   ClipboardList,
   FileText,
   Heart,
-  LayoutDashboard,
+  Activity,
   MapPin,
   FilePlus,
   Plus,
@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner";
 
 const nav = [
-  { label: "Command Center", path: "/dashboard", icon: LayoutDashboard, keywords: "home overview" },
+  { label: "Admin Dashboard", path: "/dashboard/programs", icon: Activity, keywords: "home overview programs operations" },
   { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList, keywords: "cases residents" },
   { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText, keywords: "sessions therapy notes" },
   { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin, keywords: "home visits field" },

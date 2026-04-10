@@ -64,7 +64,7 @@ export const PublicLayout = ({
 
   const navItems = [
     ...baseNavItems,
-    ...(isAdmin ? [{ label: "Dashboard", path: "/dashboard" }] : []),
+    ...(isAdmin ? [{ label: "Admin Dashboard", path: "/dashboard/programs" }] : []),
     ...(isDonor && !isAdmin ? [{ label: "My Donations", path: "/donor" }] : []),
   ];
 

@@ -24,7 +24,7 @@ export function resolvePostLoginPath(roles: string[] | undefined, redirect: stri
 
   const normalizedRoles = (roles ?? []).map((r) => r.toLowerCase());
   if (normalizedRoles.includes("admin")) {
-    return "/dashboard";
+    return "/dashboard/programs";
   }
   if (normalizedRoles.includes("donor")) {
     return "/donor-dashboard";
