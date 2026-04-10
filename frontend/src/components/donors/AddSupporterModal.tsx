@@ -126,8 +126,7 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
     ? organizationName.trim()
     : `${firstName.trim()} ${lastName.trim()}`.trim();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateSupporter = async () => {
     setError(null);
 
     if (!email.trim()) {
@@ -188,17 +187,20 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
           /* ignore */
         }
         setError(msg);
+        console.error(msg);
         return;
       }
       if (!res.ok) {
         const t = await res.text();
         setError(t ? t.slice(0, 200) : "Could not create supporter.");
+        console.error(t ? t.slice(0, 200) : "Could not create supporter.");
         return;
       }
       const json: unknown = await res.json();
       const idNum = parseCreatedId(json);
       if (!idNum) {
         setError("Created supporter but could not read ID. Refresh the page.");
+        console.error("Created supporter but could not read ID. Refresh the page.");
         return;
       }
       await onSuccess({ id: String(idNum), name: displayName, notes: notes.trim() });
@@ -215,12 +217,12 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName={cn(
-          "fixed inset-0 z-[90] bg-[hsl(213_35%_18%)]/35 backdrop-blur-[6px]",
+          "fixed inset-0 z-[9998] bg-[hsl(213_35%_18%)]/35 backdrop-blur-[6px] pointer-events-auto",
           "dark:bg-[hsl(213_55%_5%)]/50",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         )}
         className={cn(
-          "z-[100] max-h-[min(92vh,840px)] w-full max-w-[min(100vw-1.5rem,520px)] gap-0 overflow-y-auto border-0 bg-[hsl(36_33%_98%)]/96 p-0 shadow-[0_28px_90px_rgba(45,35,48,0.14)] backdrop-blur-xl duration-300 ease-out",
+          "z-[9999] pointer-events-auto max-h-[min(92vh,840px)] w-full max-w-[min(100vw-1.5rem,520px)] gap-0 overflow-y-auto border-0 bg-[hsl(36_33%_98%)]/96 p-0 shadow-[0_28px_90px_rgba(45,35,48,0.14)] backdrop-blur-xl duration-300 ease-out",
           "dark:bg-[hsl(213_42%_11%)]/96 dark:shadow-[0_28px_90px_rgba(0,0,0,0.55)]",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-[1.25rem]",
         )}
@@ -231,7 +233,17 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
           if (saving) e.preventDefault();
         }}
       >
-        <form onSubmit={(e) => void handleSubmit(e)}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            console.log("Submitting supporter");
+            try {
+              await handleCreateSupporter();
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+        >
           <div className="border-b border-[hsl(36_20%_90%)]/80 px-6 pb-5 pt-7 dark:border-white/[0.07] sm:px-7">
             <DialogHeader className="space-y-2 text-left">
               <DialogTitle className="font-display text-[1.35rem] font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
