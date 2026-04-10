@@ -177,18 +177,18 @@ public class InsightsController : ControllerBase
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
 SELECT
-    s.supporter_id,
-    COALESCE(NULLIF(LTRIM(RTRIM(s.display_name)), ''), CONCAT('Supporter #', s.supporter_id)) AS display_name,
-    s.email,
-    s.supporter_type,
-    d.donation_date AS last_donation_date,
+    s.[SupporterId],
+    COALESCE(NULLIF(LTRIM(RTRIM(s.[DisplayName])), ''), CONCAT('Supporter #', s.[SupporterId])) AS display_name,
+    s.[Email],
+    s.[SupporterType],
+    d.[DonationDate] AS last_donation_date,
     ds.repeat_probability_180d,
     ds.scored_at,
     ds.model_version
-FROM ml.donor_scores ds
-JOIN dbo.supporters s ON s.supporter_id = ds.supporter_id
-LEFT JOIN dbo.donations d ON d.donation_id = ds.donation_id
-WHERE s.status = 'Active';";
+FROM [ml].[donor_scores] ds
+JOIN [dbo].[Supporters] s ON s.[SupporterId] = ds.supporter_id
+LEFT JOIN [dbo].[Donations] d ON d.[DonationId] = ds.donation_id
+WHERE s.[Status] = 'Active';";
 
         var rows = new List<DonorRetentionMlRow>();
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -339,13 +339,13 @@ WHERE s.status = 'Active';";
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
 SELECT
-    r.resident_id,
-    r.case_control_no,
-    r.internal_code,
-    r.current_risk_level,
+    r.[ResidentId],
+    r.[CaseControlNo],
+    r.[InternalCode],
+    r.[CurrentRiskLevel],
     CASE
-        WHEN r.current_risk_level <> r.initial_risk_level
-         AND r.current_risk_level IN ('High', 'Critical') THEN 1
+        WHEN r.[CurrentRiskLevel] <> r.[InitialRiskLevel]
+         AND r.[CurrentRiskLevel] IN ('High', 'Critical') THEN 1
         ELSE 0
     END AS risk_escalated,
     COALESCE(pc.recent_concerns_count, 0) AS recent_concerns_count,
@@ -354,21 +354,21 @@ SELECT
     rs.risk_flag,
     rs.scored_at,
     rs.model_version
-FROM ml.resident_risk_scores rs
-JOIN dbo.residents r ON r.resident_id = rs.resident_id
+FROM [ml].[resident_risk_scores] rs
+JOIN [dbo].[Residents] r ON r.[ResidentId] = rs.resident_id
 LEFT JOIN (
-    SELECT resident_id, COUNT(*) AS recent_concerns_count
-    FROM dbo.process_recordings
-    WHERE concerns_flagged = 1
-    GROUP BY resident_id
-) pc ON pc.resident_id = r.resident_id
+    SELECT [ResidentId], COUNT(*) AS recent_concerns_count
+    FROM [dbo].[ProcessRecordings]
+    WHERE [ConcernsFlagged] = 1
+    GROUP BY [ResidentId]
+) pc ON pc.[ResidentId] = r.[ResidentId]
 LEFT JOIN (
-    SELECT resident_id, COUNT(*) AS open_incidents
-    FROM dbo.incident_reports
-    WHERE resolved = 0
-    GROUP BY resident_id
-) ir ON ir.resident_id = r.resident_id
-WHERE r.case_status = 'Active';";
+    SELECT [ResidentId], COUNT(*) AS open_incidents
+    FROM [dbo].[IncidentReports]
+    WHERE [Resolved] = 0
+    GROUP BY [ResidentId]
+) ir ON ir.[ResidentId] = r.[ResidentId]
+WHERE r.[CaseStatus] = 'Active';";
 
         var rows = new List<ResidentRiskMlRow>();
         await using var reader = await cmd.ExecuteReaderAsync();
