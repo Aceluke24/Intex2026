@@ -32,4 +32,12 @@
         </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <Content Include="..\..\..\artifacts\**\*">
+        <LinkBase>artifacts</LinkBase>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>

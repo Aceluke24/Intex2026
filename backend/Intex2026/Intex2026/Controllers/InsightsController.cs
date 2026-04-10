@@ -56,9 +56,26 @@ public class InsightsController : ControllerBase
         _env = env;
     }
 
-    // Resolve the artifacts/ folder at the repo root (3 levels up from backend project dir).
-    private string ArtifactsPath =>
-        Path.GetFullPath(Path.Combine(_env.ContentRootPath, "..", "..", "..", "artifacts"));
+    // Resolve artifacts from environment override, deployed publish output, or local repo root.
+    private string ArtifactsPath
+    {
+        get
+        {
+            var configuredPath = Environment.GetEnvironmentVariable("ML_ARTIFACTS_PATH");
+            if (!string.IsNullOrWhiteSpace(configuredPath) && Directory.Exists(configuredPath))
+            {
+                return configuredPath;
+            }
+
+            var publishPath = Path.Combine(_env.ContentRootPath, "artifacts");
+            if (Directory.Exists(publishPath))
+            {
+                return publishPath;
+            }
+
+            return Path.GetFullPath(Path.Combine(_env.ContentRootPath, "..", "..", "..", "artifacts"));
+        }
+    }
 
     // GET /api/insights/donor-churn
     // Returns a list of active donors with a churn risk score (0–1).
