@@ -46,6 +46,16 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 const softTooltip = {
@@ -323,6 +333,7 @@ export default function ProgramsDashboardPage() {
   const [goalForm, setGoalForm] = useState<GoalFormData>(emptyGoalForm());
   const [savingGoal, setSavingGoal] = useState(false);
   const [deletingGoalId, setDeletingGoalId] = useState<number | null>(null);
+  const [pendingDeleteGoal, setPendingDeleteGoal] = useState<GoalProgress | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -453,9 +464,6 @@ export default function ProgramsDashboardPage() {
       toast.error("Invalid goal.");
       return;
     }
-    const confirmed = window.confirm("Delete this active goal?");
-    if (!confirmed) return;
-
     setDeletingGoalId(id);
     try {
       const res = await apiFetch(`${API_PREFIX}/goals/${id}`, { method: "DELETE" });
@@ -469,6 +477,7 @@ export default function ProgramsDashboardPage() {
             }
           : prev
       );
+      setPendingDeleteGoal(null);
       toast.success("Goal deleted");
       await load({ silent: true });
     } catch {
@@ -599,7 +608,7 @@ export default function ProgramsDashboardPage() {
                         variant="ghost"
                         size="icon"
                         className="ml-auto h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
-                        onClick={() => void handleDeleteGoal(g.goalId)}
+                        onClick={() => setPendingDeleteGoal(g)}
                         disabled={deletingGoalId === g.goalId}
                         aria-label={`Delete ${g.goalCategory ?? "goal"}`}
                       >
@@ -896,6 +905,37 @@ export default function ProgramsDashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={pendingDeleteGoal !== null}
+        onOpenChange={(open) => {
+          if (!open && deletingGoalId === null) setPendingDeleteGoal(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete active goal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteGoal
+                ? `This will permanently delete the ${pendingDeleteGoal.goalCategory} goal${pendingDeleteGoal.safehouseName ? ` for ${pendingDeleteGoal.safehouseName}` : ""}.`
+                : "This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingGoalId !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!pendingDeleteGoal || deletingGoalId !== null}
+              onClick={async () => {
+                if (!pendingDeleteGoal) return;
+                await handleDeleteGoal(pendingDeleteGoal.goalId);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingGoalId !== null ? "Deleting..." : "Delete goal"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }

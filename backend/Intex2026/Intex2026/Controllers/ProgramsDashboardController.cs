@@ -210,32 +210,44 @@ public class ProgramsDashboardController : ControllerBase
         List<Expense> expenses, List<IncidentSnapshot> incidents,
         CancellationToken _)
     {
-        return g.GoalCategory switch
+        var normalizedCategory = NormalizeGoalCategory(g.GoalCategory);
+        return normalizedCategory switch
         {
-            "Admissions" => residents.Count(r =>
+            "admissions" => residents.Count(r =>
                 r.DateOfAdmission >= g.PeriodStart && r.DateOfAdmission <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || r.SafehouseId == g.SafehouseId)),
-            "HomeVisits" => visitations.Count(v =>
+            "homevisits" => visitations.Count(v =>
                 v.VisitDate >= g.PeriodStart && v.VisitDate <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || residents.Any(r => r.ResidentId == v.ResidentId && r.SafehouseId == g.SafehouseId))),
-            "ProcessRecordings" => recordings.Count(r =>
+            "processrecordings" => recordings.Count(r =>
                 r.SessionDate >= g.PeriodStart && r.SessionDate <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || residents.Any(res => res.ResidentId == r.ResidentId && res.SafehouseId == g.SafehouseId))),
-            "Reintegrations" => residents.Count(r =>
+            "reintegrations" => residents.Count(r =>
                 r.ReintegrationStatus == "Completed" &&
                 r.DateClosed.HasValue && r.DateClosed.Value >= g.PeriodStart && r.DateClosed.Value <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || r.SafehouseId == g.SafehouseId)),
-            "IncidentResolutions" => incidents.Count(i =>
+            "incidentresolutions" => incidents.Count(i =>
                 i.Resolved && i.ResolutionDate.HasValue && i.ResolutionDate.Value >= g.PeriodStart && i.ResolutionDate.Value <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || i.SafehouseId == g.SafehouseId)),
-            "MonetaryDonations" => (double)donations
+            "monetarydonations" => (double)donations
                 .Where(d => d.DonationType == "Monetary" && d.DonationDate >= g.PeriodStart && d.DonationDate <= g.PeriodEnd)
                 .Sum(d => d.Amount ?? 0),
-            "Expenses" => (double)expenses
+            "expenses" => (double)expenses
                 .Where(e => e.ExpenseDate >= g.PeriodStart && e.ExpenseDate <= g.PeriodEnd)
                 .Sum(e => e.Amount),
             _ => 0,
         };
+    }
+
+    private static string NormalizeGoalCategory(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return string.Empty;
+
+        return new string(category
+            .Where(ch => !char.IsWhiteSpace(ch) && ch != '_' && ch != '-')
+            .ToArray())
+            .ToLowerInvariant();
     }
 
     private static List<(string Label, DateOnly Start, DateOnly End)> BuildMonths(DateOnly today, int count)
