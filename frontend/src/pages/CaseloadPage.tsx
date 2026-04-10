@@ -190,7 +190,7 @@ function mapCaseRow(row: CaseApiRow): ResidentCase {
     familyIndigenous: row.familyIndigenous,
     familyParentPwd: row.familyParentPwd,
     familyInformalSettler: row.familyInformalSettler,
-    admissionDate: row.admissionDate,
+    admissionDate: normalizeIsoDateOrEmpty(row.admissionDate),
     dateEnrolled: (row.dateEnrolled ?? row.admissionDate).slice(0, 10),
     referralSource: row.referralSource,
     referringAgencyPerson: row.referringAgencyPerson,
@@ -229,37 +229,24 @@ const defaultFilters: CaseloadFilters = {
  * Inclusive local-time bounds for admission filtering (matches calendar picker TZ).
  * Single-day when `to` is missing (partial range selection).
  */
-function admissionFilterInclusiveLocalBounds(dateRange: DateRange | undefined): { start: number; end: number } | null {
+function admissionFilterInclusiveLocalBounds(dateRange: DateRange | undefined): { startDate: Date; endDate: Date } | null {
   if (!dateRange?.from || !isValid(dateRange.from)) return null;
-  const from = dateRange.from;
-  const rawTo = dateRange.to;
-  const to = rawTo != null && isValid(rawTo) ? rawTo : from;
-  const fromDay = startOfDay(from);
-  const toDay = startOfDay(to);
-  const startDay = fromDay <= toDay ? fromDay : toDay;
-  const endDay = fromDay <= toDay ? toDay : fromDay;
-  return { start: startOfDay(startDay).getTime(), end: endOfDay(endDay).getTime() };
+  const rawStart = new Date(dateRange.from);
+  const rawEnd = dateRange.to && isValid(dateRange.to) ? new Date(dateRange.to) : new Date(dateRange.from);
+  if (!isValid(rawStart) || !isValid(rawEnd)) return null;
+  const startDate = startOfDay(rawStart <= rawEnd ? rawStart : rawEnd);
+  const endDate = endOfDay(rawStart <= rawEnd ? rawEnd : rawStart);
+  endDate.setHours(23, 59, 59, 999);
+  return { startDate, endDate };
 }
 
-/** Local start-of-day for a stored admission value (date-only uses literal Y-M-D as local calendar day). */
-function admissionDateLocalStartMs(value: string | null | undefined): number | null {
+function parseAdmissionDate(value: string | null | undefined): Date | null {
   if (value == null) return null;
   const t = value.trim();
   if (!t) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  if (m) {
-    const y = Number(m[1]);
-    const mo = Number(m[2]) - 1;
-    const d = Number(m[3]);
-    const dt = new Date(y, mo, d);
-    if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
-    return startOfDay(dt).getTime();
-  }
-  const ms = Date.parse(t);
-  if (Number.isNaN(ms)) return null;
-  const dt = new Date(ms);
-  if (!isValid(dt)) return null;
-  return startOfDay(dt).getTime();
+  const parsed = new Date(t);
+  if (!isValid(parsed)) return null;
+  return parsed;
 }
 
 function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
@@ -284,11 +271,11 @@ function matchesFilters(c: ResidentCase, f: CaseloadFilters): boolean {
   if (f.safehouse !== "All" && c.safehouse !== f.safehouse) return false;
   if (f.category !== "All" && c.caseCategory !== f.category) return false;
   if (f.worker !== "All" && c.assignedWorker !== f.worker) return false;
-  const bounds = admissionFilterInclusiveLocalBounds(f.dateRange);
-  if (bounds) {
-    const adm = admissionDateLocalStartMs(c.admissionDate);
-    if (adm == null) return false;
-    if (adm < bounds.start || adm > bounds.end) return false;
+  const range = admissionFilterInclusiveLocalBounds(f.dateRange);
+  if (range) {
+    const admissionDate = parseAdmissionDate(c.admissionDate);
+    if (admissionDate == null) return false;
+    if (admissionDate < range.startDate || admissionDate > range.endDate) return false;
   }
   return true;
 }
@@ -301,6 +288,11 @@ function dateToIsoOrNull(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeIsoDateOrEmpty(value: string | null | undefined): string {
+  const parsed = parseAdmissionDate(value);
+  return parsed ? parsed.toISOString() : "";
 }
 
 const CaseloadPage = () => {

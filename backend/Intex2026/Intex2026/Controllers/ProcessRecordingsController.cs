@@ -15,8 +15,16 @@ public class ProcessRecordingsController : ControllerBase
     public ProcessRecordingsController(AppDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? residentId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? residentId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] int? limit = null)
     {
+        if (limit.HasValue && limit.Value > 0) pageSize = limit.Value;
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 25;
+
         var query = _db.ProcessRecordings.AsNoTracking().AsQueryable();
         if (residentId.HasValue) query = query.Where(r => r.ResidentId == residentId.Value);
         var total = await query.CountAsync();

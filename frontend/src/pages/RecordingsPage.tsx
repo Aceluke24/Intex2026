@@ -22,7 +22,7 @@ import {
 } from "@/lib/processRecordingTypes";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type RecordingListItem = {
@@ -107,11 +107,15 @@ function mapResident(r: ResidentApi): ProcessResidentOption {
 }
 
 const RecordingsPage = () => {
-  const [loading, setLoading] = useState(true);
+  const [loadingResidents, setLoadingResidents] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ProcessSessionEntry[]>([]);
   const [residents, setResidents] = useState<ProcessResidentOption[]>([]);
   const [residentFilter, setResidentFilter] = useState<string | "all">("all");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const timelineTopRef = useRef<HTMLDivElement | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<ProcessSessionEntry | null>(null);
@@ -131,28 +135,58 @@ const RecordingsPage = () => {
   });
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const PAGE_SIZE = 10;
+
+  const loadResidents = useCallback(async () => {
+    setLoadingResidents(true);
     setLoadError(null);
     try {
-      const [recRes, resRes] = await Promise.all([
-        apiFetchJson<RecordingListResponse>(`${API_PREFIX}/recordings?page=1&pageSize=100`),
-        apiFetchJson<ResidentsResponse>(`${API_PREFIX}/residents?page=1&pageSize=500`),
-      ]);
-      setSessions(recRes.items.map(mapListItemToEntry));
+      const resRes = await apiFetchJson<ResidentsResponse>(`${API_PREFIX}/residents?page=1&pageSize=500`);
       setResidents(resRes.items.map(mapResident));
     } catch (e) {
       console.error(e);
-      setLoadError(e instanceof Error ? e.message : "Failed to load recordings.");
-      setSessions([]);
+      setLoadError(e instanceof Error ? e.message : "Failed to load residents.");
+      setResidents([]);
     } finally {
-      setLoading(false);
+      setLoadingResidents(false);
     }
   }, []);
 
+  const loadSessions = useCallback(
+    async (pageToLoad: number) => {
+      setLoadingSessions(true);
+      setLoadError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(pageToLoad));
+        params.set("limit", String(PAGE_SIZE));
+        if (residentFilter !== "all") params.set("residentId", residentFilter);
+        const recRes = await apiFetchJson<RecordingListResponse>(`${API_PREFIX}/recordings?${params.toString()}`);
+        setSessions(recRes.items.map(mapListItemToEntry));
+        setTotal(recRes.total);
+      } catch (e) {
+        console.error(e);
+        setLoadError(e instanceof Error ? e.message : "Failed to load recordings.");
+        setSessions([]);
+        setTotal(0);
+      } finally {
+        setLoadingSessions(false);
+      }
+    },
+    [residentFilter]
+  );
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadResidents();
+  }, [loadResidents]);
+
+  useEffect(() => {
+    void loadSessions(page);
+  }, [loadSessions, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [residentFilter]);
 
   const workersForDialog = useMemo(() => {
     const w = new Set<string>();
@@ -205,10 +239,11 @@ const RecordingsPage = () => {
   }, [selectedEntryId, sessions]);
 
   const filteredSessions = useMemo(() => {
-    const list =
-      residentFilter === "all" ? sessions : sessions.filter((s) => s.residentId === residentFilter);
-    return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [sessions, residentFilter]);
+    // Server already applies resident filter and newest-first ordering.
+    return sessions;
+  }, [sessions]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
 
   const openEntry = (id: string) => {
     setSelectedEntryId(id);
@@ -265,7 +300,7 @@ const RecordingsPage = () => {
       if (!res.ok) throw new Error(await res.text());
       if (selectedEntryId === id) setSheetOpen(false);
       toast.success("Recording deleted.");
-      await load();
+      await loadSessions(page);
       return true;
     } catch (e) {
       console.error(e);
@@ -346,20 +381,24 @@ const RecordingsPage = () => {
         if (selectedEntryId === editor.recordingId) setDetailEntry((d) => (d ? { ...d, ...nextEntry } : nextEntry));
         toast.success("Recording updated.");
       } else {
-        let createdId = nextEntry.id;
-        try {
-          const created = await res.json();
-          if (created?.recordingId != null) createdId = String(created.recordingId);
-        } catch {
-          // no-op
-        }
-        setSessions((prev) => [{ ...nextEntry, id: createdId }, ...prev]);
+        // Newest-first timeline: after creating, jump back to page 1 and refetch.
         toast.success("Session entry saved.");
+        setPage(1);
+        await loadSessions(1);
       }
       setEditor((e) => ({ ...e, open: false }));
     } catch (e) {
       toast.error("Failed to save session: " + (e instanceof Error ? e.message : "Unknown error"));
     }
+  };
+
+  const handleChangePage = (nextPage: number) => {
+    const clamped = Math.min(Math.max(1, nextPage), totalPages);
+    if (clamped === page) return;
+    setPage(clamped);
+    requestAnimationFrame(() => {
+      timelineTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   return (
@@ -396,7 +435,7 @@ const RecordingsPage = () => {
           transition={{ duration: 0.45, delay: 0.05 }}
           className="mb-6 max-w-xl"
         >
-          {loading ? (
+          {loadingResidents ? (
             <Skeleton className="h-[120px] rounded-[1.15rem] bg-white/45" />
           ) : (
             <ResidentSelector residents={residents} value={residentFilter} onChange={setResidentFilter} />
@@ -404,6 +443,7 @@ const RecordingsPage = () => {
         </motion.section>
 
         <section className="relative">
+          <div ref={timelineTopRef} />
           <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
@@ -413,24 +453,48 @@ const RecordingsPage = () => {
                 Chronological record
               </h2>
               <p className="mt-2 font-body text-sm text-muted-foreground">
-                {filteredSessions.length} {filteredSessions.length === 1 ? "entry" : "entries"} — newest first
+                {total} {total === 1 ? "entry" : "entries"} — newest first
               </p>
             </div>
           </div>
 
-          {loading ? (
+          {loadingSessions ? (
             <div className="space-y-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-[132px] rounded-[1.1rem] bg-white/40" />
               ))}
             </div>
           ) : (
-            <SessionTimeline
-              entries={filteredSessions}
-              onSelect={openEntry}
-              onEdit={(id) => void handleEditEntry(id)}
-              onDelete={(id) => setDeleteTargetId(id)}
-            />
+            <>
+              <SessionTimeline
+                entries={filteredSessions}
+                onSelect={openEntry}
+                onEdit={(id) => void handleEditEntry(id)}
+                onDelete={(id) => setDeleteTargetId(id)}
+              />
+
+              <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={page <= 1}
+                  onClick={() => handleChangePage(page - 1)}
+                >
+                  Previous
+                </Button>
+                <p className="font-body text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={page >= totalPages}
+                  onClick={() => handleChangePage(page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </>
           )}
         </section>
       </StaffPageShell>
