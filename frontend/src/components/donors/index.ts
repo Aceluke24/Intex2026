@@ -9,3 +9,4 @@ export { AddContributionDialog } from "./AddContributionDialog";
 export { AddSupporterModal } from "./AddSupporterModal";
 export { EditSupporterModal } from "./EditSupporterModal";
 export { SupporterProfileSheet } from "./SupporterProfileSheet";
+export { AtRiskDonorPipeline } from "./AtRiskDonorPipeline";
