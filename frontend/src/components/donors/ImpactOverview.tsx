@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { AllocationVisualization } from "./AllocationVisualization";
-import { ContributionItem } from "./ContributionItem";
+import { ContributionTimeline } from "./ContributionTimeline";
 
 type ImpactOverviewProps = {
   feed: FeedEntry[];
@@ -51,17 +51,7 @@ export function ImpactOverview({ feed, allocation }: ImpactOverviewProps) {
             className="rounded-[1.5rem] border border-white/45 bg-gradient-to-b from-white/60 to-[hsl(350_28%_99%)]/40 p-5 shadow-[0_8px_48px_rgba(45,35,48,0.05)] backdrop-blur-md dark:border-white/10 dark:from-white/[0.06] dark:to-transparent"
           >
             {!timelineCollapsed && (
-              <div className="space-y-1">
-                {feed.map((entry, i) => (
-                  <ContributionItem
-                    key={entry.id}
-                    entry={entry}
-                    index={i}
-                    variant="timeline"
-                    isLast={i === feed.length - 1}
-                  />
-                ))}
-              </div>
+              <ContributionTimeline entries={feed} emptyMessage="No activity yet." />
             )}
           </div>
         </div>

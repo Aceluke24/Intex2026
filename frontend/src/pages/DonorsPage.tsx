@@ -7,6 +7,7 @@ import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
   AddSupporterModal,
+  ContributionTimeline,
   EditSupporterModal,
   FilterBar,
   ImpactOverview,
@@ -21,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import { useDonations, type DonationRecord } from "@/hooks/useDonations";
@@ -176,6 +176,19 @@ function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
     default:
       return "monetary";
   }
+}
+
+function toContributionFeedEntry(contribution: DonationRecord): FeedEntry {
+  return {
+    id: String(contribution.donationId),
+    supporterName: resolveDonorName(contribution),
+    kind: mapDonationTypeToFeedKind(contribution.donationType),
+    amount: contribution.amount,
+    hours: contribution.impactUnit?.toLowerCase() === "hours" ? contribution.estimatedValue : null,
+    description: contribution.campaignName?.trim() || "No campaign",
+    createdAt: contribution.donationDate,
+    at: contribution.donationDate,
+  };
 }
 
 function isElementFullyInView(element: Element): boolean {
@@ -373,16 +386,7 @@ const DonorsPage = () => {
   /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
   const contributionTimelineFeed = useMemo(() => {
     if (view === "contributions") {
-      return contributions.slice(0, CONTRIBUTION_TIMELINE_MAX).map((contribution) => ({
-        id: String(contribution.donationId),
-        supporterName: resolveDonorName(contribution),
-        kind: mapDonationTypeToFeedKind(contribution.donationType),
-        amount: contribution.amount,
-        hours: contribution.impactUnit?.toLowerCase() === "hours" ? contribution.estimatedValue : null,
-        description: contribution.campaignName?.trim() || "No campaign",
-        createdAt: contribution.donationDate,
-        at: contribution.donationDate,
-      }));
+      return contributions.slice(0, CONTRIBUTION_TIMELINE_MAX).map(toContributionFeedEntry);
     }
     return [...feed]
       .sort((a, b) => {
@@ -393,6 +397,8 @@ const DonorsPage = () => {
       })
       .slice(0, CONTRIBUTION_TIMELINE_MAX);
   }, [feed, view, contributions]);
+
+  const contributionListFeed = useMemo(() => contributions.map(toContributionFeedEntry), [contributions]);
 
   const timelineForSelected = useMemo((): TimelineEntry[] => {
     if (!selected) return [];
@@ -906,54 +912,7 @@ const DonorsPage = () => {
                   ))}
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {contributions.map((c, i) => {
-                    const donorLabel = resolveDonorName(c);
-                    const displayAmount = formatContributionAmount(c);
-                    const campaignLabel = c.campaignName?.trim() || "General";
-                    const typeLabel = c.donationType?.trim() || "Unknown";
-                    return (
-                      <motion.div
-                        key={c.donationId}
-                        layout
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.03 * i, duration: 0.35 }}
-                        className="group relative flex w-full items-center gap-0 overflow-hidden rounded-2xl bg-gradient-to-r from-white/70 via-[hsl(36_35%_99%)]/90 to-white/55 py-3.5 pl-1 pr-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_16px_rgba(45,35,48,0.04)] backdrop-blur-md transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-md dark:from-white/[0.06] dark:via-white/[0.04] dark:to-white/[0.05]"
-                      >
-                        <RecordCrudActions
-                          className="absolute right-3 top-1/2 z-10 -translate-y-1/2"
-                          onView={() => setViewContributionTarget(c)}
-                          onEdit={() => setEditContributionTarget(c)}
-                          onDelete={() => setDeleteContributionTarget(c)}
-                        />
-                        <div
-                          className="relative mr-3 w-1 shrink-0 self-stretch rounded-full bg-gradient-to-b from-[hsl(340_48%_78%)] via-[hsl(350_42%_82%)] to-[hsl(25_45%_80%)] opacity-80 shadow-[0_0_12px_rgba(200,130,150,0.35)]"
-                          aria-hidden
-                        />
-                        <div className="relative z-[1] flex min-w-0 flex-1 items-center gap-4 pr-4 sm:pr-28">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-display text-base font-semibold tracking-[-0.02em] text-foreground">{donorLabel}</p>
-                            <p className="mt-1 truncate font-body text-xs text-muted-foreground/90">{campaignLabel}</p>
-                          </div>
-                          <div className="hidden w-[5.25rem] shrink-0 font-body text-xs text-muted-foreground sm:block">{typeLabel}</div>
-                          <div className="hidden w-[6rem] shrink-0 text-right font-body text-sm tabular-nums font-semibold text-foreground/95 md:block">
-                            {displayAmount}
-                          </div>
-                          <div className="hidden w-[7rem] shrink-0 text-right font-body text-xs text-muted-foreground lg:block">
-                            {new Date(c.donationDate).toLocaleDateString()}
-                          </div>
-                          <div className="hidden w-[5rem] shrink-0 text-right font-body text-xs text-muted-foreground lg:block">
-                            {c.isRecurring ? "Recurring" : "One-time"}
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {contributions.length === 0 ? (
-                    <p className="py-24 text-center font-body text-sm text-muted-foreground">No contributions recorded yet.</p>
-                  ) : null}
-                </div>
+                <ContributionTimeline entries={contributionListFeed} />
               )}
               {!loading && view === "supporters" && filtered.length > 0 ? (
                 <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">

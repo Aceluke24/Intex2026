@@ -3,6 +3,7 @@ export { FilterBar } from "./FilterBar";
 export { SupporterRow } from "./SupporterRow";
 export { SupporterCard } from "./SupporterCard";
 export { ContributionItem } from "./ContributionItem";
+export { ContributionTimeline } from "./ContributionTimeline";
 export { AllocationVisualization } from "./AllocationVisualization";
 export { ImpactOverview } from "./ImpactOverview";
 export { AddContributionDialog } from "./AddContributionDialog";
