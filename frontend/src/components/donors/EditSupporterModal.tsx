@@ -270,6 +270,7 @@ export const EditSupporterModal = memo(function EditSupporterModal({
   const emailValid = !form || !form.email.trim() || EMAIL_RE.test(form.email.trim());
 
   const canProceedToConfirm = Boolean(form && dirty && emailValid);
+  const canConfirmSave = Boolean(form && baseline && dirty && emailValid && !saving && !loadingDetail);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -677,10 +678,10 @@ export const EditSupporterModal = memo(function EditSupporterModal({
             </form>
           ) : (
             <form
-              className="flex flex-col p-6"
+              className="flex flex-col bg-white p-6 dark:bg-gray-900"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!saving) void confirmSave();
+                if (canConfirmSave) void confirmSave();
               }}
             >
               <DialogHeader className="space-y-0 text-left">
@@ -696,7 +697,7 @@ export const EditSupporterModal = memo(function EditSupporterModal({
                   {saveError}
                 </p>
               ) : null}
-              <div className="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div className="mt-6 flex flex-col-reverse gap-3 border-t border-black/[0.06] pt-5 dark:border-white/[0.08] sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="ghost"
@@ -711,10 +712,27 @@ export const EditSupporterModal = memo(function EditSupporterModal({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={saving}
-                  className="min-w-[9rem] rounded-xl bg-primary-600 hover:bg-primary-700 font-body font-medium text-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+                  disabled={!canConfirmSave}
+                  className={cn(
+                    "min-w-[9.5rem] rounded-lg px-4 py-2 font-body font-medium",
+                    "bg-blue-600 text-white shadow-sm hover:bg-blue-700",
+                    "dark:bg-blue-500 dark:hover:bg-blue-600",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                    "transition-colors duration-150",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                  )}
                 >
-                  {saving ? "Saving…" : "Confirm & save"}
+                  {saving ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent"
+                        aria-hidden="true"
+                      />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Confirm & Save"
+                  )}
                 </Button>
               </div>
             </form>

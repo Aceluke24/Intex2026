@@ -127,11 +127,29 @@ public class AppDbContext : DbContext
         builder.Entity<Resident>()
             .HasIndex(r => r.CreatedAt);
 
+        builder.Entity<Resident>()
+            .HasIndex(r => new { r.CaseStatus, r.CurrentRiskLevel });
+
+        builder.Entity<Resident>()
+            .HasIndex(r => r.SafehouseId);
+
         builder.Entity<ProcessRecording>()
             .HasIndex(r => r.ResidentId);
 
         builder.Entity<HomeVisitation>()
             .HasIndex(v => v.ResidentId);
+
+        builder.Entity<IncidentReport>()
+            .HasIndex(i => i.IncidentDate);
+
+        builder.Entity<InterventionPlan>()
+            .HasIndex(i => new { i.TargetDate, i.Status });
+
+        builder.Entity<HealthWellbeingRecord>()
+            .HasIndex(h => h.RecordDate);
+
+        builder.Entity<EducationRecord>()
+            .HasIndex(e => e.RecordDate);
 
         // Expense: optional FK to Safehouse
         builder.Entity<Expense>()
