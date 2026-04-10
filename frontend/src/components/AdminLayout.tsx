@@ -54,7 +54,7 @@ const navGroups = [
     label: "Analytics",
     items: [
       { label: "Reports", path: "/dashboard/reports", icon: BarChart3 },
-      { label: "ML Pipelines", path: "/dashboard/analytics/pipelines", icon: LayoutDashboard },
+      { label: "Insights & Actions", path: "/dashboard/analytics/pipelines", icon: BarChart3 },
     ],
   },
   {

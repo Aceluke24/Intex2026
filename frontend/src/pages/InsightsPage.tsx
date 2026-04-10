@@ -322,13 +322,11 @@ const InsightsPage = () => {
   );
 
   const insightDescription =
-    donorScoreSource === "ml"
-      ? `ML donor retention scores are live (${residentScoreSource === "ml" ? "resident ML also live" : "resident fallback active"}).`
-      : `Rule-based donor fallback is active (${residentScoreSource === "ml" ? "resident ML live" : "resident fallback active"}).`;
+    "AI-powered insights to guide donor engagement, retention, and outreach decisions.";
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
-      <StaffPageShell title="AI Insights" description={insightDescription}>
+      <StaffPageShell title="Decision Intelligence" description={insightDescription}>
         <p className="mb-10 font-body text-xs text-muted-foreground">
           Source: {donorScoreSource === "ml" ? "ML" : "Rule-based"}
           {donorModelVersion ? ` • Model: ${donorModelVersion}` : ""}
@@ -361,7 +359,7 @@ const InsightsPage = () => {
                     className="font-display text-lg font-semibold tracking-tight text-foreground"
                   >
                     {donorViewMode === "at-risk" 
-                      ? "At-Risk Donors" 
+                      ? "Donors Requiring Immediate Attention" 
                       : donorViewMode === "recoverable" 
                       ? "Recovery Candidates" 
                       : "Loyal Supporters"}
@@ -383,7 +381,7 @@ const InsightsPage = () => {
                         : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                     }`}
                   >
-                    At-Risk
+                    High Risk
                   </button>
                   <button
                     onClick={() => setDonorViewMode("recoverable")}
@@ -412,7 +410,7 @@ const InsightsPage = () => {
                   <table className="w-full min-w-[780px] text-left">
                     <thead className={dashboardTableHeadRowClass}>
                       <tr>
-                        {["Donor", "Risk band", "Churn risk", "Repeat prob.", "Last donation", "Suggested outreach"].map((h) => (
+                        {["Donor", "Risk band", "Churn Risk (%)", "Repeat Probability", "Last donation", "Recommended Action"].map((h) => (
                           <th key={h} className={dashboardTableHeadCellClass}>
                             {h}
                           </th>
