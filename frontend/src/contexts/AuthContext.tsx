@@ -13,6 +13,8 @@ interface User {
   mfaEnabled: boolean;
 }
 
+type AuthMeResponse = User | { user: User | null };
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -30,9 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMe = async (): Promise<User | null> => {
     try {
-      const data = await apiFetchJson<User>(`${API_PREFIX}/auth/me`, { timeoutMs: 10000 });
-      setUser(data);
-      return data;
+      const data = await apiFetchJson<AuthMeResponse>(`${API_PREFIX}/auth/me`, { timeoutMs: 10000 });
+      const resolvedUser = "user" in data ? data.user : data;
+      setUser(resolvedUser);
+      return resolvedUser;
     } catch (error) {
       if (error instanceof ApiHttpError && (error.status === 401 || error.status === 403)) {
         console.warn("[AuthContext] Session not authenticated for /api/auth/me.");

@@ -9,7 +9,6 @@ namespace Intex2026.Controllers;
 
 [ApiController]
 [Route("api/dashboard")]
-[Authorize(AuthenticationSchemes = "Identity.Application", Roles = "Admin")]
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -30,6 +29,18 @@ public class DashboardController : ControllerBase
     {
         try
         {
+            var isAuthenticated = User.Identity?.IsAuthenticated == true;
+            if (!isAuthenticated)
+            {
+                _logger.LogWarning("No auth user, returning limited dashboard data.");
+                var fallbackStats = await BuildHighLevelStatsAsync(ct);
+                return Ok(new
+                {
+                    stats = fallbackStats,
+                    isAuthenticated = false
+                });
+            }
+
             string FormatDisplayDate(DateOnly d) => d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
 
             var today = DateOnly.FromDateTime(DateTime.Today);
@@ -261,6 +272,8 @@ public class DashboardController : ControllerBase
             retPct,
                 donationCount);
 
+            var stats = await BuildHighLevelStatsAsync(ct);
+
             return Ok(new DashboardResponseDto(
                 primaryMetric,
                 supportingMetrics,
@@ -274,11 +287,13 @@ public class DashboardController : ControllerBase
                 donationActivity,
                 donationInsight,
                 residentsOverview,
-                insights));
+                insights,
+                stats,
+                true));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error building dashboard payload");
+            _logger.LogError(ex, "Dashboard API error: {Message}", ex.Message);
             return Problem(
                 title: "Dashboard data unavailable",
                 detail: "Live dashboard data could not be loaded from the database.",
@@ -543,7 +558,9 @@ public class DashboardController : ControllerBase
         List<DonationMonthDto> DonationActivity,
         string DonationInsight,
         List<ResidentRowDto> ResidentsOverview,
-        List<string> Insights);
+        List<string> Insights,
+        HighLevelStatsDto Stats,
+        bool IsAuthenticated);
 
     private sealed record DashboardMetricDto(
         string Key,
@@ -575,4 +592,65 @@ public class DashboardController : ControllerBase
         int TotalDonationsCount);
 
     private sealed record ResidentRowDto(string Id, string? Safehouse, string Status, string LastSession);
+
+    private sealed record HighLevelStatsDto(
+        int TotalResidents,
+        int ActiveCases,
+        int HighRiskCases,
+        decimal TotalDonationsThisMonth,
+        int ActiveSafehouses,
+        double? AvgHealthScore,
+        double? AvgEducationProgress,
+        int RecentIncidents);
+
+    private async Task<HighLevelStatsDto> BuildHighLevelStatsAsync(CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var nextMonthStart = monthStart.AddMonths(1);
+
+        var totalResidentsTask = _db.Residents.AsNoTracking().CountAsync(ct);
+        var activeCasesTask = _db.Residents.AsNoTracking().CountAsync(r => r.CaseStatus == "Active", ct);
+        var highRiskCasesTask = _db.Residents.AsNoTracking()
+            .CountAsync(r => r.CurrentRiskLevel == "High" || r.CurrentRiskLevel == "Critical", ct);
+        var totalDonationsTask = _db.Donations.AsNoTracking()
+            .Where(d => d.DonationDate >= monthStart && d.DonationDate < nextMonthStart)
+            .SumAsync(d =>
+                d.DonationType == "Monetary"
+                    ? (d.Amount ?? 0)
+                    : d.DonationType == "InKind"
+                        ? (d.EstimatedValue ?? d.Amount ?? 0)
+                        : (d.Amount ?? d.EstimatedValue ?? 0), ct);
+        var activeSafehousesTask = _db.Safehouses.AsNoTracking().CountAsync(s => s.Status == "Active", ct);
+        var metricsTask = _db.SafehouseMonthlyMetrics.AsNoTracking()
+            .Where(m => m.MonthStart == monthStart)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                AvgHealth = g.Average(x => (double?)x.AvgHealthScore),
+                AvgEducation = g.Average(x => (double?)x.AvgEducationProgress)
+            })
+            .FirstOrDefaultAsync(ct);
+        var recentIncidentsTask = _db.IncidentReports.AsNoTracking()
+            .CountAsync(i => i.IncidentDate >= monthStart && i.IncidentDate < nextMonthStart, ct);
+
+        await Task.WhenAll(
+            totalResidentsTask,
+            activeCasesTask,
+            highRiskCasesTask,
+            totalDonationsTask,
+            activeSafehousesTask,
+            metricsTask,
+            recentIncidentsTask);
+
+        return new HighLevelStatsDto(
+            totalResidentsTask.Result,
+            activeCasesTask.Result,
+            highRiskCasesTask.Result,
+            totalDonationsTask.Result,
+            activeSafehousesTask.Result,
+            metricsTask.Result?.AvgHealth,
+            metricsTask.Result?.AvgEducation,
+            recentIncidentsTask.Result);
+    }
 }

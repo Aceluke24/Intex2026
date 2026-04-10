@@ -13,10 +13,12 @@ public class DonationsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    public DonationsController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    private readonly ILogger<DonationsController> _logger;
+    public DonationsController(AppDbContext db, UserManager<ApplicationUser> userManager, ILogger<DonationsController> logger)
     {
         _db = db;
         _userManager = userManager;
+        _logger = logger;
     }
 
     [HttpGet("/api/campaigns")]
@@ -53,15 +55,24 @@ public class DonationsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetDonationPurposes()
     {
-        var purposes = await _db.Donations
-            .AsNoTracking()
-            .Where(d => d.Notes != null && d.Notes.Trim() != "")
-            .Select(d => d.Notes!.Trim())
-            .Distinct()
-            .OrderBy(n => n)
-            .ToListAsync();
+        try
+        {
+            var purposes = await _db.Donations
+                .AsNoTracking()
+                .Where(d => d.Notes != null && d.Notes.Trim() != "")
+                .Select(d => d.Notes!.Trim())
+                .Distinct()
+                .OrderBy(n => n)
+                .ToListAsync();
 
-        return Ok(purposes);
+            return Ok(purposes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dashboard API error: failed to load donation purposes.");
+            // Keep public donation page functional if this query fails.
+            return Ok(Array.Empty<string>());
+        }
     }
 
     [HttpGet]

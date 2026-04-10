@@ -31,31 +31,30 @@ public class AuthController(
     private const string DefaultExternalReturnPath = "/google-callback";
 
     [HttpGet("me")]
-    [Authorize(AuthenticationSchemes = "Identity.Application")]
     public async Task<IActionResult> GetCurrentSession()
     {
         if (User.Identity?.IsAuthenticated != true)
         {
-            logger.LogWarning(
-                "Unauthorized /api/auth/me request. Authenticated={IsAuthenticated}. HasAuthorizationHeader={HasAuthorizationHeader}. HasCookies={HasCookies}",
+            logger.LogInformation(
+                "Unauthenticated /api/auth/me request. Returning null session. Authenticated={IsAuthenticated}. HasAuthorizationHeader={HasAuthorizationHeader}. HasCookies={HasCookies}",
                 User.Identity?.IsAuthenticated ?? false,
                 Request.Headers.ContainsKey("Authorization"),
                 Request.Cookies.Count > 0);
-            return Unauthorized();
+            return Ok(new { user = (object?)null });
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
         {
-            logger.LogWarning("Unauthorized /api/auth/me request. Missing user identifier claim.");
-            return Unauthorized();
+            logger.LogWarning("Session identity is authenticated but missing user identifier claim.");
+            return Ok(new { user = (object?)null });
         }
 
         var user = await FindUserByIdAsync(userId);
         if (user is null)
         {
-            logger.LogWarning("Unauthorized /api/auth/me request. User not found for claim id.");
-            return Unauthorized();
+            logger.LogWarning("Session claim user was not found. Returning null session.");
+            return Ok(new { user = (object?)null });
         }
 
         var ensuredSupporter = await EnsureSupporterLinkedAsync(user);
