@@ -590,26 +590,43 @@ WHERE r.[CaseStatus] = 'Active';";
         return fields.ToArray();
     }
 
-    // Converts statsmodels formula notation to human-readable names.
-    // e.g. C(post_type, Treatment(reference='ThankYou'))[T.FundraisingAppeal] → Post type: FundraisingAppeal
+    private static readonly Dictionary<string, string> SocialMediaFeatureLabels = new(StringComparer.Ordinal)
+    {
+        ["C(post_type, Treatment(reference='ThankYou'))[T.FundraisingAppeal]"] = "Fundraising appeal post",
+        ["C(post_type, Treatment(reference='ThankYou'))[T.ImpactStory]"]      = "Impact story post",
+        ["C(post_type, Treatment(reference='ThankYou'))[T.Campaign]"]         = "Campaign-related post",
+        ["features_resident_story"]                                            = "Features an individual resident story",
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Emotional]"] = "Emotional tone",
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Urgent]"]    = "Urgent tone",
+        ["is_boosted"]                                                         = "Post was boosted (paid promotion)",
+        ["C(media_type, Treatment(reference='Text'))[T.Reel]"]                = "Reel (short-form video)",
+        ["C(media_type, Treatment(reference='Text'))[T.Video]"]               = "Video post",
+        ["C(media_type, Treatment(reference='Text'))[T.Image]"]               = "Image-based post",
+        ["C(call_to_action_type, Treatment(reference='None'))[T.DonateNow]"]  = "'Donate Now' call-to-action",
+        ["C(call_to_action_type, Treatment(reference='None'))[T.LearnMore]"]  = "'Learn More' call-to-action",
+        ["caption_length"]                                                     = "Longer captions",
+        ["num_hashtags"]                                                       = "More hashtags used",
+        ["mentions_count"]                                                     = "Mentions of other accounts",
+        ["is_weekend"]                                                         = "Posted on weekends",
+        ["hour_sin"]                                                           = "Time of day posted",
+        ["hour_cos"]                                                           = "Time of day posted",
+        ["log_followers"]                                                      = "Larger follower audience",
+    };
+
     private static string CleanSocialMediaFeatureName(string raw)
     {
+        if (SocialMediaFeatureLabels.TryGetValue(raw, out var label))
+            return label;
+
+        // Fallback: parse statsmodels formula notation for any unmapped categorical terms
         var m = Regex.Match(raw, @"C\((\w+)[^)]*\)\[T\.(.+?)\]");
         if (m.Success)
         {
             var col = m.Groups[1].Value;
             var val = m.Groups[2].Value;
-            return col switch
-            {
-                "post_type"         => $"Post type: {val}",
-                "sentiment_tone"    => $"Sentiment: {val}",
-                "platform"          => $"Platform: {val}",
-                "media_type"        => $"Media type: {val}",
-                "content_topic"     => $"Topic: {val}",
-                "call_to_action_type" => $"CTA: {val}",
-                _                   => $"{col}: {val}",
-            };
+            return $"{col}: {val}";
         }
+
         return raw;
     }
 
