@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Intex2026.Data;
 using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,13 @@ public class SupportersController : ControllerBase
 {
     private readonly AppDbContext _db;
     public SupportersController(AppDbContext db) => _db = db;
+
+    private static string? DigitsOnly(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return null;
+        var d = Regex.Replace(phone, @"\D", "");
+        return d.Length == 0 ? null : d;
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(
@@ -64,6 +72,19 @@ public class SupportersController : ControllerBase
             if (duplicate)
             {
                 return Conflict(new { message = "A supporter with that email already exists." });
+            }
+        }
+
+        var phoneDigits = DigitsOnly(supporter.Phone);
+        var displayTrim = (supporter.DisplayName ?? "").Trim();
+        if (phoneDigits != null && displayTrim.Length > 0)
+        {
+            var dupNamePhone = await _db.Supporters.AnyAsync(s =>
+                DigitsOnly(s.Phone) == phoneDigits &&
+                string.Equals((s.DisplayName ?? "").Trim(), displayTrim, StringComparison.OrdinalIgnoreCase));
+            if (dupNamePhone)
+            {
+                return Conflict(new { message = "A supporter with the same display name and phone already exists." });
             }
         }
         supporter.CreatedAt = DateTime.UtcNow;

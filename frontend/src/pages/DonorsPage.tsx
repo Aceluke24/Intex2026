@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
+  AddSupporterModal,
   EditSupporterModal,
   FilterBar,
   ImpactOverview,
@@ -203,11 +204,7 @@ const DonorsPage = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addSupporterOpen, setAddSupporterOpen] = useState(false);
-  const [newSupporterName, setNewSupporterName] = useState("");
-  const [newSupporterType, setNewSupporterType] = useState("MonetaryDonor");
-  const [newSupporterEmail, setNewSupporterEmail] = useState("");
-  const [newSupporterStatus, setNewSupporterStatus] = useState("Active");
-  const [supporterSaving, setSupporterSaving] = useState(false);
+  const [pendingContributionSupporterId, setPendingContributionSupporterId] = useState<string | null>(null);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
 
@@ -291,23 +288,24 @@ const DonorsPage = () => {
     if (!res.ok) throw new Error(await res.text());
   }, []);
 
-  const handleSaveSupporterDisplayName = useCallback(
-    async (displayName: string) => {
+  const handleSaveSupporterEdit = useCallback(
+    async (body: Record<string, unknown>) => {
       if (!editSupporterTarget) return;
       const id = editSupporterTarget.id;
-      const previousName = editSupporterTarget.name;
-      setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: displayName } : s)));
       try {
-        await updateSupporter(id, { displayName });
-        toast.success("Display name updated");
+        const res = await apiFetch(`${API_PREFIX}/supporters/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        toast.success("Supporter updated");
         void load();
       } catch (e) {
         console.error(e);
-        setSupporters((prev) => prev.map((s) => (s.id === id ? { ...s, name: previousName } : s)));
         throw e instanceof Error ? e : new Error("Failed to update supporter.");
       }
     },
-    [editSupporterTarget, load, updateSupporter],
+    [editSupporterTarget, load],
   );
 
   const supporterDeleteDetailLines = useMemo(() => {
@@ -348,41 +346,27 @@ const DonorsPage = () => {
   };
 
   const handleAddSupporter = () => {
-    setNewSupporterName("");
-    setNewSupporterType("MonetaryDonor");
-    setNewSupporterEmail("");
-    setNewSupporterStatus("Active");
     setAddSupporterOpen(true);
   };
 
-  const handleSaveSupporter = async () => {
-    if (!newSupporterName.trim()) {
-      toast.error("Display name is required.");
-      return;
-    }
-    setSupporterSaving(true);
-    try {
-      const body = {
-        displayName: newSupporterName.trim(),
-        supporterType: newSupporterType,
-        email: newSupporterEmail.trim() || null,
-        status: newSupporterStatus,
-        relationshipType: "Local",
-      };
-      const res = await apiFetch(`${API_PREFIX}/supporters`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      toast.success("Supporter added.");
-      setAddSupporterOpen(false);
-      void load();
-    } catch (e) {
-      toast.error("Failed to add supporter: " + (e instanceof Error ? e.message : "Unknown error"));
-    } finally {
-      setSupporterSaving(false);
-    }
-  };
+  const handleSupporterCreated = useCallback(
+    async (result: { id: string; name: string; notes: string }) => {
+      if (result.notes.trim()) {
+        setNotesById((prev) => ({ ...prev, [result.id]: result.notes.trim() }));
+      }
+      try {
+        await load();
+        if (addOpen) {
+          setPendingContributionSupporterId(result.id);
+        }
+        toast.success("Supporter added.");
+      } catch (e) {
+        console.error(e);
+        toast.error("Supporter was created, but refreshing the directory failed. Reload the page to see them.");
+      }
+    },
+    [load, addOpen],
+  );
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
@@ -556,15 +540,26 @@ const DonorsPage = () => {
                   {filtered.length} {filtered.length === 1 ? "person" : "people"} match your filters
                 </p>
               </div>
-              <Button
-                type="button"
-                onClick={() => setAddOpen(true)}
-                variant="ghost"
-                className="h-12 self-start rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium text-foreground/85 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
-              >
-                <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
-                Log contribution
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-end">
+                <Button
+                  type="button"
+                  onClick={() => setAddSupporterOpen(true)}
+                  variant="outline"
+                  className="h-12 rounded-2xl border-white/50 bg-white/40 px-5 font-body font-medium text-foreground/85 backdrop-blur-md hover:bg-white/55 dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
+                >
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                  + Add Supporter
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  variant="ghost"
+                  className="h-12 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium text-foreground/85 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+                >
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                  Log contribution
+                </Button>
+              </div>
             </div>
 
             {!loading && (
@@ -736,6 +731,9 @@ const DonorsPage = () => {
         onOpenChange={setAddOpen}
         supporterOptions={supporters.map((s) => ({ id: s.id, name: s.name }))}
         safehouses={safehouseNames.length ? safehouseNames : ["—"]}
+        pendingSelectSupporterId={pendingContributionSupporterId}
+        onPendingSelectConsumed={() => setPendingContributionSupporterId(null)}
+        onRequestAddSupporter={() => setAddSupporterOpen(true)}
         onSubmit={async ({ supporterId, kind, amount, hours, description }) => {
           const kindMap: Record<string, string> = {
             monetary: "Monetary",
@@ -774,83 +772,8 @@ const DonorsPage = () => {
           }
         }}
       />
-      {/* Add Supporter Dialog */}
-      {addSupporterOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setAddSupporterOpen(false)}>
-          <div className="w-full max-w-sm rounded-[1.35rem] border-0 bg-[hsl(36_33%_98%)] p-0 shadow-[0_24px_80px_rgba(45,35,48,0.18)] dark:bg-[hsl(213_45%_10%)]" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-black/5 px-6 pb-4 pt-6 dark:border-white/5">
-              <p className="font-display text-xl font-semibold tracking-tight text-foreground">Add supporter</p>
-              <p className="mt-1 font-body text-sm text-muted-foreground">Create a new supporter record.</p>
-            </div>
-            <div className="space-y-4 px-6 py-5">
-              <div className="space-y-1.5">
-                <label className="font-body text-xs font-medium text-muted-foreground">Display name *</label>
-                <input
-                  value={newSupporterName}
-                  onChange={(e) => setNewSupporterName(e.target.value)}
-                  placeholder="Full name or organization"
-                  className="w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 font-body text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:bg-white/10"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="font-body text-xs font-medium text-muted-foreground">Type</label>
-                  <select
-                    value={newSupporterType}
-                    onChange={(e) => setNewSupporterType(e.target.value)}
-                    className="w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:bg-white/10"
-                  >
-                    <option value="MonetaryDonor">Monetary Donor</option>
-                    <option value="InKindDonor">In-Kind Donor</option>
-                    <option value="Volunteer">Volunteer</option>
-                    <option value="SkillsContributor">Skills Contributor</option>
-                    <option value="SocialMediaAdvocate">Social Media Advocate</option>
-                    <option value="PartnerOrganization">Partner Organization</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="font-body text-xs font-medium text-muted-foreground">Status</label>
-                  <select
-                    value={newSupporterStatus}
-                    onChange={(e) => setNewSupporterStatus(e.target.value)}
-                    className="w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 font-body text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:bg-white/10"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="font-body text-xs font-medium text-muted-foreground">Email (optional)</label>
-                <input
-                  type="email"
-                  value={newSupporterEmail}
-                  onChange={(e) => setNewSupporterEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  className="w-full rounded-xl border border-border/60 bg-white/70 px-3 py-2 font-body text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:bg-white/10"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-black/5 px-6 py-4 dark:border-white/5">
-              <button
-                type="button"
-                onClick={() => setAddSupporterOpen(false)}
-                className="rounded-xl px-4 py-2 font-body text-sm text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={supporterSaving}
-                onClick={() => void handleSaveSupporter()}
-                className="rounded-xl bg-gradient-to-r from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] px-5 py-2 font-body text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-              >
-                {supporterSaving ? "Saving…" : "Add supporter"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
+      <AddSupporterModal open={addSupporterOpen} onOpenChange={setAddSupporterOpen} onSuccess={handleSupporterCreated} />
 
       <EditSupporterModal
         open={editSupporterTarget !== null}
@@ -858,7 +781,10 @@ const DonorsPage = () => {
           if (!open) setEditSupporterTarget(null);
         }}
         supporter={editSupporterTarget}
-        onSave={handleSaveSupporterDisplayName}
+        onSave={handleSaveSupporterEdit}
+        onRequestDelete={(s) => {
+          setDeleteSupporterTarget(s);
+        }}
       />
 
       <ConfirmDeleteModal
