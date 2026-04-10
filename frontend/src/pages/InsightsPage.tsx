@@ -122,10 +122,8 @@ const InsightsPage = () => {
   const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
   const [reintegrationMeta, setReintegrationMeta] = useState<ReintegrationResponse | null>(null);
   const [socialMediaMeta, setSocialMediaMeta] = useState<SocialMediaResponse | null>(null);
-  const [socialViewMode, setSocialViewMode] = useState<"significant" | "all">("all");
   const [socialDirectionFilter, setSocialDirectionFilter] = useState<"all" | "boosting" | "reducing">("all");
   const [reintegrationDirectionFilter, setReintegrationDirectionFilter] = useState<"all" | "positive" | "negative">("all");
-  const [reintegrationSignificanceFilter, setReintegrationSignificanceFilter] = useState<"all" | "significant">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -321,7 +319,7 @@ const InsightsPage = () => {
 
   const socialMediaRows = useMemo(() => {
     const rows = socialMediaMeta?.rows ?? [];
-    let filtered = socialViewMode === "significant" ? rows.filter((r) => r.significant) : rows;
+    let filtered = [...rows];
 
     if (socialDirectionFilter === "boosting") {
       filtered = filtered.filter((r) => r.irr >= 1);
@@ -335,12 +333,7 @@ const InsightsPage = () => {
       if (bDistance !== aDistance) return bDistance - aDistance;
       return b.irr - a.irr;
     });
-  }, [socialMediaMeta, socialViewMode, socialDirectionFilter]);
-
-  const socialSignificantCount = useMemo(
-    () => (socialMediaMeta?.rows ?? []).filter((r) => r.significant).length,
-    [socialMediaMeta]
-  );
+  }, [socialMediaMeta, socialDirectionFilter]);
 
   const socialBoostingCount = useMemo(
     () => (socialMediaMeta?.rows ?? []).filter((r) => r.irr >= 1).length,
@@ -360,14 +353,10 @@ const InsightsPage = () => {
       filtered = filtered.filter((r) => r.direction === reintegrationDirectionFilter);
     }
 
-    if (reintegrationSignificanceFilter === "significant") {
-      filtered = filtered.filter((r) => r.significant);
-    }
-
     return filtered.sort(
       (a, b) => Math.abs(Math.log(b.oddsRatio)) - Math.abs(Math.log(a.oddsRatio))
     );
-  }, [reintegrationMeta, reintegrationDirectionFilter, reintegrationSignificanceFilter]);
+  }, [reintegrationMeta, reintegrationDirectionFilter]);
 
   const reintegrationPositiveCount = useMemo(
     () => (reintegrationMeta?.rows ?? []).filter((r) => r.direction === "positive").length,
@@ -376,11 +365,6 @@ const InsightsPage = () => {
 
   const reintegrationNegativeCount = useMemo(
     () => (reintegrationMeta?.rows ?? []).filter((r) => r.direction === "negative").length,
-    [reintegrationMeta]
-  );
-
-  const reintegrationSignificantCount = useMemo(
-    () => (reintegrationMeta?.rows ?? []).filter((r) => r.significant).length,
     [reintegrationMeta]
   );
 
@@ -684,26 +668,6 @@ const InsightsPage = () => {
                 {socialMediaMeta?.available && (
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => setSocialViewMode("significant")}
-                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                        socialViewMode === "significant"
-                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                      }`}
-                    >
-                      Significant only ({socialSignificantCount})
-                    </button>
-                    <button
-                      onClick={() => setSocialViewMode("all")}
-                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                        socialViewMode === "all"
-                          ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                      }`}
-                    >
-                      All factors
-                    </button>
-                    <button
                       onClick={() => setSocialDirectionFilter("all")}
                       className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
                         socialDirectionFilter === "all"
@@ -822,26 +786,6 @@ const InsightsPage = () => {
                 </div>
                 {reintegrationMeta?.available && (
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setReintegrationSignificanceFilter("all")}
-                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                        reintegrationSignificanceFilter === "all"
-                          ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                      }`}
-                    >
-                      All factors
-                    </button>
-                    <button
-                      onClick={() => setReintegrationSignificanceFilter("significant")}
-                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                        reintegrationSignificanceFilter === "significant"
-                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                      }`}
-                    >
-                      Significant only ({reintegrationSignificantCount})
-                    </button>
                     <button
                       onClick={() => setReintegrationDirectionFilter("all")}
                       className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
