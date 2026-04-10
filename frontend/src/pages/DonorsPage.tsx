@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
+import { useDonations, type DonationRecord } from "@/hooks/useDonations";
 import type {
   ApiSupporterRow,
   ContributionBreakdown,
@@ -40,7 +41,7 @@ import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const DIRECTORY_PAGE_SIZES = [10, 25, 50] as const;
+const DIRECTORY_PAGE_SIZES = [10, 20] as const;
 
 function visiblePageNumbers(current: number, totalPages: number): (number | "ellipsis")[] {
   if (totalPages <= 7) {
@@ -135,24 +136,47 @@ function donorInitials(name: string | undefined) {
 const CONTRIBUTION_TIMELINE_MAX = 10;
 
 type DonorView = "supporters" | "contributions";
-type ContributionRecord = {
-  donationId: number;
-  supporterId: number | null;
-  donationType: string;
-  donationDate: string;
-  amount: number | null;
-  estimatedValue: number | null;
-  isRecurring: boolean;
-  campaignName: string | null;
-  notes: string | null;
-  supporterDisplayName: string | null;
-  supporterOrganizationName: string | null;
-};
 
 function feedEntryTimestampMs(entry: FeedEntry): number {
   const raw = entry.createdAt ?? entry.at;
   const t = new Date(raw).getTime();
   return Number.isFinite(t) ? t : 0;
+}
+
+function resolveDonorName(contribution: DonationRecord): string {
+  const displayName = contribution.supporterDisplayName?.trim();
+  if (displayName) return displayName;
+  const orgName = contribution.supporterOrganizationName?.trim();
+  if (orgName) return orgName;
+  const first = contribution.supporterFirstName?.trim() ?? "";
+  const last = contribution.supporterLastName?.trim() ?? "";
+  const full = `${first} ${last}`.trim();
+  return full || "Anonymous";
+}
+
+function formatContributionAmount(contribution: DonationRecord): string {
+  if (contribution.amount != null) {
+    return `$${Number(contribution.amount).toLocaleString()}`;
+  }
+  const value = contribution.estimatedValue ?? 0;
+  const unit = contribution.impactUnit?.trim();
+  return unit ? `${Number(value).toLocaleString()} ${unit}` : Number(value).toLocaleString();
+}
+
+function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
+  switch (donationType) {
+    case "InKind":
+      return "in-kind";
+    case "Time":
+      return "volunteer";
+    case "Skills":
+      return "skills";
+    case "SocialMedia":
+      return "social";
+    case "Monetary":
+    default:
+      return "monetary";
+  }
 }
 
 const DonorsPage = () => {
@@ -224,21 +248,18 @@ const DonorsPage = () => {
   const [supporterPage, setSupporterPage] = useState(1);
   const [supporterPageSize, setSupporterPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
-  const [contributions, setContributions] = useState<ContributionRecord[]>([]);
-  const [contributionsTotal, setContributionsTotal] = useState(0);
-  const [contributionsLoading, setContributionsLoading] = useState(false);
   const [contributionPage, setContributionPage] = useState(1);
-  const [contributionPageSize, setContributionPageSize] = useState(10);
+  const [contributionPageSize, setContributionPageSize] = useState(20);
   const [contributionTypeFilter, setContributionTypeFilter] = useState("All");
   const [campaignFilter, setCampaignFilter] = useState("");
   const [campaignOptions, setCampaignOptions] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
-  const [viewContributionTarget, setViewContributionTarget] = useState<ContributionRecord | null>(null);
-  const [editContributionTarget, setEditContributionTarget] = useState<ContributionRecord | null>(null);
-  const [deleteContributionTarget, setDeleteContributionTarget] = useState<ContributionRecord | null>(null);
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
+  const [minAmount, setMinAmount] = useState<string | null>(null);
+  const [maxAmount, setMaxAmount] = useState<string | null>(null);
+  const [viewContributionTarget, setViewContributionTarget] = useState<DonationRecord | null>(null);
+  const [editContributionTarget, setEditContributionTarget] = useState<DonationRecord | null>(null);
+  const [deleteContributionTarget, setDeleteContributionTarget] = useState<DonationRecord | null>(null);
   const [editContributionSaving, setEditContributionSaving] = useState(false);
   const [editContributionCampaign, setEditContributionCampaign] = useState("");
   const [editContributionAmount, setEditContributionAmount] = useState("");
@@ -253,6 +274,25 @@ const DonorsPage = () => {
   const [pendingContributionSupporterId, setPendingContributionSupporterId] = useState<string | null>(null);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
+  const {
+    items: contributions,
+    total: contributionsTotal,
+    loading: contributionsLoading,
+    reload: reloadContributions,
+  } = useDonations(
+    {
+      page: contributionPage,
+      pageSize: contributionPageSize,
+      donationType: contributionTypeFilter,
+      campaignName: campaignFilter,
+      search,
+      dateFrom,
+      dateTo,
+      minAmount,
+      maxAmount,
+    },
+    view === "contributions",
+  );
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
 
@@ -268,47 +308,18 @@ const DonorsPage = () => {
     [navigate],
   );
 
-  const loadContributions = useCallback(async () => {
-    setContributionsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(contributionPage));
-      params.set("pageSize", String(contributionPageSize));
-      if (contributionTypeFilter !== "All") params.set("donationType", contributionTypeFilter);
-      if (campaignFilter.trim()) params.set("campaignName", campaignFilter.trim());
-      if (search.trim()) params.set("search", search.trim());
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      if (minAmount.trim()) params.set("minAmount", minAmount.trim());
-      if (maxAmount.trim()) params.set("maxAmount", maxAmount.trim());
-      const data = await apiFetchJson<{ total: number; items: ContributionRecord[] }>(`${API_PREFIX}/donations?${params.toString()}`);
-      const normalized = Array.isArray(data.items) ? data.items : [];
-      setContributions(normalized);
-      setContributionsTotal(Number(data.total) || 0);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load contributions.");
-      setContributions([]);
-      setContributionsTotal(0);
-    } finally {
-      setContributionsLoading(false);
+  useEffect(() => {
+    if (view === "contributions") {
+      setContributionPage(1);
     }
-  }, [
-    contributionPage,
-    contributionPageSize,
-    contributionTypeFilter,
-    campaignFilter,
-    search,
-    dateFrom,
-    dateTo,
-    minAmount,
-    maxAmount,
-  ]);
+  }, [view]);
 
   useEffect(() => {
-    if (view !== "contributions") return;
-    void loadContributions();
-  }, [view, loadContributions]);
+    const totalPages = Math.max(1, Math.ceil(contributionsTotal / contributionPageSize));
+    if (contributionPage > totalPages) {
+      setContributionPage(totalPages);
+    }
+  }, [contributionsTotal, contributionPage, contributionPageSize]);
 
   useEffect(() => {
     void (async () => {
@@ -333,6 +344,18 @@ const DonorsPage = () => {
 
   /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
   const contributionTimelineFeed = useMemo(() => {
+    if (view === "contributions") {
+      return contributions.slice(0, CONTRIBUTION_TIMELINE_MAX).map((contribution) => ({
+        id: String(contribution.donationId),
+        supporterName: resolveDonorName(contribution),
+        kind: mapDonationTypeToFeedKind(contribution.donationType),
+        amount: contribution.amount,
+        hours: contribution.impactUnit?.toLowerCase() === "hours" ? contribution.estimatedValue : null,
+        description: contribution.campaignName?.trim() || "No campaign",
+        createdAt: contribution.donationDate,
+        at: contribution.donationDate,
+      }));
+    }
     return [...feed]
       .sort((a, b) => {
         const db = feedEntryTimestampMs(b);
@@ -341,7 +364,7 @@ const DonorsPage = () => {
         return String(b.id).localeCompare(String(a.id));
       })
       .slice(0, CONTRIBUTION_TIMELINE_MAX);
-  }, [feed]);
+  }, [feed, view, contributions]);
 
   const timelineForSelected = useMemo((): TimelineEntry[] => {
     if (!selected) return [];
@@ -497,7 +520,7 @@ const DonorsPage = () => {
     if (!deleteContributionTarget) return undefined;
     return [
       { label: "Donation ID", value: String(deleteContributionTarget.donationId) },
-      { label: "Donor", value: deleteContributionTarget.supporterDisplayName || deleteContributionTarget.supporterOrganizationName || "Unknown donor" },
+      { label: "Donor", value: resolveDonorName(deleteContributionTarget) },
     ];
   }, [deleteContributionTarget]);
 
@@ -507,7 +530,7 @@ const DonorsPage = () => {
       const res = await apiFetch(`${API_PREFIX}/donations/${deleteContributionTarget.donationId}?confirm=true`, { method: "DELETE" });
       if (!res.ok) throw new Error(await res.text());
       toast.success("Contribution deleted.");
-      await loadContributions();
+      await reloadContributions();
       return true;
     } catch (e) {
       console.error(e);
@@ -540,7 +563,7 @@ const DonorsPage = () => {
       if (!res.ok) throw new Error(await res.text());
       toast.success("Contribution updated.");
       setEditContributionTarget(null);
-      await loadContributions();
+      await reloadContributions();
     } catch (e) {
       console.error(e);
       toast.error("Failed to update contribution.");
@@ -556,24 +579,6 @@ const DonorsPage = () => {
         description="Manage supporters and track impact across programs."
         actions={
           <div className="flex items-center gap-3">
-            <div className="flex rounded-2xl border border-white/35 bg-white/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "supporters" && "bg-white shadow-sm dark:bg-white/15")}
-                onClick={() => handleViewChange("supporters")}
-              >
-                Supporters
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "contributions" && "bg-white shadow-sm dark:bg-white/15")}
-                onClick={() => handleViewChange("contributions")}
-              >
-                Contributions
-              </Button>
-            </div>
             <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
               <Button
                 type="button"
@@ -727,6 +732,27 @@ const DonorsPage = () => {
           {/* Impact overview — timeline + allocation */}
           {!loading && <ImpactOverview feed={contributionTimelineFeed} allocation={allocationByDestination} />}
 
+          <div className="mb-4 flex justify-start">
+            <div className="flex rounded-2xl border border-white/35 bg-white/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "supporters" && "bg-white shadow-sm dark:bg-white/15")}
+                onClick={() => handleViewChange("supporters")}
+              >
+                Supporters
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "contributions" && "bg-white shadow-sm dark:bg-white/15")}
+                onClick={() => handleViewChange("contributions")}
+              >
+                Contributions
+              </Button>
+            </div>
+          </div>
+
           {/* Directory */}
           <section className="mb-8 mt-6">
             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -771,21 +797,21 @@ const DonorsPage = () => {
                   dateFrom={dateFrom}
                   dateTo={dateTo}
                   onDateFromChange={(v) => {
-                    setDateFrom(v);
+                    setDateFrom(v || null);
                     setContributionPage(1);
                   }}
                   onDateToChange={(v) => {
-                    setDateTo(v);
+                    setDateTo(v || null);
                     setContributionPage(1);
                   }}
                   minAmount={minAmount}
                   maxAmount={maxAmount}
                   onMinAmountChange={(v) => {
-                    setMinAmount(v);
+                    setMinAmount(v || null);
                     setContributionPage(1);
                   }}
                   onMaxAmountChange={(v) => {
-                    setMaxAmount(v);
+                    setMaxAmount(v || null);
                     setContributionPage(1);
                   }}
                 />
@@ -843,8 +869,8 @@ const DonorsPage = () => {
               ) : (
                 <div className="space-y-4">
                   {contributions.map((c, i) => {
-                    const donorLabel = c.supporterDisplayName || c.supporterOrganizationName || "Unknown donor";
-                    const displayAmount = c.amount ?? c.estimatedValue ?? 0;
+                    const donorLabel = resolveDonorName(c);
+                    const displayAmount = formatContributionAmount(c);
                     return (
                       <motion.div
                         key={c.donationId}
@@ -871,7 +897,7 @@ const DonorsPage = () => {
                           </div>
                           <div className="hidden w-[5.25rem] shrink-0 font-body text-xs text-muted-foreground sm:block">{c.donationType}</div>
                           <div className="hidden w-[6rem] shrink-0 text-right font-body text-sm tabular-nums font-semibold text-foreground/95 md:block">
-                            ${displayAmount.toLocaleString()}
+                            {displayAmount}
                           </div>
                           <div className="hidden w-[7rem] shrink-0 text-right font-body text-xs text-muted-foreground lg:block">
                             {new Date(c.donationDate).toLocaleDateString()}
@@ -1082,6 +1108,7 @@ const DonorsPage = () => {
             if (!res.ok) throw new Error(await res.text());
             toast.success("Contribution recorded.");
             void load();
+            void reloadContributions();
           } catch (e) {
             toast.error("Failed to log contribution: " + (e instanceof Error ? e.message : "Unknown error"));
             throw e;
@@ -1119,9 +1146,10 @@ const DonorsPage = () => {
           </DialogHeader>
           {viewContributionTarget ? (
             <div className="space-y-3 font-body text-sm">
-              <p><strong>Donor:</strong> {viewContributionTarget.supporterDisplayName || viewContributionTarget.supporterOrganizationName || "Unknown donor"}</p>
+              <p><strong>Donor:</strong> {resolveDonorName(viewContributionTarget)}</p>
               <p><strong>Type:</strong> {viewContributionTarget.donationType}</p>
-              <p><strong>Amount/Value:</strong> ${(viewContributionTarget.amount ?? viewContributionTarget.estimatedValue ?? 0).toLocaleString()}</p>
+              <p><strong>Amount/Value:</strong> {formatContributionAmount(viewContributionTarget)}</p>
+              <p><strong>Impact unit:</strong> {viewContributionTarget.impactUnit || "—"}</p>
               <p><strong>Campaign:</strong> {viewContributionTarget.campaignName || "No campaign"}</p>
               <p><strong>Date:</strong> {new Date(viewContributionTarget.donationDate).toLocaleDateString()}</p>
               <p><strong>Status:</strong> {viewContributionTarget.isRecurring ? "Recurring" : "One-time"}</p>

@@ -113,7 +113,9 @@ public class DonationsController : ControllerBase
                 (d.CampaignName != null && d.CampaignName.ToLower().Contains(q)) ||
                 (d.Supporter != null && (
                     d.Supporter.DisplayName.ToLower().Contains(q) ||
-                    (d.Supporter.OrganizationName != null && d.Supporter.OrganizationName.ToLower().Contains(q))
+                    (d.Supporter.OrganizationName != null && d.Supporter.OrganizationName.ToLower().Contains(q)) ||
+                    (d.Supporter.FirstName != null && d.Supporter.FirstName.ToLower().Contains(q)) ||
+                    (d.Supporter.LastName != null && d.Supporter.LastName.ToLower().Contains(q))
                 )));
         }
         var total = await query.CountAsync();
@@ -140,7 +142,9 @@ public class DonationsController : ControllerBase
                 d.DonationTypeId,
                 donationTypeName = d.DonationTypeRef != null ? d.DonationTypeRef.Name : null,
                 supporterDisplayName = d.Supporter != null ? d.Supporter.DisplayName : null,
-                supporterOrganizationName = d.Supporter != null ? d.Supporter.OrganizationName : null
+                supporterOrganizationName = d.Supporter != null ? d.Supporter.OrganizationName : null,
+                supporterFirstName = d.Supporter != null ? d.Supporter.FirstName : null,
+                supporterLastName = d.Supporter != null ? d.Supporter.LastName : null
             })
             .ToListAsync();
         return Ok(new { total, page, pageSize, items });
