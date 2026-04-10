@@ -122,7 +122,10 @@ const InsightsPage = () => {
   const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
   const [reintegrationMeta, setReintegrationMeta] = useState<ReintegrationResponse | null>(null);
   const [socialMediaMeta, setSocialMediaMeta] = useState<SocialMediaResponse | null>(null);
-  const [socialViewMode, setSocialViewMode] = useState<"significant" | "all">("significant");
+  const [socialViewMode, setSocialViewMode] = useState<"significant" | "all">("all");
+  const [socialDirectionFilter, setSocialDirectionFilter] = useState<"all" | "boosting" | "reducing">("all");
+  const [reintegrationDirectionFilter, setReintegrationDirectionFilter] = useState<"all" | "positive" | "negative">("all");
+  const [reintegrationSignificanceFilter, setReintegrationSignificanceFilter] = useState<"all" | "significant">("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -318,16 +321,68 @@ const InsightsPage = () => {
 
   const socialMediaRows = useMemo(() => {
     const rows = socialMediaMeta?.rows ?? [];
-    const filtered = socialViewMode === "significant" ? rows.filter((r) => r.significant) : rows;
-    return [...filtered].sort((a, b) => b.irr - a.irr);
-  }, [socialMediaMeta, socialViewMode]);
+    let filtered = socialViewMode === "significant" ? rows.filter((r) => r.significant) : rows;
+
+    if (socialDirectionFilter === "boosting") {
+      filtered = filtered.filter((r) => r.irr >= 1);
+    } else if (socialDirectionFilter === "reducing") {
+      filtered = filtered.filter((r) => r.irr < 1);
+    }
+
+    return [...filtered].sort((a, b) => {
+      const aDistance = Math.abs(a.irr - 1);
+      const bDistance = Math.abs(b.irr - 1);
+      if (bDistance !== aDistance) return bDistance - aDistance;
+      return b.irr - a.irr;
+    });
+  }, [socialMediaMeta, socialViewMode, socialDirectionFilter]);
+
+  const socialSignificantCount = useMemo(
+    () => (socialMediaMeta?.rows ?? []).filter((r) => r.significant).length,
+    [socialMediaMeta]
+  );
+
+  const socialBoostingCount = useMemo(
+    () => (socialMediaMeta?.rows ?? []).filter((r) => r.irr >= 1).length,
+    [socialMediaMeta]
+  );
+
+  const socialReducingCount = useMemo(
+    () => (socialMediaMeta?.rows ?? []).filter((r) => r.irr < 1).length,
+    [socialMediaMeta]
+  );
 
   const reintegrationRows = useMemo(() => {
     const rows = reintegrationMeta?.rows ?? [];
-    return [...rows].sort(
+    let filtered = [...rows];
+
+    if (reintegrationDirectionFilter !== "all") {
+      filtered = filtered.filter((r) => r.direction === reintegrationDirectionFilter);
+    }
+
+    if (reintegrationSignificanceFilter === "significant") {
+      filtered = filtered.filter((r) => r.significant);
+    }
+
+    return filtered.sort(
       (a, b) => Math.abs(Math.log(b.oddsRatio)) - Math.abs(Math.log(a.oddsRatio))
     );
-  }, [reintegrationMeta]);
+  }, [reintegrationMeta, reintegrationDirectionFilter, reintegrationSignificanceFilter]);
+
+  const reintegrationPositiveCount = useMemo(
+    () => (reintegrationMeta?.rows ?? []).filter((r) => r.direction === "positive").length,
+    [reintegrationMeta]
+  );
+
+  const reintegrationNegativeCount = useMemo(
+    () => (reintegrationMeta?.rows ?? []).filter((r) => r.direction === "negative").length,
+    [reintegrationMeta]
+  );
+
+  const reintegrationSignificantCount = useMemo(
+    () => (reintegrationMeta?.rows ?? []).filter((r) => r.significant).length,
+    [reintegrationMeta]
+  );
 
   const insightDescription =
     donorScoreSource === "ml"
@@ -636,7 +691,7 @@ const InsightsPage = () => {
                           : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                       }`}
                     >
-                      Significant only
+                      Significant only ({socialSignificantCount})
                     </button>
                     <button
                       onClick={() => setSocialViewMode("all")}
@@ -647,6 +702,36 @@ const InsightsPage = () => {
                       }`}
                     >
                       All factors
+                    </button>
+                    <button
+                      onClick={() => setSocialDirectionFilter("all")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        socialDirectionFilter === "all"
+                          ? "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      All directions
+                    </button>
+                    <button
+                      onClick={() => setSocialDirectionFilter("boosting")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        socialDirectionFilter === "boosting"
+                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Boosting ({socialBoostingCount})
+                    </button>
+                    <button
+                      onClick={() => setSocialDirectionFilter("reducing")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        socialDirectionFilter === "reducing"
+                          ? "border border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Reducing ({socialReducingCount})
                     </button>
                   </div>
                 )}
@@ -724,15 +809,71 @@ const InsightsPage = () => {
               className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
               aria-labelledby="reintegration-heading"
             >
-              <div className="mb-4">
-                <h2 id="reintegration-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
-                  Reintegration Success Factors
-                </h2>
-                <p className="font-body text-xs text-muted-foreground">
-                  Directional associations with successful reintegration — Logistic regression
-                  {reintegrationMeta?.metrics ? ` • n=${reintegrationMeta.metrics.nObservations} residents` : ""}
-                  {reintegrationMeta?.trainedAt ? ` • Trained ${new Date(reintegrationMeta.trainedAt).toLocaleDateString()}` : ""}
-                </p>
+              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 id="reintegration-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
+                    Reintegration Success Factors
+                  </h2>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Directional associations with successful reintegration — Logistic regression
+                    {reintegrationMeta?.metrics ? ` • n=${reintegrationMeta.metrics.nObservations} residents` : ""}
+                    {reintegrationMeta?.trainedAt ? ` • Trained ${new Date(reintegrationMeta.trainedAt).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                {reintegrationMeta?.available && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setReintegrationSignificanceFilter("all")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        reintegrationSignificanceFilter === "all"
+                          ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      All factors
+                    </button>
+                    <button
+                      onClick={() => setReintegrationSignificanceFilter("significant")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        reintegrationSignificanceFilter === "significant"
+                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Significant only ({reintegrationSignificantCount})
+                    </button>
+                    <button
+                      onClick={() => setReintegrationDirectionFilter("all")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        reintegrationDirectionFilter === "all"
+                          ? "border border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      All directions
+                    </button>
+                    <button
+                      onClick={() => setReintegrationDirectionFilter("positive")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        reintegrationDirectionFilter === "positive"
+                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Positive ({reintegrationPositiveCount})
+                    </button>
+                    <button
+                      onClick={() => setReintegrationDirectionFilter("negative")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        reintegrationDirectionFilter === "negative"
+                          ? "border border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Negative ({reintegrationNegativeCount})
+                    </button>
+                  </div>
+                )}
               </div>
 
               {!reintegrationMeta?.available ? (
@@ -750,7 +891,7 @@ const InsightsPage = () => {
                     <table className="w-full min-w-[560px] text-left">
                       <thead className={dashboardTableHeadRowClass}>
                         <tr>
-                          {["Factor", "Direction", "Relative strength"].map((h) => (
+                          {["Factor", "Direction", "Significance", "Relative strength"].map((h) => (
                             <th key={h} className={dashboardTableHeadCellClass}>{h}</th>
                           ))}
                         </tr>
@@ -777,6 +918,17 @@ const InsightsPage = () => {
                                 </span>
                               </td>
                               <td className={dashboardTableCellClass}>
+                                {row.significant ? (
+                                  <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                    Significant
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                    Not significant
+                                  </span>
+                                )}
+                              </td>
+                              <td className={dashboardTableCellClass}>
                                 <div className="flex items-center gap-2">
                                   <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
                                     <div
@@ -792,7 +944,7 @@ const InsightsPage = () => {
                         })}
                         {!reintegrationRows.length && (
                           <tr>
-                            <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={3}>
+                            <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={4}>
                               No reintegration factors available.
                             </td>
                           </tr>
