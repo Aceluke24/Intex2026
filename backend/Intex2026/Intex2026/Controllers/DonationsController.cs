@@ -81,16 +81,41 @@ public class DonationsController : ControllerBase
         [FromQuery] string? donationType,
         [FromQuery] string? campaignName,
         [FromQuery] int? supporterId,
+        [FromQuery] string? search,
+        [FromQuery] DateOnly? dateFrom,
+        [FromQuery] DateOnly? dateTo,
+        [FromQuery] decimal? minAmount,
+        [FromQuery] decimal? maxAmount,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 25;
+        pageSize = Math.Min(pageSize, 100);
+
         var query = _db.Donations
             .AsNoTracking()
+            .Include(d => d.Supporter)
             .Include(d => d.DonationTypeRef)
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(donationType)) query = query.Where(d => d.DonationType == donationType);
         if (!string.IsNullOrWhiteSpace(campaignName)) query = query.Where(d => d.CampaignName == campaignName);
         if (supporterId.HasValue) query = query.Where(d => d.SupporterId == supporterId.Value);
+        if (dateFrom.HasValue) query = query.Where(d => d.DonationDate >= dateFrom.Value);
+        if (dateTo.HasValue) query = query.Where(d => d.DonationDate <= dateTo.Value);
+        if (minAmount.HasValue) query = query.Where(d => (d.Amount ?? d.EstimatedValue ?? 0m) >= minAmount.Value);
+        if (maxAmount.HasValue) query = query.Where(d => (d.Amount ?? d.EstimatedValue ?? 0m) <= maxAmount.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var q = search.Trim().ToLower();
+            query = query.Where(d =>
+                (d.Notes != null && d.Notes.ToLower().Contains(q)) ||
+                (d.CampaignName != null && d.CampaignName.ToLower().Contains(q)) ||
+                (d.Supporter != null && (
+                    d.Supporter.DisplayName.ToLower().Contains(q) ||
+                    (d.Supporter.OrganizationName != null && d.Supporter.OrganizationName.ToLower().Contains(q))
+                )));
+        }
         var total = await query.CountAsync();
         var items = await query
             .OrderByDescending(d => d.DonationDate)
@@ -113,7 +138,9 @@ public class DonationsController : ControllerBase
                 d.CreatedByPartnerId,
                 d.ReferralPostId,
                 d.DonationTypeId,
-                donationTypeName = d.DonationTypeRef != null ? d.DonationTypeRef.Name : null
+                donationTypeName = d.DonationTypeRef != null ? d.DonationTypeRef.Name : null,
+                supporterDisplayName = d.Supporter != null ? d.Supporter.DisplayName : null,
+                supporterOrganizationName = d.Supporter != null ? d.Supporter.OrganizationName : null
             })
             .ToListAsync();
         return Ok(new { total, page, pageSize, items });

@@ -7,14 +7,28 @@ import type { SupporterKind, SupporterStatus } from "@/lib/donorsTypes";
 type ViewMode = "table" | "card";
 
 type FilterBarProps = {
+  mode: "supporters" | "contributions";
   search: string;
   onSearchChange: (v: string) => void;
-  typeFilter: SupporterKind | "All";
-  onTypeChange: (v: SupporterKind | "All") => void;
-  statusFilter: SupporterStatus | "All";
-  onStatusChange: (v: SupporterStatus | "All") => void;
-  viewMode: ViewMode;
-  onViewModeChange: (v: ViewMode) => void;
+  typeFilter?: SupporterKind | "All";
+  onTypeChange?: (v: SupporterKind | "All") => void;
+  statusFilter?: SupporterStatus | "All";
+  onStatusChange?: (v: SupporterStatus | "All") => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (v: ViewMode) => void;
+  contributionTypeFilter?: string;
+  onContributionTypeChange?: (v: string) => void;
+  campaignFilter?: string;
+  onCampaignFilterChange?: (v: string) => void;
+  campaignOptions?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+  onDateFromChange?: (v: string) => void;
+  onDateToChange?: (v: string) => void;
+  minAmount?: string;
+  maxAmount?: string;
+  onMinAmountChange?: (v: string) => void;
+  onMaxAmountChange?: (v: string) => void;
 };
 
 const types: (SupporterKind | "All")[] = ["All", "Monetary", "Volunteer", "Skills", "Social"];
@@ -55,6 +69,7 @@ function Pill({
 
 /** Floating glass filter strip */
 export function FilterBar({
+  mode,
   search,
   onSearchChange,
   typeFilter,
@@ -63,7 +78,21 @@ export function FilterBar({
   onStatusChange,
   viewMode,
   onViewModeChange,
+  contributionTypeFilter,
+  onContributionTypeChange,
+  campaignFilter,
+  onCampaignFilterChange,
+  campaignOptions = [],
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
+  minAmount,
+  maxAmount,
+  onMinAmountChange,
+  onMaxAmountChange,
 }: FilterBarProps) {
+  const isSupporterMode = mode === "supporters";
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -80,35 +109,98 @@ export function FilterBar({
         <Input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search supporters…"
+          placeholder={isSupporterMode ? "Search supporters…" : "Search donor, campaign, or notes…"}
           className="h-11 rounded-2xl border border-white/40 bg-white/55 pl-10 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md placeholder:text-muted-foreground/50 focus-visible:border-[hsl(340_35%_75%)]/40 focus-visible:ring-2 focus-visible:ring-[hsl(340_35%_70%)]/25 dark:border-white/10 dark:bg-white/[0.07]"
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-        <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/50 p-1.5 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-          <span className="px-2 font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65">
-            Type
-          </span>
-          {types.map((t) => (
-            <Pill key={t} layoutId="donor-filter-type" active={typeFilter === t} onClick={() => onTypeChange(t)}>
-              {t}
-            </Pill>
-          ))}
-        </div>
+        {isSupporterMode ? (
+          <>
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/50 p-1.5 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <span className="px-2 font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65">
+                Type
+              </span>
+              {types.map((t) => (
+                <Pill key={t} layoutId="donor-filter-type" active={typeFilter === t} onClick={() => onTypeChange?.(t)}>
+                  {t}
+                </Pill>
+              ))}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/50 p-1.5 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-          <span className="px-2 font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65">
-            Status
-          </span>
-          {statuses.map((s) => (
-            <Pill key={s} layoutId="donor-filter-status" active={statusFilter === s} onClick={() => onStatusChange(s)}>
-              {s}
-            </Pill>
-          ))}
-        </div>
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/50 p-1.5 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <span className="px-2 font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65">
+                Status
+              </span>
+              {statuses.map((s) => (
+                <Pill key={s} layoutId="donor-filter-status" active={statusFilter === s} onClick={() => onStatusChange?.(s)}>
+                  {s}
+                </Pill>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/50 p-1.5 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <span className="px-2 font-body text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/65">
+                Donation type
+              </span>
+              {["All", "Monetary", "InKind", "Time", "Skills", "SocialMedia"].map((t) => (
+                <Pill
+                  key={t}
+                  layoutId="donation-filter-type"
+                  active={(contributionTypeFilter ?? "All") === t}
+                  onClick={() => onContributionTypeChange?.(t)}
+                >
+                  {t === "All" ? "All" : t}
+                </Pill>
+              ))}
+            </div>
+            <Input
+              value={dateFrom ?? ""}
+              onChange={(e) => onDateFromChange?.(e.target.value)}
+              type="date"
+              aria-label="From date"
+              className="h-11 w-[10.25rem] rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+            />
+            <Input
+              value={dateTo ?? ""}
+              onChange={(e) => onDateToChange?.(e.target.value)}
+              type="date"
+              aria-label="To date"
+              className="h-11 w-[10.25rem] rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+            />
+            <Input
+              value={campaignFilter ?? ""}
+              onChange={(e) => onCampaignFilterChange?.(e.target.value)}
+              placeholder="Campaign"
+              list="donors-campaign-options"
+              className="h-11 w-[11rem] rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+            />
+            <datalist id="donors-campaign-options">
+              {campaignOptions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <Input
+              value={minAmount ?? ""}
+              onChange={(e) => onMinAmountChange?.(e.target.value)}
+              placeholder="Min $"
+              inputMode="decimal"
+              className="h-11 w-[6.5rem] rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+            />
+            <Input
+              value={maxAmount ?? ""}
+              onChange={(e) => onMaxAmountChange?.(e.target.value)}
+              placeholder="Max $"
+              inputMode="decimal"
+              className="h-11 w-[6.5rem] rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
+            />
+          </>
+        )}
 
-        <div className="ml-auto flex rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+        {isSupporterMode && viewMode && onViewModeChange ? (
+          <div className="ml-auto flex rounded-2xl border border-white/35 bg-[hsl(36_30%_98%)]/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
           <motion.button
             type="button"
             aria-label="Table view"
@@ -137,7 +229,8 @@ export function FilterBar({
           >
             <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
           </motion.button>
-        </div>
+          </div>
+        ) : null}
       </div>
     </motion.div>
   );

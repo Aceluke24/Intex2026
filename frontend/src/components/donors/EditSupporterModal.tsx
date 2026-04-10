@@ -1,15 +1,19 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import type { Supporter } from "@/lib/donorsTypes";
 import { formatDateSafe } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SupporterForm } from "./SupporterForm";
+import {
+  toEditPayload,
+  type SupporterFormErrors,
+  type SupporterFormValues,
+  validateSupporterForm,
+} from "./supporterFormModel";
 
 export type EditSupporterModalProps = {
   open: boolean;
@@ -21,45 +25,7 @@ export type EditSupporterModalProps = {
   onRequestDelete?: (supporter: Supporter) => void;
 };
 
-const SUPPORTER_TYPES = [
-  "MonetaryDonor",
-  "InKindDonor",
-  "Volunteer",
-  "SkillsContributor",
-  "SocialMediaAdvocate",
-  "PartnerOrganization",
-] as const;
-
-const RELATIONSHIP_TYPES = ["Local", "International", "PartnerOrganization"] as const;
-
-const ACQUISITION_CHANNELS = [
-  "Website",
-  "SocialMedia",
-  "Event",
-  "WordOfMouth",
-  "PartnerReferral",
-  "Church",
-] as const;
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 type Phase = "edit" | "confirm";
-
-type FormState = {
-  displayName: string;
-  firstName: string;
-  lastName: string;
-  organizationName: string;
-  email: string;
-  phone: string;
-  region: string;
-  country: string;
-  relationshipType: string;
-  supporterType: string;
-  status: string;
-  firstDonationDate: string;
-  acquisitionChannel: string;
-};
 
 function emptyToNull(s: string): string | null {
   const t = s.trim();
@@ -83,101 +49,48 @@ function pickId(r: Record<string, unknown>): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function recordToForm(r: Record<string, unknown>): FormState {
-  const fd = pickStr(r, "firstDonationDate", "FirstDonationDate");
-  const fdNorm = fd.length >= 10 ? fd.slice(0, 10) : fd;
+function recordToForm(r: Record<string, unknown>): SupporterFormValues {
   return {
-    displayName: pickStr(r, "displayName", "DisplayName"),
-    firstName: pickStr(r, "firstName", "FirstName"),
-    lastName: pickStr(r, "lastName", "LastName"),
-    organizationName: pickStr(r, "organizationName", "OrganizationName"),
+    display_name: pickStr(r, "displayName", "DisplayName"),
+    first_name: pickStr(r, "firstName", "FirstName"),
+    last_name: pickStr(r, "lastName", "LastName"),
+    organization_name: pickStr(r, "organizationName", "OrganizationName"),
     email: pickStr(r, "email", "Email"),
     phone: pickStr(r, "phone", "Phone"),
     region: pickStr(r, "region", "Region"),
     country: pickStr(r, "country", "Country"),
-    relationshipType: pickStr(r, "relationshipType", "RelationshipType") || "Local",
-    supporterType: pickStr(r, "supporterType", "SupporterType") || "MonetaryDonor",
+    relationship_type: pickStr(r, "relationshipType", "RelationshipType") || "Local",
+    supporter_type: pickStr(r, "supporterType", "SupporterType") || "MonetaryDonor",
     status: pickStr(r, "status", "Status") === "Inactive" ? "Inactive" : "Active",
-    firstDonationDate: fdNorm,
-    acquisitionChannel: pickStr(r, "acquisitionChannel", "AcquisitionChannel"),
+    acquisition_channel: pickStr(r, "acquisitionChannel", "AcquisitionChannel"),
   };
 }
 
-function normalizeFormForCompare(f: FormState): Record<string, string | null> {
+function normalizeFormForCompare(f: SupporterFormValues): Record<string, string | null> {
   return {
-    displayName: f.displayName.trim(),
-    firstName: emptyToNull(f.firstName) ?? "",
-    lastName: emptyToNull(f.lastName) ?? "",
-    organizationName: emptyToNull(f.organizationName) ?? "",
+    display_name: f.display_name.trim(),
+    first_name: emptyToNull(f.first_name) ?? "",
+    last_name: emptyToNull(f.last_name) ?? "",
+    organization_name: emptyToNull(f.organization_name) ?? "",
     email: f.email.trim().toLowerCase(),
     phone: (f.phone ?? "").trim(),
     region: emptyToNull(f.region) ?? "",
     country: emptyToNull(f.country) ?? "",
-    relationshipType: f.relationshipType,
-    supporterType: f.supporterType,
+    relationship_type: f.relationship_type,
+    supporter_type: f.supporter_type,
     status: f.status,
-    firstDonationDate: f.firstDonationDate.trim(),
-    acquisitionChannel: emptyToNull(f.acquisitionChannel) ?? "",
+    acquisition_channel: emptyToNull(f.acquisition_channel) ?? "",
   };
 }
 
-function buildPutBody(baseline: Record<string, unknown>, form: FormState): Record<string, unknown> {
+function buildPutBody(baseline: Record<string, unknown>, form: SupporterFormValues): Record<string, unknown> {
   const id = pickId(baseline);
   const createdAt = baseline.createdAt ?? baseline.CreatedAt;
   return {
     supporterId: id,
-    supporterType: form.supporterType,
-    displayName: form.displayName.trim(),
-    organizationName: emptyToNull(form.organizationName),
-    firstName: emptyToNull(form.firstName),
-    lastName: emptyToNull(form.lastName),
-    relationshipType: form.relationshipType,
-    region: emptyToNull(form.region),
-    country: emptyToNull(form.country),
-    email: form.email.trim() ? form.email.trim().toLowerCase() : null,
-    phone: emptyToNull(form.phone),
-    status: form.status,
-    firstDonationDate: form.firstDonationDate.trim() || null,
-    acquisitionChannel: emptyToNull(form.acquisitionChannel),
+    ...toEditPayload(form),
     createdAt,
   };
-}
-
-function formatPhoneBlur(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-  return raw.trim();
-}
-
-const labelClass =
-  "font-body text-xs font-medium text-gray-700 dark:text-gray-300 leading-none";
-
-const inputClass = cn(
-  "h-11 rounded-2xl border px-3.5 font-body text-sm shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]",
-  "bg-white border-gray-300/90 text-gray-900 placeholder:text-gray-400",
-  "dark:bg-white/[0.06] dark:border-white/[0.10] dark:text-gray-100 dark:placeholder:text-gray-500 dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]",
-  "transition-[box-shadow,border-color,background-color] duration-200 ease-out",
-  "focus-visible:border-primary-500 focus-visible:ring-4 focus-visible:ring-primary-500/20 focus-visible:outline-none",
-  "disabled:opacity-60 disabled:cursor-not-allowed",
-);
-
-const selectTriggerClass = cn(
-  "h-11 w-full rounded-2xl border px-3.5 font-body text-sm shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)]",
-  "bg-white border-gray-300/90 text-gray-900",
-  "dark:bg-white/[0.06] dark:border-white/[0.10] dark:text-gray-100 dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]",
-  "transition-[box-shadow,border-color,background-color] duration-200 ease-out",
-  "focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 focus:ring-offset-0 focus:outline-none",
-  "disabled:opacity-60 disabled:cursor-not-allowed",
-);
-
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <p className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-800 dark:text-gray-200">
-      {children}
-    </p>
-  );
 }
 
 export const EditSupporterModal = memo(function EditSupporterModal({
@@ -191,9 +104,9 @@ export const EditSupporterModal = memo(function EditSupporterModal({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<FormState | null>(null);
-  const [initialForm, setInitialForm] = useState<FormState | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [form, setForm] = useState<SupporterFormValues | null>(null);
+  const [initialForm, setInitialForm] = useState<SupporterFormValues | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<SupporterFormErrors>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -205,7 +118,7 @@ export const EditSupporterModal = memo(function EditSupporterModal({
     setForm(null);
     setInitialForm(null);
     setFetchError(null);
-    setEmailError(null);
+    setFieldErrors({});
     setSaveError(null);
     setLoadingDetail(false);
     shouldAutoFocusRef.current = false;
@@ -267,10 +180,10 @@ export const EditSupporterModal = memo(function EditSupporterModal({
     return JSON.stringify(normalizeFormForCompare(form)) !== JSON.stringify(normalizeFormForCompare(initialForm));
   }, [form, initialForm]);
 
-  const emailValid = !form || !form.email.trim() || EMAIL_RE.test(form.email.trim());
+  const validNow = !form || validateSupporterForm(form).ok;
 
-  const canProceedToConfirm = Boolean(form && dirty && emailValid);
-  const canConfirmSave = Boolean(form && baseline && dirty && emailValid && !saving && !loadingDetail);
+  const canProceedToConfirm = Boolean(form && dirty && validNow);
+  const canConfirmSave = Boolean(form && baseline && dirty && validNow && !saving && !loadingDetail);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -281,19 +194,18 @@ export const EditSupporterModal = memo(function EditSupporterModal({
     [saving, onOpenChange, resetForClose],
   );
 
-  const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+  const updateField = <K extends keyof SupporterFormValues>(key: K, value: SupporterFormValues[K]) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-    if (key === "email") setEmailError(null);
+    setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
     setSaveError(null);
   };
 
   const validateForSave = (): boolean => {
     if (!form) return false;
-    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) {
-      setEmailError("Enter a valid email address.");
-      return false;
-    }
-    setEmailError(null);
+    const validated = validateSupporterForm(form);
+    setFieldErrors(validated.errors);
+    if (!validated.ok) return false;
+    setForm(validated.values);
     return true;
   };
 
@@ -391,238 +303,15 @@ export const EditSupporterModal = memo(function EditSupporterModal({
                     {fetchError}
                   </p>
                 ) : form ? (
-                  <div className="space-y-10">
-                    <section className="space-y-4 pt-1">
-                      <SectionTitle>Basic info</SectionTitle>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="es-first" className={labelClass}>
-                            First name
-                          </Label>
-                          <Input
-                            ref={firstFieldRef}
-                            id="es-first"
-                            value={form.firstName}
-                            onChange={(e) => updateField("firstName", e.target.value)}
-                            disabled={saving}
-                            autoComplete="given-name"
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="es-last" className={labelClass}>
-                            Last name
-                          </Label>
-                          <Input
-                            id="es-last"
-                            value={form.lastName}
-                            onChange={(e) => updateField("lastName", e.target.value)}
-                            disabled={saving}
-                            autoComplete="family-name"
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="es-display" className={labelClass}>
-                          Display name
-                        </Label>
-                        <Input
-                          id="es-display"
-                          value={form.displayName}
-                          onChange={(e) => updateField("displayName", e.target.value)}
-                          disabled={saving}
-                          autoComplete="organization"
-                          className={cn(inputClass)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="es-org" className={labelClass}>
-                          Organization name
-                        </Label>
-                        <Input
-                          id="es-org"
-                          value={form.organizationName}
-                          onChange={(e) => updateField("organizationName", e.target.value)}
-                          disabled={saving}
-                          className={cn(inputClass)}
-                        />
-                      </div>
-                    </section>
-
-                    <section className="space-y-4">
-                      <SectionTitle>Contact</SectionTitle>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="es-email" className={labelClass}>
-                            Email
-                          </Label>
-                          <Input
-                            id="es-email"
-                            type="email"
-                            value={form.email}
-                            onChange={(e) => updateField("email", e.target.value)}
-                            onBlur={(e) => {
-                              const v = e.target.value.trim();
-                              if (v && !EMAIL_RE.test(v)) {
-                                setEmailError("Enter a valid email address.");
-                              }
-                            }}
-                            disabled={saving}
-                            autoComplete="email"
-                            className={cn(inputClass, (emailError || !emailValid) && "border-destructive/50 focus-visible:ring-destructive/25")}
-                            aria-invalid={emailError ? true : undefined}
-                            aria-describedby={emailError ? "es-email-err" : undefined}
-                          />
-                          {emailError ? (
-                            <p id="es-email-err" className="font-body text-sm text-destructive">
-                              {emailError}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="es-phone" className={labelClass}>
-                            Phone
-                          </Label>
-                          <Input
-                            id="es-phone"
-                            type="tel"
-                            value={form.phone}
-                            onChange={(e) => updateField("phone", e.target.value)}
-                            onBlur={(e) => updateField("phone", formatPhoneBlur(e.target.value))}
-                            disabled={saving}
-                            autoComplete="tel"
-                            placeholder="Optional"
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="space-y-4">
-                      <SectionTitle>Location</SectionTitle>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="es-region" className={labelClass}>
-                            Region
-                          </Label>
-                          <Input
-                            id="es-region"
-                            value={form.region}
-                            onChange={(e) => updateField("region", e.target.value)}
-                            disabled={saving}
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="es-country" className={labelClass}>
-                            Country
-                          </Label>
-                          <Input
-                            id="es-country"
-                            value={form.country}
-                            onChange={(e) => updateField("country", e.target.value)}
-                            disabled={saving}
-                            autoComplete="country-name"
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="space-y-4">
-                      <SectionTitle>Additional</SectionTitle>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label className={labelClass}>Relationship</Label>
-                          <Select
-                            value={form.relationshipType}
-                            onValueChange={(v) => updateField("relationshipType", v)}
-                            disabled={saving}
-                          >
-                            <SelectTrigger className={selectTriggerClass}>
-                              <SelectValue placeholder="Relationship" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {RELATIONSHIP_TYPES.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                  {t === "PartnerOrganization" ? "Partner organization" : t}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className={labelClass}>Supporter type</Label>
-                          <Select
-                            value={form.supporterType}
-                            onValueChange={(v) => updateField("supporterType", v)}
-                            disabled={saving}
-                          >
-                            <SelectTrigger className={selectTriggerClass}>
-                              <SelectValue placeholder="Type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SUPPORTER_TYPES.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                  {t.replace(/([A-Z])/g, " $1").trim()}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="es-first-donation" className={labelClass}>
-                            First donation date
-                          </Label>
-                          <Input
-                            id="es-first-donation"
-                            type="date"
-                            value={form.firstDonationDate}
-                            onChange={(e) => updateField("firstDonationDate", e.target.value)}
-                            disabled={saving}
-                            className={cn(inputClass)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className={labelClass}>Acquisition channel</Label>
-                          <Select
-                            value={form.acquisitionChannel || "__none__"}
-                            onValueChange={(v) => updateField("acquisitionChannel", v === "__none__" ? "" : v)}
-                            disabled={saving}
-                          >
-                            <SelectTrigger className={selectTriggerClass}>
-                              <SelectValue placeholder="Optional" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">—</SelectItem>
-                              {ACQUISITION_CHANNELS.map((c) => (
-                                <SelectItem key={c} value={c}>
-                                  {c.replace(/([A-Z])/g, " $1").trim()}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label className={labelClass}>Status</Label>
-                          <Select value={form.status} onValueChange={(v) => updateField("status", v)} disabled={saving}>
-                            <SelectTrigger className={selectTriggerClass}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Active">Active</SelectItem>
-                              <SelectItem value="Inactive">Inactive</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
+                  <SupporterForm
+                    mode="edit"
+                    values={form}
+                    errors={fieldErrors}
+                    disabled={saving}
+                    onChange={updateField}
+                    firstFieldRef={firstFieldRef}
+                    idPrefix="edit-supporter"
+                  />
                 ) : null}
               </div>
 

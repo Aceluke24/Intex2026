@@ -16,8 +16,12 @@ import {
   SupporterRow,
 } from "@/components/donors";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RecordCrudActions } from "@/components/ui/RecordCrudActions";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import type {
@@ -34,7 +38,7 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const DIRECTORY_PAGE_SIZES = [10, 25, 50] as const;
 
@@ -129,7 +133,21 @@ function donorInitials(name: string | undefined) {
 }
 
 const CONTRIBUTION_TIMELINE_MAX = 10;
-const DONORS_TAB_STORAGE_KEY = "dashboard.donorsContributionsTab";
+
+type DonorView = "supporters" | "contributions";
+type ContributionRecord = {
+  donationId: number;
+  supporterId: number | null;
+  donationType: string;
+  donationDate: string;
+  amount: number | null;
+  estimatedValue: number | null;
+  isRecurring: boolean;
+  campaignName: string | null;
+  notes: string | null;
+  supporterDisplayName: string | null;
+  supporterOrganizationName: string | null;
+};
 
 function feedEntryTimestampMs(entry: FeedEntry): number {
   const raw = entry.createdAt ?? entry.at;
@@ -140,7 +158,7 @@ function feedEntryTimestampMs(entry: FeedEntry): number {
 const DonorsPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [view, setView] = useState<DonorView>("supporters");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -203,9 +221,31 @@ const DonorsPage = () => {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<SupporterKind | "All">("All");
   const [statusFilter, setStatusFilter] = useState<SupporterStatus | "All">("All");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [supporterPage, setSupporterPage] = useState(1);
+  const [supporterPageSize, setSupporterPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  const [contributions, setContributions] = useState<ContributionRecord[]>([]);
+  const [contributionsTotal, setContributionsTotal] = useState(0);
+  const [contributionsLoading, setContributionsLoading] = useState(false);
+  const [contributionPage, setContributionPage] = useState(1);
+  const [contributionPageSize, setContributionPageSize] = useState(10);
+  const [contributionTypeFilter, setContributionTypeFilter] = useState("All");
+  const [campaignFilter, setCampaignFilter] = useState("");
+  const [campaignOptions, setCampaignOptions] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [viewContributionTarget, setViewContributionTarget] = useState<ContributionRecord | null>(null);
+  const [editContributionTarget, setEditContributionTarget] = useState<ContributionRecord | null>(null);
+  const [deleteContributionTarget, setDeleteContributionTarget] = useState<ContributionRecord | null>(null);
+  const [editContributionSaving, setEditContributionSaving] = useState(false);
+  const [editContributionCampaign, setEditContributionCampaign] = useState("");
+  const [editContributionAmount, setEditContributionAmount] = useState("");
+  const [editContributionDate, setEditContributionDate] = useState("");
+  const [editContributionNotes, setEditContributionNotes] = useState("");
+  const [editContributionType, setEditContributionType] = useState("Monetary");
+  const [editContributionRecurring, setEditContributionRecurring] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -215,32 +255,81 @@ const DonorsPage = () => {
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
-  const queryTab = searchParams.get("tab");
-  const activeTab = useMemo<"donors" | "contributions">(() => {
-    if (location.pathname === "/dashboard/contributions") return "contributions";
-    if (queryTab === "contributions") return "contributions";
-    if (queryTab === "donors") return "donors";
-    return "donors";
-  }, [location.pathname, queryTab]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(DONORS_TAB_STORAGE_KEY, activeTab);
-    } catch {
-      // ignore storage errors
-    }
-  }, [activeTab]);
+    setView(location.pathname === "/dashboard/contributions" ? "contributions" : "supporters");
+  }, [location.pathname]);
 
-  const handleTabChange = useCallback(
-    (tab: string) => {
-      if (tab === "contributions") {
-        navigate("/dashboard/contributions");
-        return;
-      }
-      navigate("/dashboard/donors");
+  const handleViewChange = useCallback(
+    (next: DonorView) => {
+      setView(next);
+      navigate(next === "contributions" ? "/dashboard/contributions" : "/dashboard/donors");
     },
     [navigate],
   );
+
+  const loadContributions = useCallback(async () => {
+    setContributionsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(contributionPage));
+      params.set("pageSize", String(contributionPageSize));
+      if (contributionTypeFilter !== "All") params.set("donationType", contributionTypeFilter);
+      if (campaignFilter.trim()) params.set("campaignName", campaignFilter.trim());
+      if (search.trim()) params.set("search", search.trim());
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      if (minAmount.trim()) params.set("minAmount", minAmount.trim());
+      if (maxAmount.trim()) params.set("maxAmount", maxAmount.trim());
+      const data = await apiFetchJson<{ total: number; items: ContributionRecord[] }>(`${API_PREFIX}/donations?${params.toString()}`);
+      const normalized = Array.isArray(data.items) ? data.items : [];
+      setContributions(normalized);
+      setContributionsTotal(Number(data.total) || 0);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load contributions.");
+      setContributions([]);
+      setContributionsTotal(0);
+    } finally {
+      setContributionsLoading(false);
+    }
+  }, [
+    contributionPage,
+    contributionPageSize,
+    contributionTypeFilter,
+    campaignFilter,
+    search,
+    dateFrom,
+    dateTo,
+    minAmount,
+    maxAmount,
+  ]);
+
+  useEffect(() => {
+    if (view !== "contributions") return;
+    void loadContributions();
+  }, [view, loadContributions]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const campaigns = await apiFetchJson<string[]>(`/api/campaigns`);
+        setCampaignOptions(Array.isArray(campaigns) ? campaigns : []);
+      } catch {
+        setCampaignOptions([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!editContributionTarget) return;
+    setEditContributionCampaign(editContributionTarget.campaignName ?? "");
+    setEditContributionAmount(String(editContributionTarget.amount ?? editContributionTarget.estimatedValue ?? 0));
+    setEditContributionDate(editContributionTarget.donationDate ?? "");
+    setEditContributionNotes(editContributionTarget.notes ?? "");
+    setEditContributionType(editContributionTarget.donationType || "Monetary");
+    setEditContributionRecurring(Boolean(editContributionTarget.isRecurring));
+  }, [editContributionTarget]);
 
   /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
   const contributionTimelineFeed = useMemo(() => {
@@ -289,17 +378,17 @@ const DonorsPage = () => {
     });
   }, [supporters, search, typeFilter, statusFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / supporterPageSize));
+  const safePage = Math.min(supporterPage, pageCount);
 
   const paginatedFiltered = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, safePage, pageSize]);
+    const start = (safePage - 1) * supporterPageSize;
+    return filtered.slice(start, start + supporterPageSize);
+  }, [filtered, safePage, supporterPageSize]);
 
   useEffect(() => {
-    setPage(1);
-  }, [search, typeFilter, statusFilter, pageSize]);
+    setSupporterPage(1);
+  }, [search, typeFilter, statusFilter, supporterPageSize]);
 
   const pageItems = useMemo(() => visiblePageNumbers(safePage, pageCount), [safePage, pageCount]);
 
@@ -404,40 +493,103 @@ const DonorsPage = () => {
     [load, addOpen],
   );
 
+  const contributionDeleteDetailLines = useMemo(() => {
+    if (!deleteContributionTarget) return undefined;
+    return [
+      { label: "Donation ID", value: String(deleteContributionTarget.donationId) },
+      { label: "Donor", value: deleteContributionTarget.supporterDisplayName || deleteContributionTarget.supporterOrganizationName || "Unknown donor" },
+    ];
+  }, [deleteContributionTarget]);
+
+  const confirmDeleteContribution = async (): Promise<boolean> => {
+    if (!deleteContributionTarget) return false;
+    try {
+      const res = await apiFetch(`${API_PREFIX}/donations/${deleteContributionTarget.donationId}?confirm=true`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Contribution deleted.");
+      await loadContributions();
+      return true;
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete contribution.");
+      return false;
+    }
+  };
+
+  const saveContributionEdit = async () => {
+    if (!editContributionTarget) return;
+    setEditContributionSaving(true);
+    try {
+      const donation = await apiFetchJson<Record<string, unknown>>(`${API_PREFIX}/donations/${editContributionTarget.donationId}`);
+      const amountValue = Number.parseFloat(editContributionAmount);
+      const body = {
+        ...donation,
+        donationId: editContributionTarget.donationId,
+        donationType: editContributionType,
+        campaignName: editContributionCampaign.trim() || null,
+        notes: editContributionNotes.trim() || null,
+        donationDate: editContributionDate,
+        amount: Number.isFinite(amountValue) ? amountValue : null,
+        estimatedValue: Number.isFinite(amountValue) ? amountValue : null,
+        isRecurring: editContributionRecurring,
+      };
+      const res = await apiFetch(`${API_PREFIX}/donations/${editContributionTarget.donationId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Contribution updated.");
+      setEditContributionTarget(null);
+      await loadContributions();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update contribution.");
+    } finally {
+      setEditContributionSaving(false);
+    }
+  };
+
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         title="Donors & Contributions"
         description="Manage supporters and track impact across programs."
         actions={
-          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
-            <Button
-              type="button"
-              onClick={handleAddSupporter}
-              className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-            >
-              <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-              <span className="relative z-[1] flex items-center">
-                <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                Add supporter
-              </span>
-            </Button>
-          </motion.div>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-2xl border border-white/35 bg-white/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "supporters" && "bg-white shadow-sm dark:bg-white/15")}
+                onClick={() => handleViewChange("supporters")}
+              >
+                Supporters
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "contributions" && "bg-white shadow-sm dark:bg-white/15")}
+                onClick={() => handleViewChange("contributions")}
+              >
+                Contributions
+              </Button>
+            </div>
+            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
+              <Button
+                type="button"
+                onClick={() => (view === "supporters" ? handleAddSupporter() : setAddOpen(true))}
+                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+              >
+                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                <span className="relative z-[1] flex items-center">
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                  {view === "supporters" ? "Add supporter" : "Log contribution"}
+                </span>
+              </Button>
+            </motion.div>
+          </div>
         }
       >
-        <div className="mb-8">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="h-11 rounded-xl bg-white/60 p-1 dark:bg-white/[0.08]">
-              <TabsTrigger value="donors" className="rounded-lg px-4 font-body">
-                Donors
-              </TabsTrigger>
-              <TabsTrigger value="contributions" className="rounded-lg px-4 font-body">
-                Contributions
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
         {loadError ? (
           <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
             {loadError}
@@ -580,40 +732,23 @@ const DonorsPage = () => {
             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-                  Community
+                  {view === "supporters" ? "Community" : "Records"}
                 </p>
                 <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
-                  Supporter directory
+                  {view === "supporters" ? "Supporter directory" : "Contribution history"}
                 </h2>
                 <p className="mt-2 font-body text-sm text-muted-foreground">
-                  {filtered.length} {filtered.length === 1 ? "person" : "people"} match your filters
+                  {view === "supporters"
+                    ? `${filtered.length} ${filtered.length === 1 ? "person" : "people"} match your filters`
+                    : `${contributionsTotal.toLocaleString()} total contributions`}
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 self-start sm:self-end">
-                <Button
-                  type="button"
-                  onClick={() => setAddSupporterOpen(true)}
-                  variant="outline"
-                  className="h-12 rounded-2xl border-white/50 bg-white/40 px-5 font-body font-medium text-foreground/85 backdrop-blur-md hover:bg-white/55 dark:border-white/10 dark:bg-white/[0.07] dark:hover:bg-white/12"
-                >
-                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
-                  + Add Supporter
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setAddOpen(true)}
-                  variant="ghost"
-                  className="h-12 rounded-2xl border border-white/50 bg-white/50 px-5 font-body font-medium text-foreground/85 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.07]"
-                >
-                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
-                  Log contribution
-                </Button>
               </div>
             </div>
 
             {!loading && (
               <div className="mb-8">
                 <FilterBar
+                  mode={view}
                   search={search}
                   onSearchChange={setSearch}
                   typeFilter={typeFilter}
@@ -622,18 +757,49 @@ const DonorsPage = () => {
                   onStatusChange={setStatusFilter}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
+                  contributionTypeFilter={contributionTypeFilter}
+                  onContributionTypeChange={(v) => {
+                    setContributionTypeFilter(v);
+                    setContributionPage(1);
+                  }}
+                  campaignFilter={campaignFilter}
+                  onCampaignFilterChange={(v) => {
+                    setCampaignFilter(v);
+                    setContributionPage(1);
+                  }}
+                  campaignOptions={campaignOptions}
+                  dateFrom={dateFrom}
+                  dateTo={dateTo}
+                  onDateFromChange={(v) => {
+                    setDateFrom(v);
+                    setContributionPage(1);
+                  }}
+                  onDateToChange={(v) => {
+                    setDateTo(v);
+                    setContributionPage(1);
+                  }}
+                  minAmount={minAmount}
+                  maxAmount={maxAmount}
+                  onMinAmountChange={(v) => {
+                    setMinAmount(v);
+                    setContributionPage(1);
+                  }}
+                  onMaxAmountChange={(v) => {
+                    setMaxAmount(v);
+                    setContributionPage(1);
+                  }}
                 />
               </div>
             )}
 
             <div className="mt-6">
-              {loading ? (
+              {loading && view === "supporters" ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
                   ))}
                 </div>
-              ) : viewMode === "table" ? (
+              ) : view === "supporters" && viewMode === "table" ? (
                 <div className="space-y-4">
                   <AnimatePresence mode="popLayout">
                     {paginatedFiltered.map((s, i) => (
@@ -648,10 +814,10 @@ const DonorsPage = () => {
                     ))}
                   </AnimatePresence>
                   {filtered.length === 0 && (
-                    <p className="py-24 text-center font-body text-sm text-muted-foreground">No supporters match these filters.</p>
+                    <p className="py-24 text-center font-body text-sm text-muted-foreground">No supporters found.</p>
                   )}
                 </div>
-              ) : (
+              ) : view === "supporters" ? (
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                   {paginatedFiltered.map((s) => (
                     <SupporterCard
@@ -664,18 +830,71 @@ const DonorsPage = () => {
                   ))}
                   {filtered.length === 0 && (
                     <p className="col-span-full py-24 text-center font-body text-sm text-muted-foreground">
-                      No supporters match these filters.
+                      No supporters found.
                     </p>
                   )}
                 </div>
+              ) : contributionsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {contributions.map((c, i) => {
+                    const donorLabel = c.supporterDisplayName || c.supporterOrganizationName || "Unknown donor";
+                    const displayAmount = c.amount ?? c.estimatedValue ?? 0;
+                    return (
+                      <motion.div
+                        key={c.donationId}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.03 * i, duration: 0.35 }}
+                        className="group relative flex w-full items-center gap-0 overflow-hidden rounded-2xl bg-gradient-to-r from-white/70 via-[hsl(36_35%_99%)]/90 to-white/55 py-3.5 pl-1 pr-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_16px_rgba(45,35,48,0.04)] backdrop-blur-md transition-all duration-200 ease-out hover:scale-[1.01] hover:shadow-md dark:from-white/[0.06] dark:via-white/[0.04] dark:to-white/[0.05]"
+                      >
+                        <RecordCrudActions
+                          className="absolute right-3 top-1/2 z-10 -translate-y-1/2"
+                          onView={() => setViewContributionTarget(c)}
+                          onEdit={() => setEditContributionTarget(c)}
+                          onDelete={() => setDeleteContributionTarget(c)}
+                        />
+                        <div
+                          className="relative mr-3 w-1 shrink-0 self-stretch rounded-full bg-gradient-to-b from-[hsl(340_48%_78%)] via-[hsl(350_42%_82%)] to-[hsl(25_45%_80%)] opacity-80 shadow-[0_0_12px_rgba(200,130,150,0.35)]"
+                          aria-hidden
+                        />
+                        <div className="relative z-[1] flex min-w-0 flex-1 items-center gap-4 pr-4 sm:pr-28">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-display text-base font-semibold tracking-[-0.02em] text-foreground">{donorLabel}</p>
+                            <p className="mt-1 truncate font-body text-xs text-muted-foreground/90">{c.campaignName || "No campaign"}</p>
+                          </div>
+                          <div className="hidden w-[5.25rem] shrink-0 font-body text-xs text-muted-foreground sm:block">{c.donationType}</div>
+                          <div className="hidden w-[6rem] shrink-0 text-right font-body text-sm tabular-nums font-semibold text-foreground/95 md:block">
+                            ${displayAmount.toLocaleString()}
+                          </div>
+                          <div className="hidden w-[7rem] shrink-0 text-right font-body text-xs text-muted-foreground lg:block">
+                            {new Date(c.donationDate).toLocaleDateString()}
+                          </div>
+                          <div className="hidden w-[5rem] shrink-0 text-right font-body text-xs text-muted-foreground lg:block">
+                            {c.isRecurring ? "Recurring" : "One-time"}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {contributions.length === 0 ? (
+                    <p className="py-24 text-center font-body text-sm text-muted-foreground">No contributions recorded yet.</p>
+                  ) : null}
+                </div>
               )}
-              {!loading && filtered.length > 0 ? (
+              {!loading && view === "supporters" && filtered.length > 0 ? (
                 <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <label className="flex items-center gap-2 font-body text-xs text-muted-foreground">
                     <span className="shrink-0 font-medium">Rows per page</span>
                     <select
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      value={supporterPageSize}
+                      onChange={(e) => setSupporterPageSize(Number(e.target.value))}
                       className="h-9 rounded-xl border border-border/60 bg-white/70 px-3 py-1.5 font-body text-sm text-foreground shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:border-white/12 dark:bg-white/[0.08]"
                     >
                       {DIRECTORY_PAGE_SIZES.map((n) => (
@@ -692,7 +911,7 @@ const DonorsPage = () => {
                       size="sm"
                       className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
                       disabled={safePage <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      onClick={() => setSupporterPage((p) => Math.max(1, p - 1))}
                     >
                       <ChevronLeft className="mr-1 h-4 w-4" />
                       Previous
@@ -719,7 +938,7 @@ const DonorsPage = () => {
                                 ? "border-[hsl(340_35%_75%)]/50 bg-white text-foreground shadow-[0_4px_16px_rgba(200,130,150,0.12)] dark:border-white/20 dark:bg-white/15"
                                 : "border-white/50 bg-white/50 dark:border-white/10 dark:bg-white/[0.07]",
                             )}
-                            onClick={() => setPage(item)}
+                            onClick={() => setSupporterPage(item)}
                           >
                             {item}
                           </Button>
@@ -732,7 +951,7 @@ const DonorsPage = () => {
                       size="sm"
                       className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
                       disabled={safePage >= pageCount}
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      onClick={() => setSupporterPage((p) => Math.min(pageCount, p + 1))}
                     >
                       Next
                       <ChevronRight className="ml-1 h-4 w-4" />
@@ -740,6 +959,54 @@ const DonorsPage = () => {
                   </div>
                   <p className="font-body text-xs text-muted-foreground sm:text-right">
                     Page {safePage} of {pageCount}
+                  </p>
+                </div>
+              ) : null}
+              {view === "contributions" && contributionsTotal > 0 ? (
+                <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                  <label className="flex items-center gap-2 font-body text-xs text-muted-foreground">
+                    <span className="shrink-0 font-medium">Rows per page</span>
+                    <select
+                      value={contributionPageSize}
+                      onChange={(e) => {
+                        setContributionPageSize(Number(e.target.value));
+                        setContributionPage(1);
+                      }}
+                      className="h-9 rounded-xl border border-border/60 bg-white/70 px-3 py-1.5 font-body text-sm text-foreground shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:border-white/12 dark:bg-white/[0.08]"
+                    >
+                      {DIRECTORY_PAGE_SIZES.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                      disabled={contributionPage <= 1}
+                      onClick={() => setContributionPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                      disabled={contributionPage * contributionPageSize >= contributionsTotal}
+                      onClick={() => setContributionPage((p) => p + 1)}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground sm:text-right">
+                    Page {contributionPage} of {Math.max(1, Math.ceil(contributionsTotal / contributionPageSize))}
                   </p>
                 </div>
               ) : null}
@@ -842,6 +1109,77 @@ const DonorsPage = () => {
         title="Delete supporter?"
         detailLines={supporterDeleteDetailLines}
         onConfirm={confirmDeleteSupporter}
+      />
+
+      <Dialog open={viewContributionTarget !== null} onOpenChange={(open) => !open && setViewContributionTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Contribution details</DialogTitle>
+            <DialogDescription>Review donation record metadata and notes.</DialogDescription>
+          </DialogHeader>
+          {viewContributionTarget ? (
+            <div className="space-y-3 font-body text-sm">
+              <p><strong>Donor:</strong> {viewContributionTarget.supporterDisplayName || viewContributionTarget.supporterOrganizationName || "Unknown donor"}</p>
+              <p><strong>Type:</strong> {viewContributionTarget.donationType}</p>
+              <p><strong>Amount/Value:</strong> ${(viewContributionTarget.amount ?? viewContributionTarget.estimatedValue ?? 0).toLocaleString()}</p>
+              <p><strong>Campaign:</strong> {viewContributionTarget.campaignName || "No campaign"}</p>
+              <p><strong>Date:</strong> {new Date(viewContributionTarget.donationDate).toLocaleDateString()}</p>
+              <p><strong>Status:</strong> {viewContributionTarget.isRecurring ? "Recurring" : "One-time"}</p>
+              <p><strong>Notes:</strong> {viewContributionTarget.notes || "—"}</p>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editContributionTarget !== null} onOpenChange={(open) => !open && setEditContributionTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit contribution</DialogTitle>
+            <DialogDescription>Update the contribution using the same dashboard edit pattern.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label>Donation type</Label>
+              <Input value={editContributionType} onChange={(e) => setEditContributionType(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Amount / Estimated value</Label>
+              <Input value={editContributionAmount} onChange={(e) => setEditContributionAmount(e.target.value)} inputMode="decimal" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Campaign name</Label>
+              <Input value={editContributionCampaign} onChange={(e) => setEditContributionCampaign(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Date</Label>
+              <Input value={editContributionDate} onChange={(e) => setEditContributionDate(e.target.value)} type="date" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Notes</Label>
+              <Textarea value={editContributionNotes} onChange={(e) => setEditContributionNotes(e.target.value)} rows={3} />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={editContributionRecurring} onChange={(e) => setEditContributionRecurring(e.target.checked)} />
+              Recurring contribution
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setEditContributionTarget(null)}>Cancel</Button>
+              <Button onClick={() => void saveContributionEdit()} disabled={editContributionSaving}>
+                {editContributionSaving ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteModal
+        open={deleteContributionTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteContributionTarget(null);
+        }}
+        title="Delete contribution?"
+        detailLines={contributionDeleteDetailLines}
+        onConfirm={confirmDeleteContribution}
       />
     </AdminLayout>
   );
