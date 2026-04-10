@@ -15,6 +15,8 @@ type ImpactSummary = {
   completionRate: number | null;
   reintegrationRate: number | null;
   safehouses: number | null;
+  /** Distinct non-null campaign names on donations in the last 60 days */
+  activeCampaignsCount: number | null;
 };
 
 type ProgramOutcomes = {
@@ -208,6 +210,7 @@ const defaultBundle: PublicImpactBundle = {
     completionRate: null,
     reintegrationRate: null,
     safehouses: null,
+    activeCampaignsCount: null,
   },
   outcomes: {
     safeHousing: null,
@@ -258,6 +261,7 @@ export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
     const survivors = readNum(summaryJson, "survivors", "Survivors");
     const totalDonations = readNum(summaryJson, "totalDonations", "TotalDonations");
     const activePrograms = readNum(summaryJson, "activePrograms", "ActivePrograms");
+    const activeCampaignsCount = readNum(summaryJson, "activeCampaignsCount", "ActiveCampaignsCount");
     const completionRate = readNum(summaryJson, "completionRate", "CompletionRate");
     const reintegrationRate = readNum(summaryJson, "reintegrationRate", "ReintegrationRate");
     const safehouses = readNum(summaryJson, "safehouses", "Safehouses");
@@ -277,6 +281,7 @@ export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
         survivors,
         totalDonations,
         activePrograms,
+        activeCampaignsCount,
         completionRate,
         reintegrationRate,
         safehouses,

@@ -35,11 +35,8 @@ const ImpactDashboard = () => {
         : data?.summary.totalDonations != null
           ? Number(data.summary.totalDonations)
           : null;
-    const campaignsFunded = validCampaigns.filter(
-      (c) => Number(c.goal) > 0 && Number(c.raised) >= Number(c.goal),
-    ).length;
     const livesImpacted = data?.summary.survivors ?? homeStats?.totalResidents ?? null;
-    return { totalRaised, campaignsFunded, livesImpacted };
+    return { totalRaised, livesImpacted };
   }, [validCampaigns, data, homeStats]);
 
   useEffect(() => {
@@ -116,31 +113,37 @@ const ImpactDashboard = () => {
           </header>
 
           <div className="flex flex-col gap-8 border-t border-navy-foreground/15 pt-10 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-12 sm:gap-y-6">
-            {[
-              {
-                label: "Total raised",
-                value: formatUsdCompact(headlineStats.totalRaised),
-              },
-              {
-                label: "Campaigns funded",
-                value:
-                  validCampaigns.length === 0 && headlineStats.campaignsFunded === 0
-                    ? "—"
-                    : String(headlineStats.campaignsFunded),
-              },
-              {
-                label: "Lives impacted",
-                value:
-                  headlineStats.livesImpacted != null
-                    ? headlineStats.livesImpacted.toLocaleString("en-US")
-                    : "—",
-              },
-            ].map((item, i) => (
+            {(
+              [
+                {
+                  label: "Total raised",
+                  value: formatUsdCompact(headlineStats.totalRaised),
+                },
+                {
+                  label: "Active campaigns",
+                  value:
+                    data?.summary.activeCampaignsCount != null
+                      ? String(data.summary.activeCampaignsCount)
+                      : "—",
+                  title: "Campaigns receiving donations in the last 60 days",
+                },
+                {
+                  label: "Lives impacted",
+                  value:
+                    headlineStats.livesImpacted != null
+                      ? headlineStats.livesImpacted.toLocaleString("en-US")
+                      : "—",
+                },
+              ] as const
+            ).map((item, i) => (
               <div
                 key={item.label}
                 className={`min-w-[10rem] flex-1 sm:flex-initial ${i > 0 ? "sm:border-l sm:border-navy-foreground/15 sm:pl-12" : ""}`}
               >
-                <p className="font-body text-[11px] font-medium uppercase tracking-[0.2em] text-navy-foreground/55">
+                <p
+                  className="font-body text-[11px] font-medium uppercase tracking-[0.2em] text-navy-foreground/55"
+                  title={item.title}
+                >
                   {item.label}
                 </p>
                 <p className="mt-2 font-display text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">

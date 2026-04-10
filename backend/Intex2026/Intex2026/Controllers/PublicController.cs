@@ -178,12 +178,21 @@ public partial class PublicController : ControllerBase
 
             var completionRate = totalEdu == 0 ? 0 : (int)(completed * 100.0 / totalEdu);
 
+            var activeCampaignsCutoff = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-60));
+            var activeCampaignsCount = await _db.Donations
+                .AsNoTracking()
+                .Where(d => d.CampaignName != null && d.DonationDate >= activeCampaignsCutoff)
+                .Select(d => d.CampaignName!)
+                .Distinct()
+                .CountAsync();
+
             return Ok(new
             {
                 survivors,
                 totalDonations,
                 activePrograms,
-                completionRate
+                completionRate,
+                activeCampaignsCount
             });
         }
         catch (Exception ex)
