@@ -22,8 +22,7 @@ function toFiniteNumberOrZero(value: unknown): number {
 }
 
 const ImpactDashboard = () => {
-  const [bundleLoading, setBundleLoading] = useState(false);
-  const [homeStatsLoading, setHomeStatsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [data, setData] = useState<PublicImpactBundle | null>(null);
   const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
@@ -48,39 +47,12 @@ const ImpactDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      setBundleLoading(true);
-      setHomeStatsLoading(true);
+      setLoading(true);
       setLoadError(null);
-      const [bundleResult, statsResult] = await Promise.allSettled([
-        fetchPublicImpactBundle(),
-        fetchPublicHomeStats(),
-      ]);
-
-      if (bundleResult.status === "fulfilled") {
-        setData(bundleResult.value);
-      } else {
-        console.error("[ImpactDashboard] endpoint failed", {
-          endpoint: "/api/public/impact/*",
-          error: bundleResult.reason,
-        });
-      }
-
-      if (statsResult.status === "fulfilled") {
-        setHomeStats(statsResult.value);
-      } else {
-        console.error("[ImpactDashboard] endpoint failed", {
-          endpoint: "/api/public/stats",
-          error: statsResult.reason,
-        });
-      }
-
-      if (bundleResult.status === "rejected" || statsResult.status === "rejected") {
-        setLoadError("Live impact data is unavailable right now. Showing placeholders.");
-      }
-
-      if (bundleResult.status === "fulfilled" && statsResult.status === "fulfilled") {
-        const bundle = bundleResult.value;
-        const stats = statsResult.value;
+      try {
+        const [bundle, stats] = await Promise.all([fetchPublicImpactBundle(), fetchPublicHomeStats()]);
+        setData(bundle);
+        setHomeStats(stats);
         const homeEmpty =
           stats.totalResidents == null &&
           stats.totalSafehouses == null &&
@@ -89,10 +61,12 @@ const ImpactDashboard = () => {
         if (!bundle.summary.survivors && !bundle.summary.totalDonations && homeEmpty) {
           setLoadError("Live impact data is unavailable right now. Showing placeholders.");
         }
+      } catch (error) {
+        console.error("Impact dashboard load failed:", error);
+        setLoadError("Live impact data is unavailable right now. Showing placeholders.");
+      } finally {
+        setLoading(false);
       }
-
-      setBundleLoading(false);
-      setHomeStatsLoading(false);
     };
     load();
   }, []);
@@ -162,7 +136,7 @@ const ImpactDashboard = () => {
                   {item.label}
                 </p>
                 <p className="mt-2 font-display text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
-                  {bundleLoading && homeStatsLoading ? (
+                  {loading ? (
                     <Skeleton className="h-10 w-28 rounded-md bg-navy-foreground/15" />
                   ) : (
                     <AnimatedCount value={item.value} prefix={"prefix" in item ? item.prefix : ""} fallback="0" />

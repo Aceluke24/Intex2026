@@ -80,27 +80,12 @@ export default function ExpensesPage() {
       if (filterArea) params.set("programArea", filterArea);
       if (filterFrom) params.set("from", filterFrom);
       if (filterTo) params.set("to", filterTo);
-      const [expResult, shResult] = await Promise.allSettled([
+      const [exp, sh] = await Promise.all([
         apiFetchJson<Expense[]>(`${API_PREFIX}/expenses?${params}`),
         apiFetchJson<Safehouse[]>(`${API_PREFIX}/safehouses`),
       ]);
-      const exp = expResult.status === "fulfilled" ? expResult.value : [];
-      const sh = shResult.status === "fulfilled" ? shResult.value : [];
-      if (expResult.status === "rejected") {
-        console.error("[ExpensesPage] endpoint failed", { endpoint: `${API_PREFIX}/expenses`, error: expResult.reason });
-      }
-      if (shResult.status === "rejected") {
-        console.error("[ExpensesPage] endpoint failed", { endpoint: `${API_PREFIX}/safehouses`, error: shResult.reason });
-      }
       setExpenses(exp);
       setSafehouses(sh);
-      if (expResult.status === "rejected" && shResult.status === "rejected") {
-        toast.error("Failed to load expenses");
-      } else if (expResult.status === "rejected") {
-        toast.error("Expenses failed to load. Safehouses loaded.");
-      } else if (shResult.status === "rejected") {
-        toast.error("Safehouses failed to load. Expenses loaded.");
-      }
     } catch {
       toast.error("Failed to load expenses");
     } finally {
