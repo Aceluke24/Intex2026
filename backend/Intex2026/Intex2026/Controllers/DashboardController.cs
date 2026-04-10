@@ -1,6 +1,7 @@
 using Intex2026.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Intex2026.Controllers;
 
@@ -10,11 +11,14 @@ public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ILogger<DashboardController> _logger;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan DashboardCacheTtl = TimeSpan.FromSeconds(60);
 
-    public DashboardController(AppDbContext db, ILogger<DashboardController> logger)
+    public DashboardController(AppDbContext db, ILogger<DashboardController> logger, IMemoryCache cache)
     {
         _db = db;
         _logger = logger;
+        _cache = cache;
     }
 
     [HttpGet]
@@ -22,45 +26,53 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            var residentsTask = _db.Residents.AsNoTracking().ToListAsync(ct);
-            var donationsTask = _db.Donations.AsNoTracking().ToListAsync(ct);
-            var supportersTask = _db.Supporters.AsNoTracking().ToListAsync(ct);
-            var incidentsTask = _db.IncidentReports.AsNoTracking().ToListAsync(ct);
-            var safehousesTask = _db.Safehouses.AsNoTracking().ToListAsync(ct);
-
-            await Task.WhenAll(residentsTask, donationsTask, supportersTask, incidentsTask, safehousesTask);
-
-            var residents = residentsTask.Result;
-            var donations = donationsTask.Result;
-            var supporters = supportersTask.Result;
-            var incidents = incidentsTask.Result;
-            var safehouses = safehousesTask.Result;
-
             var now = DateTime.UtcNow;
             var thisMonth = new DateOnly(now.Year, now.Month, 1);
-            var highRiskLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "High", "Critical" };
+            Response.Headers.CacheControl = "public,max-age=60";
 
-            var monthlyDonations = donations
-                .Where(d => d.DonationDate >= thisMonth)
-                .ToList();
+            var response = await _cache.GetOrCreateAsync("dashboard:summary:v2", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = DashboardCacheTtl;
 
-            var totalDonationValue = monthlyDonations.Sum(d => d.Amount ?? d.EstimatedValue ?? 0m);
+                var totalResidentsTask = _db.Residents.AsNoTracking().CountAsync(ct);
+                var activeResidentsTask = _db.Residents.AsNoTracking()
+                    .CountAsync(r => r.CaseStatus == "Active", ct);
+                var highRiskResidentsTask = _db.Residents.AsNoTracking()
+                    .CountAsync(r => r.CurrentRiskLevel == "High" || r.CurrentRiskLevel == "Critical", ct);
+                var totalSupportersTask = _db.Supporters.AsNoTracking().CountAsync(ct);
+                var totalIncidentsTask = _db.IncidentReports.AsNoTracking().CountAsync(ct);
+                var totalSafehousesTask = _db.Safehouses.AsNoTracking().CountAsync(ct);
+                var overCapacityTask = _db.Safehouses.AsNoTracking()
+                    .CountAsync(s => s.CapacityGirls > 0 && (s.CurrentOccupancy * 10) >= (s.CapacityGirls * 9), ct);
+                var monthlyAmountSumTask = _db.Donations.AsNoTracking()
+                    .Where(d => d.DonationDate >= thisMonth)
+                    .SumAsync(d => d.Amount ?? 0m, ct);
+                var monthlyEstimatedSumTask = _db.Donations.AsNoTracking()
+                    .Where(d => d.DonationDate >= thisMonth)
+                    .SumAsync(d => d.EstimatedValue ?? 0m, ct);
 
-            var response = new DashboardSummaryDto(
-                true,
-                new DashboardOverviewDto(
-                    residents.Count,
-                    residents.Count(r => string.Equals(r.CaseStatus, "Active", StringComparison.OrdinalIgnoreCase)),
-                    supporters.Count,
-                    totalDonationValue,
-                    incidents.Count),
-                new DashboardRiskDto(
-                    residents.Count(r =>
-                        !string.IsNullOrWhiteSpace(r.CurrentRiskLevel) &&
-                        highRiskLevels.Contains(r.CurrentRiskLevel.Trim()))),
-                new DashboardSafehouseDto(
-                    safehouses.Count,
-                    safehouses.Count(s => s.CapacityGirls > 0 && s.CurrentOccupancy >= (int)Math.Ceiling(s.CapacityGirls * 0.9))));
+                await Task.WhenAll(
+                    totalResidentsTask,
+                    activeResidentsTask,
+                    highRiskResidentsTask,
+                    totalSupportersTask,
+                    totalIncidentsTask,
+                    totalSafehousesTask,
+                    overCapacityTask,
+                    monthlyAmountSumTask,
+                    monthlyEstimatedSumTask);
+
+                return new DashboardSummaryDto(
+                    true,
+                    new DashboardOverviewDto(
+                        totalResidentsTask.Result,
+                        activeResidentsTask.Result,
+                        totalSupportersTask.Result,
+                        monthlyAmountSumTask.Result + monthlyEstimatedSumTask.Result,
+                        totalIncidentsTask.Result),
+                    new DashboardRiskDto(highRiskResidentsTask.Result),
+                    new DashboardSafehouseDto(totalSafehousesTask.Result, overCapacityTask.Result));
+            });
 
             return Ok(response);
         }
