@@ -1,6 +1,7 @@
 import { API_BASE, apiUrl } from "@/lib/apiBase";
 
 const PUBLIC_CACHE_TTL_MS = 60_000;
+const PUBLIC_FETCH_TIMEOUT_MS = 5_000;
 const publicRequestCache = new Map<string, { expiresAt: number; data: unknown }>();
 
 /** GET /api/public/stats — aggregate DB metrics for homepage / impact (no PII). */
@@ -111,6 +112,25 @@ async function parseJson(res: Response): Promise<unknown> {
   }
 }
 
+async function fetchWithTimeout(path: string, timeoutMs = PUBLIC_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(
+    () => controller.abort(`Request timed out after ${timeoutMs}ms`),
+    timeoutMs
+  );
+  const requestUrl = apiUrl(path);
+  try {
+    return await fetch(requestUrl, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Request failed for ${requestUrl}: timed out after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
 async function cachedFetchJson(path: string): Promise<unknown> {
   const now = Date.now();
   const existing = publicRequestCache.get(path);
@@ -118,10 +138,17 @@ async function cachedFetchJson(path: string): Promise<unknown> {
     return existing.data;
   }
 
-  const response = await fetch(apiUrl(path));
+  const response = await fetchWithTimeout(path);
   const data = await parseJson(response);
   if (response.ok) {
     publicRequestCache.set(path, { expiresAt: now + PUBLIC_CACHE_TTL_MS, data });
+  } else {
+    console.error("[publicImpact] endpoint failed", {
+      path,
+      requestUrl: apiUrl(path),
+      status: response.status,
+      statusText: response.statusText,
+    });
   }
   return data;
 }
@@ -162,7 +189,7 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
       return result.value;
     };
 
-    const [statsJson, residentsJson, shCountJson, recJson, reintJson, safehousesListJson] = await Promise.all([
+    const [statsJsonResult, residentsJsonResult, shCountJsonResult, recJsonResult, reintJsonResult, safehousesListJsonResult] = await Promise.allSettled([
       parseSettled(statsResult),
       parseSettled(residentsResult),
       parseSettled(safehousesCountResult),
@@ -170,6 +197,13 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
       parseSettled(reintResult),
       parseSettled(safehousesListResult),
     ]);
+
+    const statsJson = statsJsonResult.status === "fulfilled" ? statsJsonResult.value : {};
+    const residentsJson = residentsJsonResult.status === "fulfilled" ? residentsJsonResult.value : {};
+    const shCountJson = shCountJsonResult.status === "fulfilled" ? shCountJsonResult.value : {};
+    const recJson = recJsonResult.status === "fulfilled" ? recJsonResult.value : {};
+    const reintJson = reintJsonResult.status === "fulfilled" ? reintJsonResult.value : {};
+    const safehousesListJson = safehousesListJsonResult.status === "fulfilled" ? safehousesListJsonResult.value : {};
 
     if (import.meta.env.DEV) {
       console.log("API BASE:", API_BASE || "(same-origin)");

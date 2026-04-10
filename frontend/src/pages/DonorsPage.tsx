@@ -207,10 +207,18 @@ const DonorsPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [dashRaw, housesRaw] = await Promise.all([
+      const [dashResult, housesResult] = await Promise.allSettled([
         apiFetchJson<unknown>(`${API_PREFIX}/donors`),
         apiFetchJson<unknown>(`${API_PREFIX}/safehouses`),
       ]);
+      const dashRaw = dashResult.status === "fulfilled" ? dashResult.value : {};
+      const housesRaw = housesResult.status === "fulfilled" ? housesResult.value : [];
+      if (dashResult.status === "rejected") {
+        console.error("[DonorsPage] endpoint failed", { endpoint: `${API_PREFIX}/donors`, error: dashResult.reason });
+      }
+      if (housesResult.status === "rejected") {
+        console.error("[DonorsPage] endpoint failed", { endpoint: `${API_PREFIX}/safehouses`, error: housesResult.reason });
+      }
       const dash = normalizeDonorsPayload(dashRaw);
       const mapped: Supporter[] = dash.supporters.map(mapSupporterRow);
       setSupporters(mapped);
@@ -238,11 +246,15 @@ const DonorsPage = () => {
           })
           .filter(Boolean)
       );
-    } catch (e) {
-      console.error(e);
-      setLoadError(e instanceof Error ? e.message : "Failed to load donors.");
-      setSupporters([]);
-      setFeed([]);
+      if (dashResult.status === "rejected" && housesResult.status === "rejected") {
+        setLoadError("Failed to load donors.");
+      } else if (dashResult.status === "rejected") {
+        setLoadError("Donor dashboard data failed to load. Safehouses loaded.");
+      } else if (housesResult.status === "rejected") {
+        setLoadError("Safehouses failed to load. Donor dashboard loaded.");
+      }
+    } catch {
+      setLoadError("Failed to load donors.");
     } finally {
       setLoading(false);
     }

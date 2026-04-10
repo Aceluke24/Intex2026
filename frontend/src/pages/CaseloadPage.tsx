@@ -316,10 +316,18 @@ const CaseloadPage = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [caseRows, houses] = await Promise.all([
+      const [caseRowsResult, housesResult] = await Promise.allSettled([
         apiFetchJson<CaseApiRow[]>(`${API_PREFIX}/cases`),
         apiFetchJson<SafehouseApi[]>(`${API_PREFIX}/safehouses`),
       ]);
+      const caseRows = caseRowsResult.status === "fulfilled" ? caseRowsResult.value : [];
+      const houses = housesResult.status === "fulfilled" ? housesResult.value : [];
+      if (caseRowsResult.status === "rejected") {
+        console.error("[CaseloadPage] endpoint failed", { endpoint: `${API_PREFIX}/cases`, error: caseRowsResult.reason });
+      }
+      if (housesResult.status === "rejected") {
+        console.error("[CaseloadPage] endpoint failed", { endpoint: `${API_PREFIX}/safehouses`, error: housesResult.reason });
+      }
       const mapped = caseRows.map(mapCaseRow);
       setCases(mapped);
       setSafehouseList(houses);
@@ -335,9 +343,15 @@ const CaseloadPage = () => {
       void apiFetchJson<{ displayName: string }>(`${API_PREFIX}/residents/next-display-name`)
         .then((r) => setSuggestedNextDisplayName(r.displayName))
         .catch(() => setSuggestedNextDisplayName("LS-0001"));
-    } catch (e) {
-      console.error(e);
-      setLoadError(e instanceof Error ? e.message : "Failed to load caseload.");
+      if (caseRowsResult.status === "rejected" && housesResult.status === "rejected") {
+        setLoadError("Failed to load caseload.");
+      } else if (caseRowsResult.status === "rejected") {
+        setLoadError("Cases failed to load. Safehouses loaded.");
+      } else if (housesResult.status === "rejected") {
+        setLoadError("Safehouses failed to load. Cases loaded.");
+      }
+    } catch {
+      setLoadError("Failed to load caseload.");
       setCases([]);
     } finally {
       setLoading(false);

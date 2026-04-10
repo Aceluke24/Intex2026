@@ -4,6 +4,10 @@ type ApiFetchInit = RequestInit & {
   timeoutMs?: number;
 };
 
+const DEFAULT_TIMEOUT_MS = 5_000;
+const AUTH_TOKEN_WAIT_MS = 1_200;
+const AUTH_TOKEN_POLL_MS = 50;
+
 export class ApiHttpError extends Error {
   constructor(
     public readonly status: number,
@@ -102,6 +106,26 @@ function shouldRedirectOnUnauthorized(path: string): boolean {
   return !isPublicRoute;
 }
 
+function endpointIsTokenOptional(path: string): boolean {
+  return (
+    path.includes("/public/") ||
+    path.includes("/auth/login") ||
+    path.includes("/auth/register") ||
+    path.includes("/auth/providers") ||
+    path.includes("/auth/external-login")
+  );
+}
+
+async function waitForBearerToken(maxWaitMs: number): Promise<string | null> {
+  const startedAt = Date.now();
+  let token = getBearerToken();
+  while (!token && Date.now() - startedAt < maxWaitMs) {
+    await new Promise((resolve) => setTimeout(resolve, AUTH_TOKEN_POLL_MS));
+    token = getBearerToken();
+  }
+  return token;
+}
+
 function toDebugHeaders(headers: Headers): Record<string, string> {
   const debugHeaders: Record<string, string> = {};
   headers.forEach((value, key) => {
@@ -146,13 +170,22 @@ async function clearSessionAndRedirectLogin(): Promise<void> {
 /** Cookie session (same as dashboard) + optional Bearer if `nss_access_token` is set. */
 export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  const token = getBearerToken();
+  let token = getBearerToken();
+  const tokenOptional = endpointIsTokenOptional(path);
+  if (!token && !tokenOptional) {
+    token = await waitForBearerToken(AUTH_TOKEN_WAIT_MS);
+    if (!token) {
+      const requestUrl = apiUrl(path);
+      console.warn("[apiFetch] blocked request before auth token available", { path, requestUrl });
+      throw new Error(`Auth token not available for ${requestUrl}.`);
+    }
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init.body != null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const timeoutMs = init.timeoutMs ?? 20000;
+  const timeoutMs = init.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const combinedController = new AbortController();
   const timeoutId = globalThis.setTimeout(
     () => combinedController.abort(`Request timed out after ${timeoutMs}ms`),
@@ -192,6 +225,14 @@ export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<R
   }
 
   console.info("[apiFetch] response", { path, requestUrl, status: res.status, ok: res.ok });
+  if (!res.ok) {
+    console.error("[apiFetch] endpoint failed", {
+      path,
+      requestUrl,
+      status: res.status,
+      statusText: res.statusText,
+    });
+  }
 
   if (res.status === 401 || res.status === 403) {
     console.log("[apiFetch] unauthorized response", {
