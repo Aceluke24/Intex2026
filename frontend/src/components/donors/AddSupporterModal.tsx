@@ -95,6 +95,11 @@ function mapCategoryToBackend(category: SupporterCategory, isOrgByName: boolean)
   return { supporterType: "MonetaryDonor", relationshipType: "Local" };
 }
 
+function emptyToNull(v: string): string | null {
+  const t = v.trim();
+  return t ? t : null;
+}
+
 export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporterModalProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -129,6 +134,8 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
   const handleCreateSupporter = async () => {
     setError(null);
 
+    const orgNameTrim = organizationName.trim();
+
     if (!email.trim()) {
       setError("Email is required.");
       return;
@@ -141,12 +148,7 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
       setError("Phone is required.");
       return;
     }
-    if (orgFilled) {
-      if (!organizationName.trim()) {
-        setError("Organization name is required when provided.");
-        return;
-      }
-    } else {
+    if (!orgFilled) {
       if (!firstName.trim() || !lastName.trim()) {
         setError("Enter first and last name, or use organization name instead.");
         return;
@@ -155,28 +157,27 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
 
     const { supporterType, relationshipType } = mapCategoryToBackend(category, orgFilled);
 
-    const body: Record<string, unknown> = {
-      supporterId: 0,
-      displayName,
-      supporterType,
-      relationshipType,
-      status: "Active",
+    // Payload matches DB-style schema (snake_case). Backend also accepts camelCase.
+    // Convert empty strings to null to avoid DB constraint / validation issues.
+    const payload: Record<string, unknown> = {
+      supporter_type: supporterType,
+      first_name: orgFilled ? null : emptyToNull(firstName),
+      last_name: orgFilled ? null : emptyToNull(lastName),
+      organization_name: orgFilled ? emptyToNull(orgNameTrim) : null,
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
-      firstName: orgFilled ? null : firstName.trim() || null,
-      lastName: orgFilled ? null : lastName.trim() || null,
-      organizationName: orgFilled ? organizationName.trim() : null,
-      region: null,
-      country: null,
-      firstDonationDate: null,
-      acquisitionChannel: null,
+      // Backend-required fields that we default if not provided; send explicitly for clarity.
+      relationship_type: relationshipType,
+      status: "Active",
+      // Not stored on supporter row today; backend will ignore if present.
+      notes: emptyToNull(notes),
     };
 
     setSaving(true);
     try {
       const res = await apiFetch(`${API_PREFIX}/supporters`, {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       if (res.status === 409) {
         let msg = "A supporter with that email or matching name and phone already exists.";
@@ -191,9 +192,16 @@ export function AddSupporterModal({ open, onOpenChange, onSuccess }: AddSupporte
         return;
       }
       if (!res.ok) {
-        const t = await res.text();
-        setError(t ? t.slice(0, 200) : "Could not create supporter.");
-        console.error(t ? t.slice(0, 200) : "Could not create supporter.");
+        let msg = "Failed to create supporter. Check required fields.";
+        try {
+          const j = (await res.json()) as { message?: string };
+          if (typeof j.message === "string" && j.message.trim()) msg = j.message.trim();
+        } catch {
+          const t = await res.text();
+          if (t && t.trim()) msg = t.trim().slice(0, 200);
+        }
+        setError(msg);
+        console.error(msg);
         return;
       }
       const json: unknown = await res.json();
