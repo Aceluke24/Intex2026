@@ -44,6 +44,19 @@ type ResidentRiskRow = {
   riskEscalated: boolean;
   recentConcernsCount: number;
   openIncidents: number;
+  riskProbability?: number;
+  riskFlag?: boolean;
+  riskCategory?: string;
+  scoredAt?: string | null;
+  modelVersion?: string | null;
+};
+
+type ResidentRiskResponse = {
+  source: "ml" | "rule-based";
+  modelVersion?: string;
+  scoredAt?: string;
+  message?: string;
+  rows: ResidentRiskRow[];
 };
 
 type InsightCard = {
@@ -69,6 +82,10 @@ const InsightsPage = () => {
   const [donorScoreSource, setDonorScoreSource] = useState<"ml" | "rule-based">("rule-based");
   const [donorModelVersion, setDonorModelVersion] = useState<string | null>(null);
   const [donorScoredAt, setDonorScoredAt] = useState<string | null>(null);
+  const [residentScoreSource, setResidentScoreSource] = useState<"ml" | "rule-based">("rule-based");
+  const [residentModelVersion, setResidentModelVersion] = useState<string | null>(null);
+  const [residentScoredAt, setResidentScoredAt] = useState<string | null>(null);
+  const [residentViewMode, setResidentViewMode] = useState<"all" | "flagged" | "high-priority">("high-priority");
   const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
 
   const load = useCallback(async () => {
@@ -77,7 +94,7 @@ const InsightsPage = () => {
     try {
       const [retentionResult, r] = await Promise.allSettled([
         apiFetchJson<DonorRetentionResponse>(`${API_PREFIX}/insights/donor-retention`),
-        apiFetchJson<ResidentRiskRow[]>(`${API_PREFIX}/insights/resident-risk`),
+        apiFetchJson<ResidentRiskResponse>(`${API_PREFIX}/insights/resident-risk-ml`),
       ]);
 
       if (retentionResult.status === "fulfilled") {
@@ -94,9 +111,15 @@ const InsightsPage = () => {
       }
 
       if (r.status === "fulfilled") {
-        setResidentRisk(r.value);
+        setResidentRisk(r.value.rows ?? []);
+        setResidentScoreSource(r.value.source ?? "rule-based");
+        setResidentModelVersion(r.value.modelVersion ?? null);
+        setResidentScoredAt(r.value.scoredAt ?? null);
       } else {
         setResidentRisk([]);
+        setResidentScoreSource("rule-based");
+        setResidentModelVersion(null);
+        setResidentScoredAt(null);
       }
     } catch (e) {
       console.error(e);
@@ -106,6 +129,9 @@ const InsightsPage = () => {
       setDonorScoreSource("rule-based");
       setDonorModelVersion(null);
       setDonorScoredAt(null);
+      setResidentScoreSource("rule-based");
+      setResidentModelVersion(null);
+      setResidentScoredAt(null);
     } finally {
       setLoading(false);
     }
@@ -200,10 +226,33 @@ const InsightsPage = () => {
     return values.reduce((sum, v) => sum + v, 0) / values.length;
   }, [churn]);
 
+  const prioritizedResidents = useMemo(() => {
+    let filtered = [...residentRisk];
+
+    if (residentViewMode === "flagged") {
+      filtered = filtered.filter((r) => r.riskFlag || r.riskEscalated);
+    } else if (residentViewMode === "high-priority") {
+      filtered = filtered.filter((r) => {
+        const probability = typeof r.riskProbability === "number" ? r.riskProbability : 0;
+        return probability >= 0.5 || r.openIncidents > 0 || r.riskEscalated;
+      });
+    }
+
+    return filtered
+      .sort((a, b) => {
+        const aProb = typeof a.riskProbability === "number" ? a.riskProbability : 0;
+        const bProb = typeof b.riskProbability === "number" ? b.riskProbability : 0;
+        if (bProb !== aProb) return bProb - aProb;
+        if (b.openIncidents !== a.openIncidents) return b.openIncidents - a.openIncidents;
+        return b.recentConcernsCount - a.recentConcernsCount;
+      })
+      .slice(0, 12);
+  }, [residentRisk, residentViewMode]);
+
   const insightDescription =
     donorScoreSource === "ml"
-      ? "ML-powered donor retention scores are live, with automatic fallback to rule-based scoring if ML data is unavailable."
-      : "Rule-based fallback is active for donor retention while ML scores are unavailable.";
+      ? `ML donor retention scores are live (${residentScoreSource === "ml" ? "resident ML also live" : "resident fallback active"}).`
+      : `Rule-based donor fallback is active (${residentScoreSource === "ml" ? "resident ML live" : "resident fallback active"}).`;
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
@@ -212,6 +261,9 @@ const InsightsPage = () => {
           Source: {donorScoreSource === "ml" ? "ML" : "Rule-based"}
           {donorModelVersion ? ` • Model: ${donorModelVersion}` : ""}
           {donorScoredAt ? ` • Scored at: ${new Date(donorScoredAt).toLocaleString()}` : ""}
+          {` • Resident source: ${residentScoreSource === "ml" ? "ML" : "Rule-based"}`}
+          {residentModelVersion ? ` • Resident model: ${residentModelVersion}` : ""}
+          {residentScoredAt ? ` • Resident scored at: ${new Date(residentScoredAt).toLocaleString()}` : ""}
         </p>
 
         {loadError ? (
@@ -351,6 +403,113 @@ const InsightsPage = () => {
                             : donorViewMode === "recoverable"
                             ? "No recovery candidates found"
                             : "No loyal supporters found"}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
+              aria-labelledby="resident-list-heading"
+            >
+              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 id="resident-list-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
+                    Resident Risk Priorities
+                  </h2>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Ranked by risk probability, then open incidents and concern volume.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setResidentViewMode("high-priority")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      residentViewMode === "high-priority"
+                        ? "border border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    High Priority
+                  </button>
+                  <button
+                    onClick={() => setResidentViewMode("flagged")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      residentViewMode === "flagged"
+                        ? "border border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    Flagged
+                  </button>
+                  <button
+                    onClick={() => setResidentViewMode("all")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      residentViewMode === "all"
+                        ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    All Active
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
+                <table className="w-full min-w-[980px] text-left">
+                  <thead className={dashboardTableHeadRowClass}>
+                    <tr>
+                      {[
+                        "Resident",
+                        "Current level",
+                        "Risk %",
+                        "Flag",
+                        "Escalated",
+                        "Open incidents",
+                        "Concern logs",
+                        "Scored",
+                      ].map((h) => (
+                        <th key={h} className={dashboardTableHeadCellClass}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className={dashboardTableBodyClass}>
+                    {prioritizedResidents.map((r) => {
+                      const probability = typeof r.riskProbability === "number" ? r.riskProbability : 0;
+
+                      return (
+                        <tr key={r.residentId} className={dashboardTableRowClass}>
+                          <td className={dashboardTableCellClass}>
+                            <p className="font-medium text-foreground">{r.internalCode || `Resident #${r.residentId}`}</p>
+                            <p className="text-xs text-muted-foreground">{r.caseControlNo || `ID ${r.residentId}`}</p>
+                          </td>
+                          <td className={dashboardTableCellClass}>{r.currentRiskLevel ?? "Unknown"}</td>
+                          <td className={dashboardTableCellClass}>{(probability * 100).toFixed(0)}%</td>
+                          <td className={dashboardTableCellClass}>
+                            {r.riskFlag ? (
+                              <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">Yes</span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">No</span>
+                            )}
+                          </td>
+                          <td className={dashboardTableCellClass}>{r.riskEscalated ? "Yes" : "No"}</td>
+                          <td className={dashboardTableCellClass}>{r.openIncidents}</td>
+                          <td className={dashboardTableCellClass}>{r.recentConcernsCount}</td>
+                          <td className={dashboardTableCellClass}>{r.scoredAt ? new Date(r.scoredAt).toLocaleDateString() : "Operational"}</td>
+                        </tr>
+                      );
+                    })}
+                    {!prioritizedResidents.length && (
+                      <tr>
+                        <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={8}>
+                          No residents match this filter.
                         </td>
                       </tr>
                     )}

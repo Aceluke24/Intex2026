@@ -10,3 +10,13 @@ CREATE TABLE ml.donor_scores (
 
     CONSTRAINT PK_donor_scores PRIMARY KEY (supporter_id)
 );
+
+CREATE TABLE ml.resident_risk_scores (
+    resident_id INT NOT NULL,
+    risk_probability FLOAT NOT NULL,
+    risk_flag BIT NOT NULL,
+    scored_at DATETIME2 NOT NULL,
+    model_version NVARCHAR(50) NOT NULL,
+
+    CONSTRAINT PK_resident_risk_scores PRIMARY KEY (resident_id)
+);
