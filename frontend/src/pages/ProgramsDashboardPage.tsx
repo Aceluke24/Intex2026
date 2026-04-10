@@ -100,10 +100,15 @@ type Incident = {
   description: string | null;
 };
 
-/** API uses camelCase; tolerate PascalCase if a proxy or older client changed casing. */
-function getIncidentRowId(inc: Incident & { IncidentId?: number }): number | undefined {
+/** API uses camelCase; tolerate PascalCase and numeric strings from older proxies. */
+function getIncidentRowId(inc: Incident & { IncidentId?: number | string; incidentId?: number | string }): number | undefined {
   const raw = inc.incidentId ?? inc.IncidentId;
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 type ProgramsData = {
@@ -400,14 +405,22 @@ export default function ProgramsDashboardPage() {
 
   const handleResolve = async (id: number) => {
     if (!Number.isFinite(id)) {
-      console.error("Failed to resolve incident: invalid id", id);
+      console.error("[ProgramsDashboard] Failed to resolve incident: invalid id", id);
       toast.error("Invalid incident.");
       return;
     }
+    console.log("[ProgramsDashboard] Resolving incident", { id });
     setResolvingId(id);
     try {
-      const res = await apiFetch(`${API_PREFIX}/incidents/${id}/resolve`, {
+      const endpoint = `${API_PREFIX}/incidents/${id}/resolve`;
+      const res = await apiFetch(endpoint, {
         method: "PATCH",
+      });
+      console.log("[ProgramsDashboard] Resolve response", {
+        id,
+        endpoint,
+        status: res.status,
+        ok: res.ok,
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
@@ -421,10 +434,11 @@ export default function ProgramsDashboardPage() {
             }
           : prev
       );
+      console.log("[ProgramsDashboard] Removed resolved incident from local state", { id });
       toast.success("Incident resolved");
       await load({ silent: true });
     } catch (err) {
-      console.error("Failed to resolve incident", err);
+      console.error("[ProgramsDashboard] Failed to resolve incident", { id, err });
       toast.error("Failed to resolve incident");
       await load({ silent: true });
     } finally {
@@ -733,7 +747,12 @@ export default function ProgramsDashboardPage() {
                             variant="ghost"
                             disabled={rowId == null || resolvingId === rowId}
                             onClick={() => {
+                              console.log("[ProgramsDashboard] Resolve button clicked", {
+                                rowId,
+                                residentCode: inc.residentCode,
+                              });
                               if (rowId == null) {
+                                console.error("[ProgramsDashboard] Resolve click blocked: invalid row id", inc);
                                 toast.error("Invalid incident.");
                                 return;
                               }
