@@ -40,6 +40,7 @@ import {
   Plus,
   CheckCircle,
   Circle,
+  Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -321,6 +322,7 @@ export default function ProgramsDashboardPage() {
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [goalForm, setGoalForm] = useState<GoalFormData>(emptyGoalForm());
   const [savingGoal, setSavingGoal] = useState(false);
+  const [deletingGoalId, setDeletingGoalId] = useState<number | null>(null);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -446,6 +448,36 @@ export default function ProgramsDashboardPage() {
     }
   };
 
+  const handleDeleteGoal = async (id: number) => {
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid goal.");
+      return;
+    }
+    const confirmed = window.confirm("Delete this active goal?");
+    if (!confirmed) return;
+
+    setDeletingGoalId(id);
+    try {
+      const res = await apiFetch(`${API_PREFIX}/goals/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete goal");
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              goalProgress: prev.goalProgress.filter((g) => g.goalId !== id),
+            }
+          : prev
+      );
+      toast.success("Goal deleted");
+      await load({ silent: true });
+    } catch {
+      toast.error("Could not delete goal");
+    } finally {
+      setDeletingGoalId(null);
+    }
+  };
+
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
@@ -562,8 +594,19 @@ export default function ProgramsDashboardPage() {
                     <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-sidebar-primary flex-shrink-0" />
                       <span className="text-sm font-medium text-foreground truncate">{g.goalCategory ?? "—"}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
+                        onClick={() => void handleDeleteGoal(g.goalId)}
+                        disabled={deletingGoalId === g.goalId}
+                        aria-label={`Delete ${g.goalCategory ?? "goal"}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                       {g.safehouseName && (
-                        <span className="ml-auto text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">{g.safehouseName}</span>
+                        <span className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">{g.safehouseName}</span>
                       )}
                     </div>
                     {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}

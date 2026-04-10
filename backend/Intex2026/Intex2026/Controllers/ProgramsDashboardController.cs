@@ -25,6 +25,8 @@ public class ProgramsDashboardController : ControllerBase
         var residents = await _db.Residents.AsNoTracking().ToListAsync(ct);
         var recordings = await _db.ProcessRecordings.AsNoTracking().ToListAsync(ct);
         var visitations = await _db.HomeVisitations.AsNoTracking().ToListAsync(ct);
+        var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
+        var expenses = await _db.Expenses.AsNoTracking().ToListAsync(ct);
         var incidents = await LoadIncidentsAsync(ct);
         var safehouses = await _db.Safehouses.AsNoTracking().ToListAsync(ct);
         var healthRecords = await _db.HealthWellbeingRecords
@@ -57,7 +59,7 @@ public class ProgramsDashboardController : ControllerBase
         var activeGoals = goals.Where(g => g.PeriodStart <= today && g.PeriodEnd >= today).ToList();
         var goalProgress = activeGoals.Select(g =>
         {
-            var current = ComputeGoalCurrent(g, residents, recordings, visitations, incidents, ct);
+            var current = ComputeGoalCurrent(g, residents, recordings, visitations, donations, expenses, incidents, ct);
             return new
             {
                 g.GoalId,
@@ -204,7 +206,8 @@ public class ProgramsDashboardController : ControllerBase
     }
 
     private static double ComputeGoalCurrent(OrganizationalGoal g, List<Resident> residents,
-        List<ProcessRecording> recordings, List<HomeVisitation> visitations, List<IncidentSnapshot> incidents,
+        List<ProcessRecording> recordings, List<HomeVisitation> visitations, List<Donation> donations,
+        List<Expense> expenses, List<IncidentSnapshot> incidents,
         CancellationToken _)
     {
         return g.GoalCategory switch
@@ -225,6 +228,12 @@ public class ProgramsDashboardController : ControllerBase
             "IncidentResolutions" => incidents.Count(i =>
                 i.Resolved && i.ResolutionDate.HasValue && i.ResolutionDate.Value >= g.PeriodStart && i.ResolutionDate.Value <= g.PeriodEnd &&
                 (!g.SafehouseId.HasValue || i.SafehouseId == g.SafehouseId)),
+            "MonetaryDonations" => (double)donations
+                .Where(d => d.DonationType == "Monetary" && d.DonationDate >= g.PeriodStart && d.DonationDate <= g.PeriodEnd)
+                .Sum(d => d.Amount ?? 0),
+            "Expenses" => (double)expenses
+                .Where(e => e.ExpenseDate >= g.PeriodStart && e.ExpenseDate <= g.PeriodEnd)
+                .Sum(e => e.Amount),
             _ => 0,
         };
     }
