@@ -17,6 +17,7 @@ import {
 } from "@/components/donors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { API_PREFIX } from "@/lib/apiBase";
 import type {
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 const DIRECTORY_PAGE_SIZES = [10, 25, 50] as const;
 
@@ -127,6 +129,7 @@ function donorInitials(name: string | undefined) {
 }
 
 const CONTRIBUTION_TIMELINE_MAX = 10;
+const DONORS_TAB_STORAGE_KEY = "dashboard.donorsContributionsTab";
 
 function feedEntryTimestampMs(entry: FeedEntry): number {
   const raw = entry.createdAt ?? entry.at;
@@ -135,6 +138,9 @@ function feedEntryTimestampMs(entry: FeedEntry): number {
 }
 
 const DonorsPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -209,6 +215,32 @@ const DonorsPage = () => {
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
+  const queryTab = searchParams.get("tab");
+  const activeTab = useMemo<"donors" | "contributions">(() => {
+    if (location.pathname === "/dashboard/contributions") return "contributions";
+    if (queryTab === "contributions") return "contributions";
+    if (queryTab === "donors") return "donors";
+    return "donors";
+  }, [location.pathname, queryTab]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DONORS_TAB_STORAGE_KEY, activeTab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [activeTab]);
+
+  const handleTabChange = useCallback(
+    (tab: string) => {
+      if (tab === "contributions") {
+        navigate("/dashboard/contributions");
+        return;
+      }
+      navigate("/dashboard/donors");
+    },
+    [navigate],
+  );
 
   /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
   const contributionTimelineFeed = useMemo(() => {
@@ -389,6 +421,19 @@ const DonorsPage = () => {
           </motion.div>
         }
       >
+        <div className="mb-8">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="h-11 rounded-xl bg-white/60 p-1 dark:bg-white/[0.08]">
+              <TabsTrigger value="donors" className="rounded-lg px-4 font-body">
+                Donors
+              </TabsTrigger>
+              <TabsTrigger value="contributions" className="rounded-lg px-4 font-body">
+                Contributions
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         {loadError ? (
           <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
             {loadError}

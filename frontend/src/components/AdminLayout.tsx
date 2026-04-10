@@ -28,6 +28,9 @@ import { apiFetch } from "@/lib/apiFetch";
 
 function navItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === "/dashboard") return pathname === "/dashboard";
+  if (itemPath === "/dashboard/donors") {
+    return pathname === "/dashboard/donors" || pathname === "/dashboard/contributions";
+  }
   return pathname === itemPath;
 }
 
@@ -57,8 +60,7 @@ const navGroups = [
   {
     label: "Finance & Contributions",
     items: [
-      { label: "Donors", path: "/dashboard/donors", icon: Heart },
-      { label: "Contributions", path: "/dashboard/donors", icon: Heart },
+      { label: "Donors & Contributions", path: "/dashboard/donors", icon: Heart },
       { label: "Finance Dashboard", path: "/dashboard/finance", icon: DollarSign },
       { label: "Expenses", path: "/dashboard/expenses", icon: Receipt },
     ],

@@ -91,6 +91,7 @@ const App = () => (
                 <Route element={<DashboardChromeLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/dashboard/donors" element={<DonorsPage />} />
+                  <Route path="/dashboard/contributions" element={<DonorsPage />} />
                   <Route path="/dashboard/caseload" element={<CaseloadPage />} />
                   <Route path="/dashboard/recordings" element={<RecordingsPage />} />
                   <Route path="/dashboard/visitations" element={<VisitationsPage />} />
