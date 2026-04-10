@@ -59,6 +59,39 @@ type ResidentRiskResponse = {
   rows: ResidentRiskRow[];
 };
 
+type ReintegrationRow = {
+  feature: string;
+  oddsRatio: number;
+  direction: "positive" | "negative";
+  significant: boolean;
+};
+
+type ReintegrationResponse = {
+  available: boolean;
+  message?: string;
+  trainedAt?: string;
+  metrics?: { pseudoR2: number; nObservations: number; aic: number; bic: number };
+  hasConvergenceIssues?: boolean;
+  rows: ReintegrationRow[];
+};
+
+type SocialMediaRow = {
+  feature: string;
+  irr: number;
+  ciLow?: number | null;
+  ciHigh?: number | null;
+  pValue?: number | null;
+  significant: boolean;
+};
+
+type SocialMediaResponse = {
+  available: boolean;
+  message?: string;
+  trainedAt?: string;
+  metrics?: { aic: number; nPosts: number };
+  rows: SocialMediaRow[];
+};
+
 type InsightCard = {
   type: string;
   title: string;
@@ -85,8 +118,11 @@ const InsightsPage = () => {
   const [residentScoreSource, setResidentScoreSource] = useState<"ml" | "rule-based">("rule-based");
   const [residentModelVersion, setResidentModelVersion] = useState<string | null>(null);
   const [residentScoredAt, setResidentScoredAt] = useState<string | null>(null);
-  const [residentViewMode, setResidentViewMode] = useState<"all" | "flagged" | "high-priority">("all");
+  const [residentViewMode, setResidentViewMode] = useState<"needs-intervention" | "escalating" | "baseline-monitoring" | "all-active">("all-active");
   const [donorViewMode, setDonorViewMode] = useState<"at-risk" | "loyal" | "recoverable">("at-risk");
+  const [reintegrationMeta, setReintegrationMeta] = useState<ReintegrationResponse | null>(null);
+  const [socialMediaMeta, setSocialMediaMeta] = useState<SocialMediaResponse | null>(null);
+  const [socialViewMode, setSocialViewMode] = useState<"significant" | "all">("significant");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,11 +162,20 @@ const InsightsPage = () => {
       setResidentModelVersion(residentResult.value.modelVersion ?? null);
       setResidentScoredAt(residentResult.value.scoredAt ?? null);
     } else {
-      setResidentRisk([]);
-      setResidentScoreSource("rule-based");
-      setResidentModelVersion(null);
-      setResidentScoredAt(null);
-      loadErrors.push("Resident risk insights are temporarily unavailable.");
+      try {
+        const fallbackRows = await apiFetchJson<ResidentRiskRow[]>(`${API_PREFIX}/insights/resident-risk`);
+        setResidentRisk(fallbackRows ?? []);
+        setResidentScoreSource("rule-based");
+        setResidentModelVersion(null);
+        setResidentScoredAt(null);
+      } catch (fallbackError) {
+        console.error(fallbackError);
+        setResidentRisk([]);
+        setResidentScoreSource("rule-based");
+        setResidentModelVersion(null);
+        setResidentScoredAt(null);
+        loadErrors.push("Resident risk insights are temporarily unavailable.");
+      }
     }
 
     setLoadError(loadErrors.length ? loadErrors.join(" ") : null);
@@ -229,12 +274,20 @@ const InsightsPage = () => {
   const prioritizedResidents = useMemo(() => {
     let filtered = [...residentRisk];
 
-    if (residentViewMode === "flagged") {
-      filtered = filtered.filter((r) => r.riskFlag || r.riskEscalated);
-    } else if (residentViewMode === "high-priority") {
+    if (residentViewMode === "needs-intervention") {
+      // Open incidents OR escalated
+      filtered = filtered.filter((r) => r.openIncidents > 0 || r.riskEscalated);
+    } else if (residentViewMode === "escalating") {
+      // Risk prob >= 0.5 AND no open incidents yet
       filtered = filtered.filter((r) => {
         const probability = typeof r.riskProbability === "number" ? r.riskProbability : 0;
-        return probability >= 0.5 || r.openIncidents > 0 || r.riskEscalated;
+        return probability >= 0.5 && r.openIncidents === 0 && !r.riskEscalated;
+      });
+    } else if (residentViewMode === "baseline-monitoring") {
+      // Everything else with activity
+      filtered = filtered.filter((r) => {
+        const probability = typeof r.riskProbability === "number" ? r.riskProbability : 0;
+        return probability < 0.5 && r.openIncidents === 0 && !r.riskEscalated;
       });
     }
 
@@ -428,34 +481,44 @@ const InsightsPage = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setResidentViewMode("high-priority")}
+                    onClick={() => setResidentViewMode("needs-intervention")}
                     className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                      residentViewMode === "high-priority"
-                        ? "border border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                      residentViewMode === "needs-intervention"
+                        ? "border border-red-300 bg-red-100 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300"
                         : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                     }`}
                   >
-                    High Priority
+                    Needs Intervention
                   </button>
                   <button
-                    onClick={() => setResidentViewMode("flagged")}
+                    onClick={() => setResidentViewMode("escalating")}
                     className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                      residentViewMode === "flagged"
-                        ? "border border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      residentViewMode === "escalating"
+                        ? "border border-orange-300 bg-orange-100 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-300"
                         : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                     }`}
                   >
-                    Flagged
+                    Escalating
                   </button>
                   <button
-                    onClick={() => setResidentViewMode("all")}
+                    onClick={() => setResidentViewMode("baseline-monitoring")}
                     className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
-                      residentViewMode === "all"
+                      residentViewMode === "baseline-monitoring"
+                        ? "border border-green-300 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-300"
+                        : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    Baseline Monitoring
+                  </button>
+                  <button
+                    onClick={() => setResidentViewMode("all-active")}
+                    className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                      residentViewMode === "all-active"
                         ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
                         : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                     }`}
                   >
-                    All Active
+                    All Residents
                   </button>
                 </div>
               </div>

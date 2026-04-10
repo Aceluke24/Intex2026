@@ -1,8 +1,11 @@
 using Intex2026.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Intex2026.Controllers;
 
@@ -43,7 +46,19 @@ public class InsightsController : ControllerBase
     }
 
     private readonly AppDbContext _db;
-    public InsightsController(AppDbContext db) => _db = db;
+    private readonly ILogger<InsightsController> _logger;
+    private readonly IWebHostEnvironment _env;
+
+    public InsightsController(AppDbContext db, ILogger<InsightsController> logger, IWebHostEnvironment env)
+    {
+        _db = db;
+        _logger = logger;
+        _env = env;
+    }
+
+    // Resolve the artifacts/ folder at the repo root (3 levels up from backend project dir).
+    private string ArtifactsPath =>
+        Path.GetFullPath(Path.Combine(_env.ContentRootPath, "..", "..", "..", "artifacts"));
 
     // GET /api/insights/donor-churn
     // Returns a list of active donors with a churn risk score (0–1).
@@ -280,15 +295,32 @@ WHERE s.[Status] = 'Active';";
                 rows,
             });
         }
-        catch
+        catch (Exception ex)
         {
-            var fallbackRows = await BuildOperationalResidentRiskRowsAsync();
-            return Ok(new
+            _logger.LogWarning(ex, "ResidentRiskMl failed to read ML rows. Falling back to operational resident risk signals.");
+
+            try
             {
-                source = "rule-based",
-                message = "ML table unavailable. Returned operational resident risk signals.",
-                rows = fallbackRows,
-            });
+                var fallbackRows = await BuildOperationalResidentRiskRowsAsync();
+                return Ok(new
+                {
+                    source = "rule-based",
+                    message = "ML table unavailable. Returned operational resident risk signals.",
+                    rows = fallbackRows,
+                });
+            }
+            catch (Exception fallbackEx)
+            {
+                _logger.LogError(fallbackEx,
+                    "ResidentRiskMl fallback query also failed. Returning empty resident risk payload to avoid 500.");
+
+                return Ok(new
+                {
+                    source = "rule-based",
+                    message = "Resident risk data is temporarily unavailable.",
+                    rows = Array.Empty<object>(),
+                });
+            }
         }
     }
 
@@ -380,17 +412,188 @@ WHERE r.[CaseStatus] = 'Active';";
                 CaseControlNo = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                 InternalCode = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
                 CurrentRiskLevel = reader.IsDBNull(3) ? null : reader.GetString(3),
-                RiskEscalated = !reader.IsDBNull(4) && reader.GetBoolean(4),
-                RecentConcernsCount = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
-                OpenIncidents = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
-                RiskProbability = reader.GetDouble(7),
-                RiskFlag = !reader.IsDBNull(8) && reader.GetBoolean(8),
+                // Use conversion helpers because SQL providers can return bool/count/float columns with varying CLR types.
+                RiskEscalated = !reader.IsDBNull(4) && Convert.ToBoolean(reader.GetValue(4)),
+                RecentConcernsCount = reader.IsDBNull(5) ? 0 : Convert.ToInt32(reader.GetValue(5)),
+                OpenIncidents = reader.IsDBNull(6) ? 0 : Convert.ToInt32(reader.GetValue(6)),
+                RiskProbability = reader.IsDBNull(7) ? 0.0 : Convert.ToDouble(reader.GetValue(7)),
+                RiskFlag = !reader.IsDBNull(8) && Convert.ToBoolean(reader.GetValue(8)),
                 ScoredAt = reader.GetDateTime(9),
                 ModelVersion = reader.IsDBNull(10) ? string.Empty : reader.GetString(10),
             });
         }
 
         return rows;
+    }
+
+    // GET /api/insights/reintegration-analysis
+    // Returns directional factor associations for resident reintegration success,
+    // read from the pre-trained artifact files (no database writes required).
+    [HttpGet("reintegration-analysis")]
+    public IActionResult ReintegrationAnalysis()
+    {
+        try
+        {
+            var csvPath = Path.Combine(ArtifactsPath, "reintegration", "odds_ratios.csv");
+            if (!System.IO.File.Exists(csvPath))
+                return Ok(new { available = false, message = "Reintegration model artifacts not found." });
+
+            var lines = System.IO.File.ReadAllLines(csvPath);
+            var rows = new List<object>();
+            bool hasConvergenceIssues = false;
+            foreach (var line in lines.Skip(1))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var fields = ParseCsvLine(line);
+                if (fields.Length < 6) continue;
+                var feature = fields[0];
+                if (!double.TryParse(fields[1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var oddsRatio)) continue;
+                if (string.IsNullOrEmpty(fields[2])) hasConvergenceIssues = true;
+                rows.Add(new
+                {
+                    feature,
+                    oddsRatio,
+                    direction = oddsRatio >= 1.0 ? "positive" : "negative",
+                    significant = fields[5].Equals("True", StringComparison.OrdinalIgnoreCase),
+                });
+            }
+
+            object? metrics = null;
+            var metricsPath = Path.Combine(ArtifactsPath, "reintegration", "metrics.json");
+            if (System.IO.File.Exists(metricsPath))
+            {
+                using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(metricsPath));
+                var root = doc.RootElement;
+                metrics = new
+                {
+                    pseudoR2 = root.TryGetProperty("pseudo_r2_mcfadden", out var pr2) ? pr2.GetDouble() : (double?)null,
+                    nObservations = root.TryGetProperty("n_observations", out var n) ? n.GetInt32() : (int?)null,
+                    aic = root.TryGetProperty("aic", out var aic) ? aic.GetDouble() : (double?)null,
+                    bic = root.TryGetProperty("bic", out var bic) ? bic.GetDouble() : (double?)null,
+                };
+            }
+
+            string? trainedAt = null;
+            var metaPath = Path.Combine(ArtifactsPath, "reintegration", "metadata.json");
+            if (System.IO.File.Exists(metaPath))
+            {
+                using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(metaPath));
+                if (doc.RootElement.TryGetProperty("trained_at", out var ta))
+                    trainedAt = ta.GetString();
+            }
+
+            return Ok(new { available = true, trainedAt, metrics, hasConvergenceIssues, rows });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load reintegration analysis artifacts.");
+            return Ok(new { available = false, message = "Failed to load reintegration model artifacts." });
+        }
+    }
+
+    // GET /api/insights/social-media-insights
+    // Returns Incidence Rate Ratios for social media post characteristics vs donation referrals,
+    // read from the pre-trained artifact files (no database writes required).
+    [HttpGet("social-media-insights")]
+    public IActionResult SocialMediaInsights()
+    {
+        try
+        {
+            var csvPath = Path.Combine(ArtifactsPath, "social_media_insights", "irr_table.csv");
+            if (!System.IO.File.Exists(csvPath))
+                return Ok(new { available = false, message = "Social media model artifacts not found." });
+
+            var lines = System.IO.File.ReadAllLines(csvPath);
+            var rows = new List<object>();
+            foreach (var line in lines.Skip(1))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var fields = ParseCsvLine(line);
+                if (fields.Length < 6) continue;
+                var rawFeature = fields[0];
+                if (rawFeature.Equals("Intercept", StringComparison.OrdinalIgnoreCase)) continue;
+                var feature = CleanSocialMediaFeatureName(rawFeature);
+                if (!double.TryParse(fields[1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var irr)) continue;
+                double? ciLow = double.TryParse(fields[2], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var cl) ? cl : null;
+                double? ciHigh = double.TryParse(fields[3], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var ch) ? ch : null;
+                double? pValue = double.TryParse(fields[4], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var pv) ? pv : null;
+                var significant = fields[5].Equals("True", StringComparison.OrdinalIgnoreCase);
+                rows.Add(new { feature, irr, ciLow, ciHigh, pValue, significant });
+            }
+
+            object? metrics = null;
+            var metricsPath = Path.Combine(ArtifactsPath, "social_media_insights", "metrics.json");
+            if (System.IO.File.Exists(metricsPath))
+            {
+                using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(metricsPath));
+                var root = doc.RootElement;
+                metrics = new
+                {
+                    aic = root.TryGetProperty("aic", out var aic) ? aic.GetDouble() : (double?)null,
+                    nPosts = root.TryGetProperty("n_posts", out var n) ? n.GetInt32() : (int?)null,
+                };
+            }
+
+            string? trainedAt = null;
+            var metaPath = Path.Combine(ArtifactsPath, "social_media_insights", "metadata.json");
+            if (System.IO.File.Exists(metaPath))
+            {
+                using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(metaPath));
+                if (doc.RootElement.TryGetProperty("trained_at", out var ta))
+                    trainedAt = ta.GetString();
+            }
+
+            return Ok(new { available = true, trainedAt, metrics, rows });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load social media insights artifacts.");
+            return Ok(new { available = false, message = "Failed to load social media model artifacts." });
+        }
+    }
+
+    // Minimal CSV line parser that handles quoted fields (needed for statsmodels formula names).
+    private static string[] ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+        foreach (char c in line)
+        {
+            if (c == '"') { inQuotes = !inQuotes; }
+            else if (c == ',' && !inQuotes) { fields.Add(current.ToString()); current.Clear(); }
+            else { current.Append(c); }
+        }
+        fields.Add(current.ToString());
+        return fields.ToArray();
+    }
+
+    // Converts statsmodels formula notation to human-readable names.
+    // e.g. C(post_type, Treatment(reference='ThankYou'))[T.FundraisingAppeal] → Post type: FundraisingAppeal
+    private static string CleanSocialMediaFeatureName(string raw)
+    {
+        var m = Regex.Match(raw, @"C\((\w+)[^)]*\)\[T\.(.+?)\]");
+        if (m.Success)
+        {
+            var col = m.Groups[1].Value;
+            var val = m.Groups[2].Value;
+            return col switch
+            {
+                "post_type"         => $"Post type: {val}",
+                "sentiment_tone"    => $"Sentiment: {val}",
+                "platform"          => $"Platform: {val}",
+                "media_type"        => $"Media type: {val}",
+                "content_topic"     => $"Topic: {val}",
+                "call_to_action_type" => $"CTA: {val}",
+                _                   => $"{col}: {val}",
+            };
+        }
+        return raw;
     }
 
     // GET /api/insights/resident-risk
