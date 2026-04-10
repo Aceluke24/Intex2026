@@ -11,20 +11,41 @@ const ThemeContext = createContext<{
 
 export const useTheme = () => useContext(ThemeContext);
 
-function syncThemeCookie(theme: Theme, consent: "accepted" | "declined" | null) {
-  if (consent === "accepted") {
-    // User consented — persist theme as a browser-accessible cookie via the backend
-    fetch(`${API_BASE}/api/preferences/theme`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ theme }),
-    }).catch(() => {
-      // Non-critical: fall back silently if the request fails
-    });
+function canSyncThemeViaApi(): boolean {
+  if (typeof window === "undefined") {
+    return false;
   }
-  // Always keep localStorage in sync as the authoritative source when no cookie
+
+  // Same-origin deployments can safely use the backend cookie endpoint.
+  if (!API_BASE) {
+    return true;
+  }
+
+  try {
+    const apiOrigin = new URL(API_BASE, window.location.origin).origin;
+    return apiOrigin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function syncThemeCookie(theme: Theme, consent: "accepted" | "declined" | null) {
+  // Keep localStorage as the reliable cross-deployment source of truth.
   localStorage.setItem("nss-theme", theme);
+
+  if (consent === "accepted") {
+    // Avoid cross-origin credentialed requests for theme sync.
+    if (canSyncThemeViaApi()) {
+      fetch(`${API_BASE}/api/preferences/theme`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ theme }),
+      }).catch(() => {
+        // Non-critical: fall back silently if the request fails
+      });
+    }
+  }
 }
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
