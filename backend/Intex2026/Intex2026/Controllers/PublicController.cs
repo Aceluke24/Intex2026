@@ -425,7 +425,9 @@ public partial class PublicController : ControllerBase
 
         int? supporterId = null;
         var isAnonymous = req.IsAnonymous;
-        var normalizedEmail = NormalizeEmail(req.Email);
+        var effectiveFirstName = string.IsNullOrWhiteSpace(req.FirstName) ? AnonymousDonationFirstName : req.FirstName.Trim();
+        var effectiveLastName = string.IsNullOrWhiteSpace(req.LastName) ? AnonymousDonationLastName : req.LastName.Trim();
+        var normalizedEmail = isAnonymous ? AnonymousDonationEmail : NormalizeEmail(req.Email);
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         ApplicationUser? authUser = null;
 
@@ -478,8 +480,8 @@ public partial class PublicController : ControllerBase
 
                 var supporter = await EnsureSupporterByEmailAsync(
                     normalizedEmail,
-                    trimmedFirst,
-                    trimmedLast,
+                    effectiveFirstName,
+                    effectiveLastName,
                     req.DisplayName);
 
                 supporterId = supporter.SupporterId;
@@ -613,6 +615,10 @@ public class NewsletterSubscribeRequest
 
 partial class PublicController
 {
+    private const string AnonymousDonationFirstName = "Anonymous";
+    private const string AnonymousDonationLastName = "Donor";
+    private const string AnonymousDonationEmail = "anonymous@donor.com";
+
     private static string? NormalizeAndValidateCampaignName(string? campaignName, out string? validationError)
     {
         validationError = null;
@@ -665,7 +671,9 @@ partial class PublicController
         var supporter = new Supporter
         {
             SupporterType = "MonetaryDonor",
-            DisplayName = "Anonymous",
+            DisplayName = AnonymousDonationFirstName,
+            FirstName = AnonymousDonationFirstName,
+            LastName = AnonymousDonationLastName,
             Email = AnonymousDonorInternalEmail,
             RelationshipType = "Local",
             Status = "Active",

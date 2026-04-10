@@ -9,6 +9,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 export default function DonatePage() {
+  const ANONYMOUS_FIRST_NAME = "Anonymous";
+  const ANONYMOUS_LAST_NAME = "Donor";
+  const ANONYMOUS_EMAIL = "anonymous@donor.com";
+
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState("");
@@ -125,29 +129,37 @@ export default function DonatePage() {
         ? [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim()
         : null;
 
-    if (!anonymous && !isAuthenticated) {
-      const hasName = Boolean(trimmedFirst || trimmedLast);
-      const hasEmail = trimmedEmail.length > 0;
-      if (!hasName && !hasEmail) {
-        setError("Please enter your email or your name so we can acknowledge your gift.");
+    if (!anonymous) {
+      if (!trimmedFirst || !trimmedLast) {
+        setError("Please enter your first and last name.");
         setSubmitting(false);
         return;
       }
-      if (hasEmail) {
-        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
-        if (!emailOk) {
-          setError("Please enter a valid email address.");
-          setSubmitting(false);
-          return;
-        }
+
+      const effectiveEmail = emailFromForm ? trimmedEmail : user?.email?.trim() ?? "";
+      if (!effectiveEmail) {
+        setError("Please enter your email address.");
+        setSubmitting(false);
+        return;
+      }
+
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(effectiveEmail);
+      if (!emailOk) {
+        setError("Please enter a valid email address.");
+        setSubmitting(false);
+        return;
       }
     }
 
     const payload: Record<string, unknown> = {
-      firstName: anonymous ? null : trimmedFirst || null,
-      lastName: anonymous ? null : trimmedLast || null,
-      email: anonymous ? null : emailFromForm ? trimmedEmail || null : user?.email ?? null,
-      displayName: anonymous ? null : displayFromForm,
+      firstName: anonymous ? ANONYMOUS_FIRST_NAME : trimmedFirst,
+      lastName: anonymous ? ANONYMOUS_LAST_NAME : trimmedLast,
+      email: anonymous
+        ? ANONYMOUS_EMAIL
+        : emailFromForm
+          ? trimmedEmail
+          : (user?.email?.trim() ?? ""),
+      displayName: anonymous ? `${ANONYMOUS_FIRST_NAME} ${ANONYMOUS_LAST_NAME}` : displayFromForm,
       isAnonymous: anonymous,
       userId: user?.id ?? null,
       supporterId: user?.supporterId ?? null,
@@ -343,7 +355,7 @@ export default function DonatePage() {
                     </label>
                     {anonymous && (
                       <p className="font-body text-xs text-muted-foreground pl-6">
-                        Your donation will be recorded anonymously.
+                        Anonymous donations will not store your personal information.
                       </p>
                     )}
                   </div>
