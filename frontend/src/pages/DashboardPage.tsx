@@ -5,144 +5,30 @@ import { SkeletonCard } from "@/components/SkeletonLoaders";
 import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-
-type RiskLevelCountDto = {
-  level: string;
-  count: number;
-};
-
-type SafehouseCapacityRowDto = {
-  safehouseId: number;
-  name: string;
-  currentOccupancy: number;
-  capacityGirls: number;
-  occupancyRatio: number;
-};
-
-type DashboardKpisDto = {
-  residentRiskSummary: {
-    activeResidents: number;
-    byRiskLevel: RiskLevelCountDto[];
-    highCriticalCount: number;
-  };
-  visits: {
-    next7Days: number;
-    overdueFollowUps: number;
-  };
-  donorHealth: {
-    repeatDonorRate: number | null;
-    repeatDonors: number;
-    totalDonors: number;
-    activeDonors30Days: number;
-    totalThisMonth: number;
-  };
-  impactValue: {
-    totalThisMonth: number;
-    monetaryThisMonth: number;
-    inKindThisMonth: number;
-    timeThisMonth: number;
-  };
-  safehouseCapacity: {
-    nearCapacityCount: number;
-    nearCapacity: SafehouseCapacityRowDto[];
-  };
-  incidents: {
-    last7Days: number;
-    unresolvedCount: number;
-    severityBreakdown: RiskLevelCountDto[];
-  };
-  caseProgress: {
-    inProgressPercent: number;
-    achievedPercent: number;
-    overduePlans: number;
-    totalPlans: number;
-  };
-  wellbeing: {
-    avgGeneralHealthScore30Days: number | null;
-    isCritical: boolean;
-  };
-  education: {
-    avgProgressPercent: number | null;
-    avgAttendanceRate: number | null;
-  };
-};
-
 type DashboardResponseDto = {
-  kpis?: DashboardKpisDto;
-  insights?: string[];
-  generatedAtUtc?: string;
-};
-
-type LooseDashboardResponse = DashboardResponseDto & {
-  residentRiskSummary?: DashboardKpisDto["residentRiskSummary"];
-  resident_risk_summary?: DashboardKpisDto["residentRiskSummary"];
-  visits?: DashboardKpisDto["visits"];
-  donorHealth?: DashboardKpisDto["donorHealth"];
-  donor_health?: DashboardKpisDto["donorHealth"];
-  impactValue?: DashboardKpisDto["impactValue"];
-  impact_value?: DashboardKpisDto["impactValue"];
-  safehouseCapacity?: DashboardKpisDto["safehouseCapacity"];
-  safehouse_capacity?: DashboardKpisDto["safehouseCapacity"];
-  incidents?: DashboardKpisDto["incidents"];
-  caseProgress?: DashboardKpisDto["caseProgress"];
-  wellbeing?: DashboardKpisDto["wellbeing"];
-  education?: DashboardKpisDto["education"];
-};
-
-function hasKeys(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && Object.keys(value).length > 0;
-}
-
-function hasAnyDefinedValue(value: unknown): value is Record<string, unknown> {
-  return hasKeys(value) && Object.values(value).some((entry) => entry != null);
-}
-
-function normalizeDashboardResponse(response: LooseDashboardResponse): DashboardResponseDto {
-  const normalizedKpis = hasKeys(response.kpis)
-    ? response.kpis
-    : {
-        residentRiskSummary: response.residentRiskSummary ?? response.resident_risk_summary,
-        visits: response.kpis?.visits ?? response.visits,
-        donorHealth: response.donorHealth ?? response.donor_health,
-        impactValue: response.impactValue ?? response.impact_value,
-        safehouseCapacity: response.safehouseCapacity ?? response.safehouse_capacity,
-        incidents: response.kpis?.incidents ?? response.incidents,
-        caseProgress: response.kpis?.caseProgress ?? response.caseProgress,
-        wellbeing: response.kpis?.wellbeing ?? response.wellbeing,
-        education: response.kpis?.education ?? response.education,
-      };
-
-  return {
-    ...response,
-    kpis: hasAnyDefinedValue(normalizedKpis) ? normalizedKpis : undefined,
+  success: boolean;
+  overview?: {
+    totalResidents: number;
+    activeResidents: number;
+    totalSupporters: number;
+    totalDonationsThisMonth: number;
+    totalIncidents: number;
   };
-}
+  risk?: {
+    highRisk: number;
+  };
+  safehouses?: {
+    total: number;
+    overCapacity: number;
+  };
+};
 
-function DashboardSkeleton() {
+function LoadingSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <SkeletonCard key={i} className="rounded-xl p-5 shadow-sm" />
-        ))}
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
-        <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-          <div className="space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-9 rounded-md bg-muted/60" />
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-7 rounded-md bg-muted/60" />
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <SkeletonCard key={i} className="rounded-xl p-5 shadow-sm" />
+      ))}
     </div>
   );
 }
@@ -163,40 +49,17 @@ function formatMoney(v: number | null | undefined) {
   return currency.format(v);
 }
 
-function formatPct(v: number | null | undefined) {
-  if (v == null) return "No data available";
-  return `${v.toFixed(1)}%`;
-}
-
-function statusTone(level: string) {
-  const value = level.trim().toLowerCase();
-  if (value === "critical" || value === "high") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200";
-  if (value === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200";
-  return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200";
-}
-
 const DashboardPage = () => {
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardResponseDto | null>(null);
-  const [insights, setInsights] = useState<string[]>([]);
 
   const loadOverview = useCallback(async () => {
     setError(null);
-    setLoading(true);
     try {
-      const response = await apiFetchJson<LooseDashboardResponse>(`${API_PREFIX}/dashboard`, { timeoutMs: 20000 });
-      console.log("Dashboard API response:", response);
-      const normalized = normalizeDashboardResponse(response);
-      const kpiKeys = normalized.kpis ? Object.keys(normalized.kpis) : [];
-      console.log("Dashboard API keys:", Object.keys(response ?? {}), "KPI keys:", kpiKeys);
-      setData(normalized);
-      setInsights(normalized.insights ?? []);
+      const response = await apiFetchJson<DashboardResponseDto>(`${API_PREFIX}/dashboard`, { timeoutMs: 20000 });
+      setData(response);
     } catch (e) {
-      console.error("Dashboard fetch failed:", e);
       setError(e instanceof Error ? e.message : "Failed to load dashboard data");
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -204,146 +67,40 @@ const DashboardPage = () => {
     void loadOverview();
   }, [loadOverview]);
 
-  const kpis = data?.kpis;
-  const hasKpiData = hasAnyDefinedValue(kpis);
-  const riskBreakdown = kpis?.residentRiskSummary.byRiskLevel ?? [];
-  const severityBreakdown = kpis?.incidents.severityBreakdown ?? [];
+  const overview = data?.overview;
+  const risk = data?.risk;
+  const safehouses = data?.safehouses;
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell title="Overview" description="Executive operational summary.">
-        {loading ? <DashboardSkeleton /> : null}
-        {!loading && error ? <ErrorState message={error} /> : null}
-        {!loading && !error ? (
-          <div className="space-y-6">
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <Link to="/dashboard/caseload" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-red-300 hover:bg-red-50/40 dark:hover:bg-red-950/20">
-                <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Resident Risk Summary</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-red-700 dark:text-red-300">{hasKpiData && kpis?.residentRiskSummary ? kpis.residentRiskSummary.highCriticalCount : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">{hasKpiData && kpis?.residentRiskSummary ? `${kpis.residentRiskSummary.activeResidents} active residents` : "No data available"}</p>
-              </Link>
-              <Link to="/dashboard/visitations" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-amber-300 hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
-                <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Upcoming / Missed Visits</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.visits ? `${kpis.visits.next7Days} / ${kpis.visits.overdueFollowUps}` : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Next 7 days / Overdue follow-ups</p>
-              </Link>
-              <Link to="/dashboard/donors" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20">
-                <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Donor Health</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.donorHealth ? formatPct(kpis.donorHealth.repeatDonorRate) : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">{hasKpiData && kpis?.donorHealth ? `${kpis.donorHealth.activeDonors30Days} active donors (30d)` : "No data available"}</p>
-              </Link>
-              <Link to="/dashboard/donors" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20">
-                <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Total Impact Value</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.impactValue ? formatMoney(kpis.impactValue.totalThisMonth) : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Monetary + In-Kind + Time this month</p>
-              </Link>
-              <Link to="/dashboard/caseload" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-amber-300 hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
-                <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Safehouse Capacity Alert</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-amber-700 dark:text-amber-300">{hasKpiData && kpis?.safehouseCapacity ? kpis.safehouseCapacity.nearCapacityCount : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">Safehouses above 90% occupancy</p>
-              </Link>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-2">
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Resident Risk Breakdown</h2>
-                {riskBreakdown.length === 0 ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
-                  <ul className="mt-4 space-y-2">
-                    {riskBreakdown.map((risk) => (
-                      <li key={risk.level} className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2">
-                        <p className="font-body text-sm font-medium text-foreground">{risk.level}</p>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone(risk.level)}`}>{risk.count}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Incident Alerts</h2>
-                {!hasKpiData || !kpis?.incidents ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
-                  <div className="mt-4 space-y-3">
-                    <p className="font-body text-sm text-foreground">
-                      Last 7 days: <span className="font-semibold">{kpis.incidents.last7Days}</span> | Unresolved: <span className="font-semibold text-red-700 dark:text-red-300">{kpis.incidents.unresolvedCount}</span>
-                    </p>
-                    <ul className="space-y-2">
-                      {severityBreakdown.map((risk) => (
-                        <li key={risk.level} className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2">
-                          <p className="font-body text-sm text-foreground">{risk.level}</p>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone(risk.level)}`}>{risk.count}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-2">
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Case Progress Signal</h2>
-                {!hasKpiData || !kpis?.caseProgress ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
-                  <div className="mt-4 space-y-2 font-body text-sm text-foreground">
-                    <p>In Progress: <span className="font-semibold text-amber-700 dark:text-amber-300">{formatPct(kpis.caseProgress.inProgressPercent)}</span></p>
-                    <p>Achieved: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatPct(kpis.caseProgress.achievedPercent)}</span></p>
-                    <p>Overdue plans: <span className="font-semibold text-red-700 dark:text-red-300">{kpis.caseProgress.overduePlans}</span></p>
-                  </div>
-                )}
-              </div>
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Wellbeing + Education Snapshot</h2>
-                {!hasKpiData || !kpis?.wellbeing || !kpis?.education ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
-                  <div className="mt-4 space-y-2 font-body text-sm text-foreground">
-                    <p>
-                      Health score (30d):{" "}
-                      <span className={kpis.wellbeing.isCritical ? "font-semibold text-red-700 dark:text-red-300" : "font-semibold text-emerald-700 dark:text-emerald-300"}>
-                        {kpis.wellbeing.avgGeneralHealthScore30Days?.toFixed(2) ?? "No data available"}
-                      </span>
-                    </p>
-                    <p>Avg progress: <span className="font-semibold">{formatPct(kpis.education.avgProgressPercent)}</span></p>
-                    <p>
-                      Avg attendance:{" "}
-                      <span className="font-semibold">
-                        {kpis.education.avgAttendanceRate == null ? "No data available" : formatPct(kpis.education.avgAttendanceRate * 100)}
-                      </span>
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Capacity Watchlist</h2>
-                {!hasKpiData || !kpis?.safehouseCapacity || kpis.safehouseCapacity.nearCapacity.length === 0 ? (
-                  <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p>
-                ) : (
-                  <ul className="mt-4 space-y-2">
-                    {kpis.safehouseCapacity.nearCapacity.map((house) => (
-                      <li key={house.safehouseId} className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2">
-                        <p className="font-body text-sm font-medium text-foreground">{house.name}</p>
-                        <span className={house.occupancyRatio >= 1 ? "rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900/30 dark:text-red-200" : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"}>
-                          {house.currentOccupancy}/{house.capacityGirls}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-                <h2 className="font-display text-lg font-semibold text-foreground">Operational Insights</h2>
-                <ul className="mt-4 space-y-2">
-                  {insights.map((line) => (
-                    <li key={line} className="rounded-lg border border-border/60 bg-background px-3 py-2 font-body text-sm text-foreground">
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-                {!insights.length ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : null}
-              </div>
-            </section>
-          </div>
-        ) : null}
+        {error ? <ErrorState message={error} /> : null}
+        {!data?.overview ? (
+          <LoadingSkeleton />
+        ) : (
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+              <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Total Residents</p>
+              <p className="mt-2 font-display text-3xl font-semibold text-foreground">{overview?.totalResidents ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+              <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Active Cases</p>
+              <p className="mt-2 font-display text-3xl font-semibold text-foreground">{overview?.activeResidents ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+              <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Donations This Month</p>
+              <p className="mt-2 font-display text-3xl font-semibold text-foreground">{formatMoney(overview?.totalDonationsThisMonth)}</p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+              <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">High Risk Residents</p>
+              <p className="mt-2 font-display text-3xl font-semibold text-red-700 dark:text-red-300">{risk?.highRisk ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+              <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Capacity Alerts</p>
+              <p className="mt-2 font-display text-3xl font-semibold text-amber-700 dark:text-amber-300">{safehouses?.overCapacity ?? 0}</p>
+            </div>
+          </section>
+        )}
       </StaffPageShell>
     </AdminLayout>
   );
