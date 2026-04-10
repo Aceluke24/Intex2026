@@ -242,7 +242,7 @@ var app = builder.Build();
 // Default: run CSV seed in all environments (idempotent per-table checks prevent duplicates).
 // Set Seed:RunCsvOnStartup=false in App Settings to disable.
 var runCsvSeedOnStartup =
-    builder.Configuration.GetValue<bool?>("Seed:RunCsvOnStartup") ?? true;
+    builder.Configuration.GetValue<bool?>("Seed:RunCsvOnStartup") ?? app.Environment.IsDevelopment();
 
 var runIdentitySeedOnStartup =
     builder.Configuration.GetValue<bool?>("GenerateDefaultIdentityAdmin:RunOnStartup") ??
@@ -250,7 +250,7 @@ var runIdentitySeedOnStartup =
 
 var applyMigrationsOnStartup =
     builder.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup") ??
-    true;
+    app.Environment.IsDevelopment();
 
 using (var scope = app.Services.CreateScope())
 {
