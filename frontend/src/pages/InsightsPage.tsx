@@ -76,6 +76,8 @@ type ReintegrationResponse = {
 
 type SocialMediaRow = {
   feature: string;
+  tooltip?: string;
+  group?: string;
   irr: number;
   ciLow?: number | null;
   ciHigh?: number | null;
@@ -656,7 +658,14 @@ const InsightsPage = () => {
                       {socialMediaRows.map((row) => (
                         <tr key={row.feature} className={dashboardTableRowClass}>
                           <td className={dashboardTableCellClass}>
-                            <span className="font-medium text-foreground">{row.feature}</span>
+                            <span className="font-medium text-foreground" title={row.tooltip || undefined}>
+                              {row.feature}
+                              {row.group && (
+                                <span className="ml-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-normal text-muted-foreground">
+                                  {row.group}
+                                </span>
+                              )}
+                            </span>
                           </td>
                           <td className={dashboardTableCellClass}>
                             <span

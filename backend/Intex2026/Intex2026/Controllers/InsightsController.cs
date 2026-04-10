@@ -530,7 +530,7 @@ WHERE r.[CaseStatus] = 'Active';";
                 if (fields.Length < 6) continue;
                 var rawFeature = fields[0];
                 if (rawFeature.Equals("Intercept", StringComparison.OrdinalIgnoreCase)) continue;
-                var feature = CleanSocialMediaFeatureName(rawFeature);
+                var featureMeta = ResolveSocialMediaFeature(rawFeature);
                 if (!double.TryParse(fields[1], System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out var irr)) continue;
                 double? ciLow = double.TryParse(fields[2], System.Globalization.NumberStyles.Float,
@@ -540,7 +540,12 @@ WHERE r.[CaseStatus] = 'Active';";
                 double? pValue = double.TryParse(fields[4], System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var pv) ? pv : null;
                 var significant = fields[5].Equals("True", StringComparison.OrdinalIgnoreCase);
-                rows.Add(new { feature, irr, ciLow, ciHigh, pValue, significant });
+                rows.Add(new {
+                    feature = featureMeta.Label,
+                    tooltip = featureMeta.Tooltip,
+                    group = featureMeta.Group,
+                    irr, ciLow, ciHigh, pValue, significant,
+                });
             }
 
             object? metrics = null;
@@ -590,44 +595,82 @@ WHERE r.[CaseStatus] = 'Active';";
         return fields.ToArray();
     }
 
-    private static readonly Dictionary<string, string> SocialMediaFeatureLabels = new(StringComparer.Ordinal)
+    private record SocialMediaFeatureMeta(string Label, string Tooltip, string Group);
+
+    private static readonly Dictionary<string, SocialMediaFeatureMeta> SocialMediaFeatureLabels = new(StringComparer.Ordinal)
     {
-        ["C(post_type, Treatment(reference='ThankYou'))[T.FundraisingAppeal]"] = "Fundraising appeal post",
-        ["C(post_type, Treatment(reference='ThankYou'))[T.ImpactStory]"]      = "Impact story post",
-        ["C(post_type, Treatment(reference='ThankYou'))[T.Campaign]"]         = "Campaign-related post",
-        ["features_resident_story"]                                            = "Features an individual resident story",
-        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Emotional]"] = "Emotional tone",
-        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Urgent]"]    = "Urgent tone",
-        ["is_boosted"]                                                         = "Post was boosted (paid promotion)",
-        ["C(media_type, Treatment(reference='Text'))[T.Reel]"]                = "Reel (short-form video)",
-        ["C(media_type, Treatment(reference='Text'))[T.Video]"]               = "Video post",
-        ["C(media_type, Treatment(reference='Text'))[T.Image]"]               = "Image-based post",
-        ["C(call_to_action_type, Treatment(reference='None'))[T.DonateNow]"]  = "'Donate Now' call-to-action",
-        ["C(call_to_action_type, Treatment(reference='None'))[T.LearnMore]"]  = "'Learn More' call-to-action",
-        ["caption_length"]                                                     = "Longer captions",
-        ["num_hashtags"]                                                       = "More hashtags used",
-        ["mentions_count"]                                                     = "Mentions of other accounts",
-        ["is_weekend"]                                                         = "Posted on weekends",
-        ["hour_sin"]                                                           = "Time of day posted",
-        ["hour_cos"]                                                           = "Time of day posted",
-        ["log_followers"]                                                      = "Larger follower audience",
+        // ── Content Strategy ─────────────────────────────────────────────
+        ["C(post_type, Treatment(reference='ThankYou'))[T.FundraisingAppeal]"] = new("Fundraising appeal post", "Compared to thank-you posts", "Content Strategy"),
+        ["C(post_type, Treatment(reference='ThankYou'))[T.ImpactStory]"]       = new("Impact story post", "Compared to thank-you posts", "Content Strategy"),
+        ["C(post_type, Treatment(reference='ThankYou'))[T.Campaign]"]          = new("Campaign-related post", "Compared to thank-you posts", "Content Strategy"),
+        ["C(post_type, Treatment(reference='ThankYou'))[T.EducationalContent]"] = new("Educational content post", "Compared to thank-you posts", "Content Strategy"),
+        ["C(post_type, Treatment(reference='ThankYou'))[T.EventPromotion]"]    = new("Event promotion post", "Compared to thank-you posts", "Content Strategy"),
+        ["features_resident_story"]                                             = new("Features a resident story", "Post highlights an individual resident's experience", "Content Strategy"),
+        ["has_call_to_action"]                                                  = new("Includes a call-to-action", "Post contains any type of call-to-action", "Content Strategy"),
+
+        // ── Content Topic ────────────────────────────────────────────────
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.CampaignLaunch]"]    = new("Campaign launch topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.Health]"]            = new("Health-related topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.AwarenessRaising]"]  = new("Awareness-raising topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.DonorImpact]"]       = new("Donor impact topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.Reintegration]"]     = new("Reintegration topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.Education]"]         = new("Education topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.SafehouseLife]"]     = new("Safehouse life topic", "Compared to gratitude-themed posts", "Content Topic"),
+        ["C(content_topic, Treatment(reference='Gratitude'))[T.EventRecap]"]        = new("Event recap topic", "Compared to gratitude-themed posts", "Content Topic"),
+
+        // ── Tone ─────────────────────────────────────────────────────────
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Emotional]"]   = new("Emotional tone", "Compared to informative tone", "Tone"),
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Urgent]"]      = new("Urgent tone", "Compared to informative tone", "Tone"),
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Celebratory]"] = new("Celebratory tone", "Compared to informative tone", "Tone"),
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Grateful]"]    = new("Grateful tone", "Compared to informative tone", "Tone"),
+        ["C(sentiment_tone, Treatment(reference='Informative'))[T.Hopeful]"]     = new("Hopeful tone", "Compared to informative tone", "Tone"),
+
+        // ── Media Format ─────────────────────────────────────────────────
+        ["C(media_type, Treatment(reference='Text'))[T.Reel]"]     = new("Reel (short-form video)", "Compared to text-only posts", "Media Format"),
+        ["C(media_type, Treatment(reference='Text'))[T.Video]"]    = new("Video post", "Compared to text-only posts", "Media Format"),
+        ["C(media_type, Treatment(reference='Text'))[T.Image]"]    = new("Image-based post", "Compared to text-only posts", "Media Format"),
+        ["C(media_type, Treatment(reference='Text'))[T.Carousel]"] = new("Carousel post", "Compared to text-only posts", "Media Format"),
+        ["C(media_type, Treatment(reference='Text'))[T.Photo]"]    = new("Photo post", "Compared to text-only posts", "Media Format"),
+
+        // ── Platform ─────────────────────────────────────────────────────
+        ["C(platform, Treatment(reference='LinkedIn'))[T.YouTube]"]   = new("YouTube", "Compared to LinkedIn", "Platform"),
+        ["C(platform, Treatment(reference='LinkedIn'))[T.WhatsApp]"]  = new("WhatsApp", "Compared to LinkedIn", "Platform"),
+        ["C(platform, Treatment(reference='LinkedIn'))[T.TikTok]"]    = new("TikTok", "Compared to LinkedIn", "Platform"),
+        ["C(platform, Treatment(reference='LinkedIn'))[T.Instagram]"] = new("Instagram", "Compared to LinkedIn", "Platform"),
+        ["C(platform, Treatment(reference='LinkedIn'))[T.Facebook]"]  = new("Facebook", "Compared to LinkedIn", "Platform"),
+        ["C(platform, Treatment(reference='LinkedIn'))[T.Twitter]"]   = new("Twitter / X", "Compared to LinkedIn", "Platform"),
+
+        // ── Promotion ────────────────────────────────────────────────────
+        ["is_boosted"] = new("Post was boosted", "Paid promotion was applied", "Promotion"),
+        ["C(call_to_action_type, Treatment(reference='None'))[T.DonateNow]"]   = new("'Donate Now' call-to-action", "Compared to posts with no CTA", "Promotion"),
+        ["C(call_to_action_type, Treatment(reference='None'))[T.LearnMore]"]   = new("'Learn More' call-to-action", "Compared to posts with no CTA", "Promotion"),
+        ["C(call_to_action_type, Treatment(reference='None'))[T.SignUp]"]      = new("'Sign Up' call-to-action", "Compared to posts with no CTA", "Promotion"),
+        ["C(call_to_action_type, Treatment(reference='None'))[T.ShareStory]"]  = new("'Share Story' call-to-action", "Compared to posts with no CTA", "Promotion"),
+
+        // ── Timing ───────────────────────────────────────────────────────
+        ["is_weekend"] = new("Posted on weekends", "Saturday or Sunday posting", "Timing"),
+        ["hour_sin"]   = new("Posting time (time of day)", "Captures cyclical effects of posting hour", "Timing"),
+        ["hour_cos"]   = new("Posting time (time of day)", "Captures cyclical effects of posting hour", "Timing"),
+
+        // ── Writing Style ────────────────────────────────────────────────
+        ["caption_length"]  = new("Longer captions", "Effect of each additional character in caption", "Writing Style"),
+        ["num_hashtags"]    = new("More hashtags used", "Effect of each additional hashtag", "Writing Style"),
+        ["mentions_count"]  = new("Mentions of other accounts", "Effect of each additional @mention", "Writing Style"),
+
+        // ── Controls ─────────────────────────────────────────────────────
+        ["log_followers"] = new("Larger follower audience", "Log-scaled follower count at time of posting", "Controls"),
     };
 
-    private static string CleanSocialMediaFeatureName(string raw)
+    private static SocialMediaFeatureMeta ResolveSocialMediaFeature(string raw)
     {
-        if (SocialMediaFeatureLabels.TryGetValue(raw, out var label))
-            return label;
+        if (SocialMediaFeatureLabels.TryGetValue(raw, out var meta))
+            return meta;
 
-        // Fallback: parse statsmodels formula notation for any unmapped categorical terms
         var m = Regex.Match(raw, @"C\((\w+)[^)]*\)\[T\.(.+?)\]");
         if (m.Success)
-        {
-            var col = m.Groups[1].Value;
-            var val = m.Groups[2].Value;
-            return $"{col}: {val}";
-        }
+            return new SocialMediaFeatureMeta($"{m.Groups[1].Value}: {m.Groups[2].Value}", "Unmapped categorical factor", "Other");
 
-        return raw;
+        return new SocialMediaFeatureMeta(raw, "", "Other");
     }
 
     // GET /api/insights/resident-risk
