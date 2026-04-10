@@ -15,6 +15,10 @@ public class DashboardController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ILogger<DashboardController> _logger;
 
+    private sealed record RecordingRow(int RecordingId, int ResidentId, string SessionType, DateOnly SessionDate);
+    private sealed record VisitationRow(int VisitationId, int ResidentId, string VisitType, DateOnly VisitDate);
+    private sealed record DonationRow(int DonationId, string DonationType, DateOnly DonationDate, decimal? Amount, decimal? EstimatedValue);
+
     public DashboardController(AppDbContext db, ILogger<DashboardController> logger)
     {
         _db = db;
@@ -26,164 +30,189 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            var activeResidents = await _db.Residents
-                .AsNoTracking()
+            string FormatDisplayDate(DateOnly d) => d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var in14 = today.AddDays(14);
+            var thisWeekEnd = today.AddDays(7);
+
+            // Run independent aggregates in parallel. Avoid full-table materialization.
+            var activeResidentsCountTask = _db.Residents.AsNoTracking()
                 .Where(r => r.CaseStatus == "Active")
+                .CountAsync(ct);
+
+            var highRiskCountTask = _db.Residents.AsNoTracking()
+                .Where(r => r.CaseStatus == "Active")
+                .Where(r => (r.CurrentRiskLevel ?? "").Trim() == "High" || (r.CurrentRiskLevel ?? "").Trim() == "Critical")
+                .CountAsync(ct);
+
+            var upcomingVisits14Task = _db.HomeVisitations.AsNoTracking()
+                .Where(v => v.VisitDate >= today && v.VisitDate <= in14)
+                .CountAsync(ct);
+
+            var visitsThisWeekTask = _db.HomeVisitations.AsNoTracking()
+                .Where(v => v.VisitDate >= today && v.VisitDate <= thisWeekEnd)
+                .CountAsync(ct);
+
+            var donationTotalCountTask = _db.Donations.AsNoTracking().CountAsync(ct);
+
+            var donationCountsBySupporterTask = _db.Donations.AsNoTracking()
+                .Where(d => d.SupporterId.HasValue)
+                .GroupBy(d => d.SupporterId!.Value)
+                .Select(g => g.Count())
                 .ToListAsync(ct);
 
-        var donations = await _db.Donations.AsNoTracking().ToListAsync(ct);
-        var visitations = await _db.HomeVisitations.AsNoTracking().ToListAsync(ct);
-        var recordings = await _db.ProcessRecordings.AsNoTracking().ToListAsync(ct);
-        var safehouses = await _db.Safehouses.AsNoTracking().OrderBy(s => s.SafehouseCode).ToListAsync(ct);
+            var safehouseCountTask = _db.Safehouses.AsNoTracking().CountAsync(ct);
 
-        var houseById = safehouses.ToDictionary(s => s.SafehouseId, s => s.Name);
+            // Build a small "overview" list without loading all residents/safehouses.
+            var residentsOverviewTask = (from r in _db.Residents.AsNoTracking()
+                    join s in _db.Safehouses.AsNoTracking() on r.SafehouseId equals s.SafehouseId into sh
+                    from s in sh.DefaultIfEmpty()
+                    where r.CaseStatus == "Active"
+                    orderby r.ResidentId descending
+                    select new
+                    {
+                        r.ResidentId,
+                        Code = string.IsNullOrWhiteSpace(r.InternalCode) ? r.CaseControlNo : r.InternalCode,
+                        SafehouseName = s != null ? s.Name : null,
+                        r.CurrentRiskLevel,
+                        r.DateOfAdmission
+                    })
+                .Take(6)
+                .ToListAsync(ct);
 
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var in14 = today.AddDays(14);
-        var thisWeekEnd = today.AddDays(7);
+            var donationActivityTask = BuildDonationActivityAsync(ct);
+            var donationSumsTask = BuildDonationSumsAsync(ct);
+            var residentSparkTask = BuildResidentSparkAsync(ct);
 
-        var upcomingVisits = visitations.Count(v =>
-        {
-            var vd = v.VisitDate;
-            return vd >= today && vd <= in14;
-        });
+            var reintegrationCountsTask = _db.Residents.AsNoTracking()
+                .Where(r => r.CaseStatus == "Active")
+                .Where(r => !string.IsNullOrWhiteSpace(r.ReintegrationStatus) && r.ReintegrationStatus != "Not Started")
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Total = g.Count(),
+                    Completed = g.Count(r => r.ReintegrationStatus == "Completed")
+                })
+                .FirstOrDefaultAsync(ct);
 
-        var highRiskCount = activeResidents.Count(r =>
-        {
-            var x = (r.CurrentRiskLevel ?? "").Trim();
-            return x is "High" or "Critical";
-        });
+            // Recent activity cards should be fast: only pull small slices.
+            var flaggedRecordingsTask = _db.ProcessRecordings.AsNoTracking()
+                .Where(r => r.ConcernsFlagged)
+                .OrderByDescending(r => r.SessionDate)
+                .Select(r => new RecordingRow(r.RecordingId, r.ResidentId, r.SessionType, r.SessionDate))
+                .Take(5)
+                .ToListAsync(ct);
 
-        var lastSessionByResident = new Dictionary<int, DateOnly>();
-        foreach (var rec in recordings)
-        {
-            if (!lastSessionByResident.TryGetValue(rec.ResidentId, out var cur) || rec.SessionDate > cur)
-                lastSessionByResident[rec.ResidentId] = rec.SessionDate;
-        }
+            var followupVisitsTask = _db.HomeVisitations.AsNoTracking()
+                .Where(v => v.FollowUpNeeded)
+                .OrderByDescending(v => v.VisitDate)
+                .Select(v => new VisitationRow(v.VisitationId, v.ResidentId, v.VisitType, v.VisitDate))
+                .Take(5)
+                .ToListAsync(ct);
 
-        string FormatDisplayDate(DateOnly d) => d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+            var latestDonationsTask = _db.Donations.AsNoTracking()
+                .OrderByDescending(d => d.DonationDate)
+                .Select(d => new DonationRow(d.DonationId, d.DonationType, d.DonationDate, d.Amount, d.EstimatedValue))
+                .Take(5)
+                .ToListAsync(ct);
 
-        var residentsOverview = activeResidents
-            .Take(6)
-            .Select(r =>
+            await Task.WhenAll(
+                activeResidentsCountTask,
+                highRiskCountTask,
+                upcomingVisits14Task,
+                visitsThisWeekTask,
+                donationTotalCountTask,
+                donationCountsBySupporterTask,
+                safehouseCountTask,
+                residentsOverviewTask,
+                donationActivityTask,
+                donationSumsTask,
+                residentSparkTask,
+                reintegrationCountsTask,
+                flaggedRecordingsTask,
+                followupVisitsTask,
+                latestDonationsTask);
+
+            var activeTotal = activeResidentsCountTask.Result;
+            var highRiskCount = highRiskCountTask.Result;
+            var upcomingVisits = upcomingVisits14Task.Result;
+            var visitsThisWeek = visitsThisWeekTask.Result;
+            var donationCount = donationTotalCountTask.Result;
+
+            var donationCountsBySupporter = donationCountsBySupporterTask.Result;
+            var repeatDonorCount = donationCountsBySupporter.Count(x => x >= 2);
+            var donorDen = donationCountsBySupporter.Count;
+            double? retPct = donorDen > 0 ? Math.Round(repeatDonorCount / (double)donorDen * 100, 1) : null;
+
+            var reintegrationCounts = reintegrationCountsTask.Result;
+            var withReintTotal = reintegrationCounts?.Total ?? 0;
+            var completed = reintegrationCounts?.Completed ?? 0;
+            int? ratePct = withReintTotal > 0 ? (int)Math.Round(completed / (double)withReintTotal * 100) : null;
+
+            var donationSums = donationSumsTask.Result;
+            var curSum = donationSums.CurSum;
+            var priorSum = donationSums.PriorSum;
+            var donationTrend = donationSums.DonationTrend;
+            var donationTrendLabel = donationSums.DonationTrendLabel;
+            var residentSpark = residentSparkTask.Result;
+
+            var donationActivity = donationActivityTask.Result.Activity;
+            var donationSpark = donationActivityTask.Result.Spark;
+
+            var donationInsight = "";
+            if (donationActivity.Count >= 2)
             {
-                var lastRec = lastSessionByResident.GetValueOrDefault(r.ResidentId);
-                var last = lastRec != default ? lastRec : r.DateOfAdmission;
-                return new ResidentRowDto(
-                    string.IsNullOrWhiteSpace(r.InternalCode) ? r.CaseControlNo : r.InternalCode,
-                    houseById.GetValueOrDefault(r.SafehouseId),
-                    MapRiskToStatus(r.CurrentRiskLevel),
-                    FormatDisplayDate(last));
-            })
-            .ToList();
-
-        var activeTotal = activeResidents.Count;
-
-        var donationSpark = new List<double>();
-        var donationActivity = new List<DonationMonthDto>();
-        var todayDate = DateTime.Today;
-        for (var i = 5; i >= 0; i--)
-        {
-            var d = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(-i);
-            var key = $"{d.Year}-{d.Month:00}";
-            var monthDonations = donations.Where(x => $"{x.DonationDate.Year}-{x.DonationDate.Month:00}" == key).ToList();
-            var total = monthDonations.Sum(DonationMoneyValue);
-            var donorIds = monthDonations.Select(x => x.SupporterId).ToHashSet();
-            var priorMonth = d.AddMonths(-1);
-            var priorKey = $"{priorMonth.Year}-{priorMonth.Month:00}";
-            var priorDonations = donations.Where(x => $"{x.DonationDate.Year}-{x.DonationDate.Month:00}" == priorKey).ToList();
-            var priorDonorIds = priorDonations.Select(x => x.SupporterId).ToHashSet();
-            var returningDonors = donorIds.Count(id => priorDonorIds.Contains(id));
-            var newDonors = Math.Max(0, donorIds.Count - returningDonors);
-            donationActivity.Add(new DonationMonthDto(
-                d.ToString("MMM", CultureInfo.CurrentCulture),
-                (double)Math.Round(total, 2),
-                newDonors,
-                returningDonors));
-            donationSpark.Add((double)total);
-        }
-
-        var curMonthKey = $"{todayDate.Year}-{todayDate.Month:00}";
-        var priorMonthDate = todayDate.AddMonths(-1);
-        var priorMonthKey = $"{priorMonthDate.Year}-{priorMonthDate.Month:00}";
-
-        decimal SumMonth(string key) => donations
-            .Where(x => $"{x.DonationDate.Year}-{x.DonationDate.Month:00}" == key)
-            .Sum(DonationMoneyValue);
-
-        var curSum = SumMonth(curMonthKey);
-        var priorSum = SumMonth(priorMonthKey);
-        var donationTrend = "neutral";
-        var donationTrendLabel = "No prior month to compare";
-        if (priorSum > 0)
-        {
-            var pct = (double)((curSum - priorSum) / priorSum * 100);
-            donationTrend = pct >= 0 ? "up" : "down";
-            donationTrendLabel = $"{(pct >= 0 ? "+" : "")}{pct:F1}% vs prior month";
-        }
-        else if (curSum > 0)
-        {
-            donationTrendLabel = "First gifts this period";
-        }
-
-        var residentSpark = new List<double>();
-        for (var i = 5; i >= 0; i--)
-        {
-            var d = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(-i);
-            var next = d.AddMonths(1);
-            var dOnly = DateOnly.FromDateTime(d);
-            var nextOnly = DateOnly.FromDateTime(next);
-            var count = activeResidents.Count(r =>
+                var a = donationActivity[^2];
+                var b = donationActivity[^1];
+                donationInsight =
+                    $"Last month ({a.Month}) total was {FormatMoneyCompact((decimal)a.Total)} vs {FormatMoneyCompact((decimal)b.Total)} in {b.Month}.";
+            }
+            if (string.IsNullOrEmpty(donationInsight))
             {
-                var ad = r.DateOfAdmission;
-                return ad >= dOnly && ad < nextOnly;
-            });
-            residentSpark.Add(count);
-        }
+                donationInsight = donationCount == 0
+                    ? "No donations recorded yet — totals will appear as gifts are logged."
+                    : "Totals combine monetary gifts and estimated in-kind value by donation month.";
+            }
 
-        var donationCountsBySupporter = donations
-            .Where(d => d.SupporterId.HasValue)
-            .GroupBy(d => d.SupporterId!.Value)
-            .ToDictionary(g => g.Key, g => g.Count());
-        var repeatDonorCount = donationCountsBySupporter.Count(kv => kv.Value >= 2);
-        var donorDen = donationCountsBySupporter.Count;
-        double? retPct = donorDen > 0 ? Math.Round(repeatDonorCount / (double)donorDen * 100, 1) : null;
+            // Fetch last-session dates only for the small set of residents in the overview list.
+            var overviewRows = residentsOverviewTask.Result;
+            var overviewResidentIds = overviewRows.Select(x => x.ResidentId).ToList();
+            var lastSessionByResident = await _db.ProcessRecordings.AsNoTracking()
+                .Where(r => overviewResidentIds.Contains(r.ResidentId))
+                .GroupBy(r => r.ResidentId)
+                .Select(g => new { ResidentId = g.Key, Last = g.Max(x => x.SessionDate) })
+                .ToDictionaryAsync(x => x.ResidentId, x => x.Last, ct);
 
-        var withReint = activeResidents.Where(r =>
-            !string.IsNullOrWhiteSpace(r.ReintegrationStatus) && r.ReintegrationStatus != "Not Started").ToList();
-        var completed = withReint.Count(r => r.ReintegrationStatus == "Completed");
-        int? ratePct = withReint.Count > 0
-            ? (int)Math.Round(completed / (double)withReint.Count * 100)
-            : null;
+            var residentsOverview = overviewRows
+                .Select(r =>
+                {
+                    var lastRec = lastSessionByResident.GetValueOrDefault(r.ResidentId);
+                    var last = lastRec != default ? lastRec : r.DateOfAdmission;
+                    return new ResidentRowDto(
+                        r.Code,
+                        r.SafehouseName,
+                        MapRiskToStatus(r.CurrentRiskLevel),
+                        FormatDisplayDate(last));
+                })
+                .ToList();
 
-        var visitsThisWeek = visitations.Count(v => v.VisitDate >= today && v.VisitDate <= thisWeekEnd);
+            var activityItems = BuildActivityItems(
+                flaggedRecordingsTask.Result,
+                followupVisitsTask.Result,
+                latestDonationsTask.Result,
+                FormatDisplayDate);
 
-        var donationInsight = "";
-        if (donationActivity.Count >= 2)
-        {
-            var a = donationActivity[^2];
-            var b = donationActivity[^1];
-            donationInsight =
-                $"Last month ({a.Month}) total was {FormatMoneyCompact((decimal)a.Total)} vs {FormatMoneyCompact((decimal)b.Total)} in {b.Month}.";
-        }
-        if (string.IsNullOrEmpty(donationInsight))
-        {
-            donationInsight = donations.Count == 0
-                ? "No donations recorded yet — totals will appear as gifts are logged."
-                : "Totals combine monetary gifts and estimated in-kind value by donation month.";
-        }
-
-        var activityItems = BuildActivityItems(recordings, visitations, donations, FormatDisplayDate);
-        var priorityCallouts = BuildPriorityCallouts(highRiskCount, visitsThisWeek, curSum, priorSum, donations.Count);
-        var insights = new List<string>
-        {
-            highRiskCount > 0
-                ? $"{highRiskCount} active resident{(highRiskCount == 1 ? "" : "s")} {(highRiskCount == 1 ? "has" : "have")} High or Critical current risk."
-                : "No active residents are currently marked High or Critical risk.",
-            donations.Count > 0
-                ? $"{FormatMoneyCompact(donations.Sum(DonationMoneyValue))} total value across {donations.Count} logged donation{(donations.Count == 1 ? "" : "s")}."
-                : "No donations logged yet — financial insights will populate as gifts are recorded."
-        };
+            var priorityCallouts = BuildPriorityCallouts(highRiskCount, visitsThisWeek, curSum, priorSum, donationCount);
+            var insights = new List<string>
+            {
+                highRiskCount > 0
+                    ? $"{highRiskCount} active resident{(highRiskCount == 1 ? "" : "s")} {(highRiskCount == 1 ? "has" : "have")} High or Critical current risk."
+                    : "No active residents are currently marked High or Critical risk.",
+                donationCount > 0
+                    ? $"{FormatMoneyCompact(donationSums.AllTimeSum)} total value across {donationCount} logged donation{(donationCount == 1 ? "" : "s")}."
+                    : "No donations logged yet — financial insights will populate as gifts are recorded."
+            };
 
         var primaryMetric = new DashboardMetricDto(
             "residents",
@@ -207,15 +236,15 @@ public class DashboardController : ControllerBase
             "reintegration",
             "Reintegration success rate",
             ratePct.HasValue ? $"{ratePct}%" : "—",
-            withReint.Count > 0
-                ? $"{completed} completed of {withReint.Count} with reintegration activity"
+                withReintTotal > 0
+                    ? $"{completed} completed of {withReintTotal} with reintegration activity"
                 : "No reintegration activity recorded",
             "neutral",
             "percent");
 
         var liveContext = new LiveContextDto(
             activeTotal,
-            safehouses.Count,
+            safehouseCountTask.Result,
             FormatMoneyCompact(curSum),
             priorSum > 0
                 ? (curSum >= priorSum ? "trending at or above last month" : "softening versus last month")
@@ -230,7 +259,7 @@ public class DashboardController : ControllerBase
             visitsThisWeek,
             FormatMoneyCompact(curSum),
             retPct,
-            donations.Count);
+                donationCount);
 
             return Ok(new DashboardResponseDto(
                 primaryMetric,
@@ -272,6 +301,13 @@ public class DashboardController : ControllerBase
         return d.Amount ?? d.EstimatedValue ?? 0;
     }
 
+    private static decimal DonationMoneyValue(string donationType, decimal? amount, decimal? estimatedValue)
+    {
+        if (donationType == "Monetary") return amount ?? 0;
+        if (donationType == "InKind") return estimatedValue ?? amount ?? 0;
+        return amount ?? estimatedValue ?? 0;
+    }
+
     private static string FormatMoneyCompact(decimal n)
     {
         if (n >= 1_000_000) return $"${(double)n / 1_000_000:F1}M";
@@ -280,13 +316,13 @@ public class DashboardController : ControllerBase
     }
 
     private static List<AttentionItemDto> BuildActivityItems(
-        List<ProcessRecording> recordings,
-        List<HomeVisitation> visitations,
-        List<Donation> donations,
+        List<RecordingRow> recordings,
+        List<VisitationRow> visitations,
+        List<DonationRow> donations,
         Func<DateOnly, string> formatDisplayDate)
     {
         var pool = new List<(long Ts, AttentionItemDto Item)>();
-        foreach (var rec in recordings.Where(r => r.ConcernsFlagged))
+        foreach (var rec in recordings)
         {
             pool.Add((rec.SessionDate.ToDateTime(TimeOnly.MinValue).Ticks,
                 new AttentionItemDto(
@@ -295,7 +331,7 @@ public class DashboardController : ControllerBase
                     $"Resident #{rec.ResidentId} — {rec.SessionType} on {formatDisplayDate(rec.SessionDate)}",
                     "review")));
         }
-        foreach (var v in visitations.Where(x => x.FollowUpNeeded))
+        foreach (var v in visitations)
         {
             pool.Add((v.VisitDate.ToDateTime(TimeOnly.MinValue).Ticks,
                 new AttentionItemDto(
@@ -310,7 +346,7 @@ public class DashboardController : ControllerBase
                 new AttentionItemDto(
                     $"don-{d.DonationId}",
                     "Donation recorded",
-                    $"{FormatMoneyCompact(DonationMoneyValue(d))} — {d.DonationType} on {formatDisplayDate(d.DonationDate)}",
+                    $"{FormatMoneyCompact(DonationMoneyValue(d.DonationType, d.Amount, d.EstimatedValue))} — {d.DonationType} on {formatDisplayDate(d.DonationDate)}",
                     "review")));
         }
         pool.Sort((a, b) => b.Ts.CompareTo(a.Ts));
@@ -324,6 +360,135 @@ public class DashboardController : ControllerBase
                 "review"));
         }
         return items;
+    }
+
+    private sealed record DonationSumsDto(decimal CurSum, decimal PriorSum, string DonationTrend, string DonationTrendLabel, decimal AllTimeSum);
+
+    private async Task<DonationSumsDto> BuildDonationSumsAsync(CancellationToken ct)
+    {
+        var todayDate = DateTime.Today;
+        var curStart = new DateOnly(todayDate.Year, todayDate.Month, 1);
+        var nextStart = curStart.AddMonths(1);
+        var priorStart = curStart.AddMonths(-1);
+
+        var moneyExpr = _db.Donations.AsNoTracking().Select(d => new
+        {
+            d.DonationDate,
+            Value =
+                d.DonationType == "Monetary"
+                    ? (d.Amount ?? 0)
+                    : d.DonationType == "InKind"
+                        ? (d.EstimatedValue ?? d.Amount ?? 0)
+                        : (d.Amount ?? d.EstimatedValue ?? 0)
+        });
+
+        var sums = await moneyExpr
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                All = g.Sum(x => x.Value),
+                Cur = g.Where(x => x.DonationDate >= curStart && x.DonationDate < nextStart).Sum(x => x.Value),
+                Prior = g.Where(x => x.DonationDate >= priorStart && x.DonationDate < curStart).Sum(x => x.Value),
+            })
+            .FirstOrDefaultAsync(ct);
+
+        var curSum = sums?.Cur ?? 0;
+        var priorSum = sums?.Prior ?? 0;
+        var allTimeSum = sums?.All ?? 0;
+
+        var donationTrend = "neutral";
+        var donationTrendLabel = "No prior month to compare";
+        if (priorSum > 0)
+        {
+            var pct = (double)((curSum - priorSum) / priorSum * 100);
+            donationTrend = pct >= 0 ? "up" : "down";
+            donationTrendLabel = $"{(pct >= 0 ? "+" : "")}{pct:F1}% vs prior month";
+        }
+        else if (curSum > 0)
+        {
+            donationTrendLabel = "First gifts this period";
+        }
+
+        return new DonationSumsDto(curSum, priorSum, donationTrend, donationTrendLabel, allTimeSum);
+    }
+
+    private async Task<(List<DonationMonthDto> Activity, List<double> Spark)> BuildDonationActivityAsync(CancellationToken ct)
+    {
+        var todayDate = DateTime.Today;
+        var start = new DateOnly(todayDate.Year, todayDate.Month, 1).AddMonths(-6); // include prior month for returning donor calc
+        var end = new DateOnly(todayDate.Year, todayDate.Month, 1).AddMonths(1);
+
+        var rows = await _db.Donations.AsNoTracking()
+            .Where(d => d.DonationDate >= start && d.DonationDate < end)
+            .Select(d => new
+            {
+                d.DonationDate,
+                d.SupporterId,
+                Value =
+                    d.DonationType == "Monetary"
+                        ? (d.Amount ?? 0)
+                        : d.DonationType == "InKind"
+                            ? (d.EstimatedValue ?? d.Amount ?? 0)
+                            : (d.Amount ?? d.EstimatedValue ?? 0)
+            })
+            .ToListAsync(ct);
+
+        var donationSpark = new List<double>();
+        var donationActivity = new List<DonationMonthDto>();
+
+        for (var i = 5; i >= 0; i--)
+        {
+            var monthStart = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(-i);
+            var monthKey = $"{monthStart.Year}-{monthStart.Month:00}";
+            var priorMonth = monthStart.AddMonths(-1);
+            var priorKey = $"{priorMonth.Year}-{priorMonth.Month:00}";
+
+            var monthRows = rows.Where(x => $"{x.DonationDate.Year}-{x.DonationDate.Month:00}" == monthKey).ToList();
+            var priorRows = rows.Where(x => $"{x.DonationDate.Year}-{x.DonationDate.Month:00}" == priorKey).ToList();
+
+            var total = monthRows.Sum(x => x.Value);
+            var donorIds = monthRows.Where(x => x.SupporterId.HasValue).Select(x => x.SupporterId!.Value).ToHashSet();
+            var priorDonorIds = priorRows.Where(x => x.SupporterId.HasValue).Select(x => x.SupporterId!.Value).ToHashSet();
+
+            var returningDonors = donorIds.Count(id => priorDonorIds.Contains(id));
+            var newDonors = Math.Max(0, donorIds.Count - returningDonors);
+
+            donationActivity.Add(new DonationMonthDto(
+                monthStart.ToString("MMM", CultureInfo.CurrentCulture),
+                (double)Math.Round(total, 2),
+                newDonors,
+                returningDonors));
+            donationSpark.Add((double)total);
+        }
+
+        return (donationActivity, donationSpark);
+    }
+
+    private async Task<List<double>> BuildResidentSparkAsync(CancellationToken ct)
+    {
+        var todayDate = DateTime.Today;
+        var start = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(-5);
+        var end = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(1);
+        var startOnly = DateOnly.FromDateTime(start);
+        var endOnly = DateOnly.FromDateTime(end);
+
+        var admissions = await _db.Residents.AsNoTracking()
+            .Where(r => r.CaseStatus == "Active")
+            .Where(r => r.DateOfAdmission >= startOnly && r.DateOfAdmission < endOnly)
+            .Select(r => r.DateOfAdmission)
+            .ToListAsync(ct);
+
+        var spark = new List<double>();
+        for (var i = 5; i >= 0; i--)
+        {
+            var mStart = new DateTime(todayDate.Year, todayDate.Month, 1).AddMonths(-i);
+            var mEnd = mStart.AddMonths(1);
+            var mStartOnly = DateOnly.FromDateTime(mStart);
+            var mEndOnly = DateOnly.FromDateTime(mEnd);
+            var count = admissions.Count(d => d >= mStartOnly && d < mEndOnly);
+            spark.Add(count);
+        }
+        return spark;
     }
 
     private static List<PriorityCalloutDto> BuildPriorityCallouts(

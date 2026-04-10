@@ -2,6 +2,7 @@ import { API_BASE, apiUrl } from "@/lib/apiBase";
 
 /** GET /api/public/stats — aggregate DB metrics for homepage / impact (no PII). */
 export type PublicHomeStats = {
+  activeResidents: number | null;
   totalResidents: number | null;
   totalSafehouses: number | null;
   counselingSessionsCount: number | null;
@@ -114,6 +115,7 @@ async function parseJson(res: Response): Promise<unknown> {
  */
 export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
   const empty: PublicHomeStats = {
+    activeResidents: null,
     totalResidents: null,
     totalSafehouses: null,
     counselingSessionsCount: null,
@@ -158,6 +160,7 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
     }
 
     const fromStats = {
+      activeResidents: readNum(statsJson, "activeResidents", "ActiveResidents"),
       totalResidents: readNum(statsJson, "totalResidents", "TotalResidents"),
       totalSafehouses: readNum(statsJson, "totalSafehouses", "TotalSafehouses"),
       counselingSessionsCount: readNum(statsJson, "counselingSessionsCount", "CounselingSessionsCount"),
@@ -173,6 +176,7 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
 
     // ?? preserves 0; only falls through on null/undefined
     const merged: PublicHomeStats = {
+      activeResidents: fromStats.activeResidents ?? null,
       totalResidents: fromStats.totalResidents ?? residentsFromCount ?? residentsFromReint ?? null,
       totalSafehouses: fromStats.totalSafehouses ?? safehousesFromCount ?? safehousesFromList ?? null,
       counselingSessionsCount: fromStats.counselingSessionsCount ?? recordingsFromCount ?? null,

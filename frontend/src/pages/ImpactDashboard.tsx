@@ -11,9 +11,10 @@ import {
   type PublicHomeStats,
 } from "@/lib/publicImpact";
 
-function formatUsdCompact(value: number | null): string {
-  if (value === null || Number.isNaN(value)) return "—";
-  return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function toFiniteNumberOrZero(value: unknown): number {
+  if (typeof value !== "number") return 0;
+  if (!Number.isFinite(value)) return 0;
+  return value;
 }
 
 const ImpactDashboard = () => {
@@ -36,7 +37,8 @@ const ImpactDashboard = () => {
           ? Number(data.summary.totalDonations)
           : null;
     const livesImpacted = data?.summary.survivors ?? homeStats?.totalResidents ?? null;
-    return { totalRaised, livesImpacted };
+    const activeResidents = homeStats?.activeResidents ?? null;
+    return { totalRaised, livesImpacted, activeResidents };
   }, [validCampaigns, data, homeStats]);
 
   useEffect(() => {
@@ -117,22 +119,17 @@ const ImpactDashboard = () => {
               [
                 {
                   label: "Total raised",
-                  value: formatUsdCompact(headlineStats.totalRaised),
+                  value: toFiniteNumberOrZero(headlineStats.totalRaised),
+                  prefix: "$",
                 },
                 {
-                  label: "Active campaigns",
-                  value:
-                    data?.summary.activeCampaignsCount != null
-                      ? String(data.summary.activeCampaignsCount)
-                      : "—",
-                  title: "Campaigns receiving donations in the last 60 days",
+                  label: "Active Residents",
+                  value: toFiniteNumberOrZero(headlineStats.activeResidents),
+                  title: "Residents currently marked active in the care system",
                 },
                 {
                   label: "Lives impacted",
-                  value:
-                    headlineStats.livesImpacted != null
-                      ? headlineStats.livesImpacted.toLocaleString("en-US")
-                      : "—",
+                  value: toFiniteNumberOrZero(headlineStats.livesImpacted),
                 },
               ] as const
             ).map((item, i) => (
@@ -147,7 +144,7 @@ const ImpactDashboard = () => {
                   {item.label}
                 </p>
                 <p className="mt-2 font-display text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
-                  {item.value}
+                  <AnimatedCount value={item.value} prefix={"prefix" in item ? item.prefix : ""} fallback="0" />
                 </p>
               </div>
             ))}
