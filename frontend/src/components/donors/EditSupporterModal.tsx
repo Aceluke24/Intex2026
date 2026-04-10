@@ -152,22 +152,19 @@ function formatPhoneBlur(raw: string): string {
 }
 
 const inputClass = cn(
-  "h-11 rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md",
-  "placeholder:text-muted-foreground/50",
-  "focus-visible:border-[hsl(340_35%_75%)]/40 focus-visible:ring-2 focus-visible:ring-[hsl(340_35%_70%)]/25",
-  "dark:border-white/10 dark:bg-white/[0.07]",
+  "h-11 rounded-2xl border bg-gray-50 border-gray-300 text-gray-900 font-body text-sm",
+  "placeholder:text-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500",
+  "focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-primary-500 focus-visible:outline-none",
 );
 
 const selectTriggerClass = cn(
-  "h-11 w-full rounded-2xl border border-white/40 bg-white/55 font-body text-sm shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] backdrop-blur-md",
-  "focus:ring-2 focus:ring-[hsl(340_35%_70%)]/25 focus:ring-offset-0",
-  "dark:border-white/10 dark:bg-white/[0.07]",
+  "h-11 w-full rounded-2xl border bg-gray-50 border-gray-300 text-gray-900 font-body text-sm",
+  "dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100",
+  "focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:ring-offset-0 focus:outline-none",
 );
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <p className="font-body text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/80">{children}</p>
-  );
+  return <p className="font-body text-sm font-medium text-gray-900 dark:text-gray-100">{children}</p>;
 }
 
 export function EditSupporterModal({
@@ -316,7 +313,7 @@ export function EditSupporterModal({
       <DialogPortal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-black/40 backdrop-blur-[6px]",
+            "fixed inset-0 z-50 bg-black/40 dark:bg-black/60 backdrop-blur-[6px]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           )}
@@ -324,8 +321,7 @@ export function EditSupporterModal({
         <DialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 flex max-h-[min(92vh,880px)] w-[calc(100%-2rem)] max-w-[min(100%,40rem)] -translate-x-1/2 -translate-y-1/2 flex-col",
-            "rounded-[1.35rem] border border-black/[0.07] bg-[hsl(36_33%_98%)]/95 p-0 font-body text-foreground shadow-[0_20px_64px_-24px_rgba(15,23,42,0.18)] backdrop-blur-xl",
-            "dark:border-white/[0.08] dark:bg-[hsl(213_40%_11%)]/95 dark:shadow-[0_24px_80px_-24px_rgba(0,0,0,0.55)]",
+            "rounded-[1.35rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-0 font-body text-gray-900 dark:text-gray-100 shadow-xl dark:shadow-black/40",
             "duration-200 ease-out",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
@@ -346,30 +342,30 @@ export function EditSupporterModal({
               }}
               className="flex max-h-[min(92vh,880px)] flex-col"
             >
-              <div className="shrink-0 border-b border-black/5 px-6 pb-4 pt-6 dark:border-white/5">
+              <div className="shrink-0 border-b border-gray-200 dark:border-gray-800 px-6 pb-4 pt-6">
                 <DialogHeader className="space-y-0 text-left">
-                  <DialogTitle className="font-display text-xl font-semibold tracking-tight text-foreground">
+                  <DialogTitle className="font-display text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                     Edit Supporter
                   </DialogTitle>
-                  <DialogDescription className="mt-1.5 font-body text-sm text-muted-foreground">
+                  <DialogDescription className="mt-1.5 font-body text-sm text-gray-500 dark:text-gray-400">
                     Update supporter details. Location uses region and country fields from the database schema.
                   </DialogDescription>
                 </DialogHeader>
-                <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 font-body text-xs text-muted-foreground">
+                <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 font-body text-xs text-gray-500 dark:text-gray-400">
                   <div>
-                    <dt className="inline font-medium text-muted-foreground/90">ID</dt>{" "}
-                    <dd className="inline tabular-nums text-foreground/80">{supporterIdLabel}</dd>
+                    <dt className="inline font-medium text-gray-500 dark:text-gray-400">ID</dt>{" "}
+                    <dd className="inline tabular-nums text-gray-500 dark:text-gray-400">{supporterIdLabel}</dd>
                   </div>
                   <div>
-                    <dt className="inline font-medium text-muted-foreground/90">Record created</dt>{" "}
-                    <dd className="inline text-foreground/80">{createdAtLabel}</dd>
+                    <dt className="inline font-medium text-gray-500 dark:text-gray-400">Record created</dt>{" "}
+                    <dd className="inline text-gray-500 dark:text-gray-400">{createdAtLabel}</dd>
                   </div>
                 </dl>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 {loadingDetail ? (
-                  <p className="py-12 text-center font-body text-sm text-muted-foreground">Loading supporter…</p>
+                  <p className="py-12 text-center font-body text-sm text-gray-500 dark:text-gray-400">Loading supporter…</p>
                 ) : fetchError ? (
                   <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
                     {fetchError}
@@ -380,7 +376,7 @@ export function EditSupporterModal({
                       <SectionTitle>Basic info</SectionTitle>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="es-first" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-first" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             First name
                           </Label>
                           <Input
@@ -394,7 +390,7 @@ export function EditSupporterModal({
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="es-last" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-last" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             Last name
                           </Label>
                           <Input
@@ -408,7 +404,7 @@ export function EditSupporterModal({
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="es-display" className="font-body text-xs font-medium text-muted-foreground">
+                        <Label htmlFor="es-display" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                           Display name
                         </Label>
                         <Input
@@ -421,7 +417,7 @@ export function EditSupporterModal({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="es-org" className="font-body text-xs font-medium text-muted-foreground">
+                        <Label htmlFor="es-org" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                           Organization name
                         </Label>
                         <Input
@@ -438,7 +434,7 @@ export function EditSupporterModal({
                       <SectionTitle>Contact</SectionTitle>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="es-email" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-email" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             Email
                           </Label>
                           <Input
@@ -465,7 +461,7 @@ export function EditSupporterModal({
                           ) : null}
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="es-phone" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-phone" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             Phone
                           </Label>
                           <Input
@@ -487,7 +483,7 @@ export function EditSupporterModal({
                       <SectionTitle>Location</SectionTitle>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="es-region" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-region" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             Region
                           </Label>
                           <Input
@@ -499,7 +495,7 @@ export function EditSupporterModal({
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="es-country" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-country" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             Country
                           </Label>
                           <Input
@@ -518,7 +514,7 @@ export function EditSupporterModal({
                       <SectionTitle>Additional</SectionTitle>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="font-body text-xs font-medium text-muted-foreground">Relationship</Label>
+                          <Label className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">Relationship</Label>
                           <Select
                             value={form.relationshipType}
                             onValueChange={(v) => updateField("relationshipType", v)}
@@ -537,7 +533,7 @@ export function EditSupporterModal({
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="font-body text-xs font-medium text-muted-foreground">Supporter type</Label>
+                          <Label className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">Supporter type</Label>
                           <Select
                             value={form.supporterType}
                             onValueChange={(v) => updateField("supporterType", v)}
@@ -558,7 +554,7 @@ export function EditSupporterModal({
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="es-first-donation" className="font-body text-xs font-medium text-muted-foreground">
+                          <Label htmlFor="es-first-donation" className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">
                             First donation date
                           </Label>
                           <Input
@@ -571,7 +567,7 @@ export function EditSupporterModal({
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="font-body text-xs font-medium text-muted-foreground">Acquisition channel</Label>
+                          <Label className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">Acquisition channel</Label>
                           <Select
                             value={form.acquisitionChannel || "__none__"}
                             onValueChange={(v) => updateField("acquisitionChannel", v === "__none__" ? "" : v)}
@@ -593,7 +589,7 @@ export function EditSupporterModal({
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="font-body text-xs font-medium text-muted-foreground">Status</Label>
+                          <Label className="font-body text-xs font-medium text-gray-600 dark:text-gray-400">Status</Label>
                           <Select value={form.status} onValueChange={(v) => updateField("status", v)} disabled={saving}>
                             <SelectTrigger className={selectTriggerClass}>
                               <SelectValue />
@@ -610,7 +606,7 @@ export function EditSupporterModal({
                 ) : null}
               </div>
 
-              <div className="shrink-0 border-t border-black/5 px-6 py-4 dark:border-white/5">
+              <div className="shrink-0 border-t border-gray-200 dark:border-gray-800 px-6 py-4">
                 {saveError ? (
                   <p className="mb-3 font-body text-sm text-destructive" role="status">
                     {saveError}
@@ -622,7 +618,7 @@ export function EditSupporterModal({
                       type="button"
                       variant="outline"
                       disabled={saving || loadingDetail}
-                      className="rounded-xl border-destructive/40 font-body text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="rounded-xl font-body text-red-600 border border-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                       onClick={() => {
                         onRequestDelete(supporter);
                         handleOpenChange(false);
@@ -639,14 +635,14 @@ export function EditSupporterModal({
                       variant="ghost"
                       disabled={saving || loadingDetail}
                       onClick={() => handleOpenChange(false)}
-                      className="rounded-xl font-body text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/10"
+                      className="rounded-xl font-body text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                     >
                       Cancel
                     </Button>
                     <Button
                       type="submit"
                       disabled={!canProceedToConfirm || saving || loadingDetail || !form}
-                      className="min-w-[7rem] rounded-xl bg-gradient-to-r from-[hsl(340_42%_72%)] to-[hsl(10_48%_62%)] font-body font-medium text-white shadow-sm transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+                      className="min-w-[7rem] rounded-xl bg-primary-600 hover:bg-primary-700 font-body font-medium text-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
                     >
                       Save changes
                     </Button>
@@ -663,10 +659,10 @@ export function EditSupporterModal({
               }}
             >
               <DialogHeader className="space-y-0 text-left">
-                <DialogTitle className="font-display text-xl font-semibold tracking-tight text-foreground">
+                <DialogTitle className="font-display text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                   Confirm changes
                 </DialogTitle>
-                <DialogDescription className="mt-3 font-body text-base text-foreground/85">
+                <DialogDescription className="mt-3 font-body text-base text-gray-500 dark:text-gray-400">
                   Are you sure you want to update this supporter&apos;s information? This will overwrite the existing data.
                 </DialogDescription>
               </DialogHeader>
@@ -680,7 +676,7 @@ export function EditSupporterModal({
                   type="button"
                   variant="ghost"
                   disabled={saving}
-                  className="rounded-xl font-body text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:hover:bg-white/10"
+                  className="rounded-xl font-body text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   onClick={() => {
                     setPhase("edit");
                     setSaveError(null);
@@ -691,7 +687,7 @@ export function EditSupporterModal({
                 <Button
                   type="submit"
                   disabled={saving}
-                  className="min-w-[9rem] rounded-xl bg-gradient-to-r from-[hsl(340_42%_72%)] to-[hsl(10_48%_62%)] font-body font-medium text-white shadow-sm transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+                  className="min-w-[9rem] rounded-xl bg-primary-600 hover:bg-primary-700 font-body font-medium text-white transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Confirm & save"}
                 </Button>
