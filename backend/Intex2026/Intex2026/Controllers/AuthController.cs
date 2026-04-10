@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -30,11 +31,16 @@ public class AuthController(
     private const string DefaultExternalReturnPath = "/google-callback";
 
     [HttpGet("me")]
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
     public async Task<IActionResult> GetCurrentSession()
     {
         if (User.Identity?.IsAuthenticated != true)
         {
-            logger.LogWarning("Unauthorized /api/auth/me request. Authenticated={IsAuthenticated}", User.Identity?.IsAuthenticated ?? false);
+            logger.LogWarning(
+                "Unauthorized /api/auth/me request. Authenticated={IsAuthenticated}. HasAuthorizationHeader={HasAuthorizationHeader}. HasCookies={HasCookies}",
+                User.Identity?.IsAuthenticated ?? false,
+                Request.Headers.ContainsKey("Authorization"),
+                Request.Cookies.Count > 0);
             return Unauthorized();
         }
 

@@ -9,7 +9,7 @@ import type {
 } from "@/lib/dashboardTypes";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import { apiFetchJson } from "@/lib/apiFetch";
+import { apiFetchJson, ApiHttpError } from "@/lib/apiFetch";
 import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -64,7 +64,11 @@ const DashboardPage = () => {
       setInsights(data.insights);
     } catch (e) {
       console.error("[Dashboard]", e);
-      setLoadError(e instanceof Error ? e.message : "Failed to load dashboard data.");
+      if (e instanceof ApiHttpError && (e.status === 401 || e.status === 403)) {
+        setLoadError("Your session is no longer authorized. Redirecting to login.");
+      } else {
+        setLoadError(e instanceof Error ? e.message : "Failed to load dashboard data.");
+      }
     } finally {
       setLoading(false);
     }

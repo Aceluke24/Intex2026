@@ -9,7 +9,7 @@ namespace Intex2026.Controllers;
 
 [ApiController]
 [Route("api/dashboard")]
-[Authorize(Roles = "Admin")]
+[Authorize(AuthenticationSchemes = "Identity.Application", Roles = "Admin")]
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;

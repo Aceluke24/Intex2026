@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { API_PREFIX, apiUrl } from "@/lib/apiBase";
+import { API_PREFIX } from "@/lib/apiBase";
+import { apiFetchJson, ApiHttpError } from "@/lib/apiFetch";
 
 interface User {
   id: string;
@@ -29,23 +30,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMe = async (): Promise<User | null> => {
     try {
-      const headers = new Headers();
-      const token =
-        typeof window !== "undefined" ? window.localStorage.getItem("nss_access_token") : null;
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      const res = await fetch(apiUrl(`${API_PREFIX}/auth/me`), {
-        credentials: "include",
-        headers,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-        return data;
+      const data = await apiFetchJson<User>(`${API_PREFIX}/auth/me`, { timeoutMs: 10000 });
+      setUser(data);
+      return data;
+    } catch (error) {
+      if (error instanceof ApiHttpError && (error.status === 401 || error.status === 403)) {
+        console.warn("[AuthContext] Session not authenticated for /api/auth/me.");
       } else {
-        setUser(null);
-        return null;
+        console.error("[AuthContext] Failed to fetch /api/auth/me", error);
       }
-    } catch {
       setUser(null);
       return null;
     } finally {
