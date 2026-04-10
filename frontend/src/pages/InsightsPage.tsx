@@ -1,5 +1,4 @@
 import { AdminLayout } from "@/components/AdminLayout";
-import { AIInsightCard } from "@/components/AIInsightCard";
 import {
   DASHBOARD_CONTENT_MAX_WIDTH,
   DashboardGlassPanel,
@@ -90,14 +89,6 @@ type SocialMediaResponse = {
   trainedAt?: string;
   metrics?: { aic: number; nPosts: number };
   rows: SocialMediaRow[];
-};
-
-type InsightCard = {
-  type: string;
-  title: string;
-  description: string;
-  urgency: "high" | "medium" | "low";
-  action: string;
 };
 
 const actionByRiskCategory: Record<string, string> = {
@@ -200,44 +191,6 @@ const InsightsPage = () => {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const cards = useMemo((): InsightCard[] => {
-    if (loading) return [];
-    const out: InsightCard[] = [];
-    const criticalDonors = churn.filter((x) => x.riskCategory === "Critical").length;
-    const highChurn = churn.filter((x) => x.churnRisk >= 0.5).length;
-    if (churn.length > 0) {
-      out.push({
-        type: "churn",
-        title: "Donor retention signals",
-        description: `${criticalDonors} active supporters are in the critical risk band; ${highChurn} show elevated churn risk (${donorScoreSource === "ml" ? "ML scoring" : "rule-based fallback"}).`,
-        urgency: criticalDonors > 0 ? "high" : "medium",
-        action: "Review donor list",
-      });
-    }
-    const escalated = residentRisk.filter((x) => x.riskEscalated).length;
-    const concerns = residentRisk.filter((x) => x.recentConcernsCount > 0).length;
-    const incidents = residentRisk.filter((x) => x.openIncidents > 0).length;
-    if (residentRisk.length > 0) {
-      out.push({
-        type: "resident",
-        title: "Active resident risk",
-        description: `${escalated} cases show escalated risk versus intake; ${concerns} have recent flagged process recordings; ${incidents} have open incidents.`,
-        urgency: escalated > 0 || incidents > 0 ? "high" : "low",
-        action: "Open caseload",
-      });
-    }
-    if (out.length === 0) {
-      out.push({
-        type: "prediction",
-        title: "Models in calibration",
-        description: "Insight endpoints are returning data. As more cases and donations accumulate, rankings will stabilize.",
-        urgency: "low",
-        action: "Refresh",
-      });
-    }
-    return out;
-  }, [churn, donorScoreSource, residentRisk, loading]);
 
   const topAtRiskDonors = useMemo(() => {
     let filtered = [...churn];
@@ -395,20 +348,6 @@ const InsightsPage = () => {
           <p className="font-body text-sm text-muted-foreground">Loading insights…</p>
         ) : (
           <div className="space-y-10">
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              {cards.map((insight, i) => (
-                <motion.div
-                  key={`${insight.title}-${i}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className="transition-transform duration-200 hover:-translate-y-1"
-                >
-                  <AIInsightCard {...insight} />
-                </motion.div>
-              ))}
-            </div>
-
             <motion.section
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
