@@ -1,5 +1,8 @@
 import { API_BASE, apiUrl } from "@/lib/apiBase";
 
+const PUBLIC_CACHE_TTL_MS = 60_000;
+const publicRequestCache = new Map<string, { expiresAt: number; data: unknown }>();
+
 /** GET /api/public/stats — aggregate DB metrics for homepage / impact (no PII). */
 export type PublicHomeStats = {
   activeResidents: number | null;
@@ -108,6 +111,21 @@ async function parseJson(res: Response): Promise<unknown> {
   }
 }
 
+async function cachedFetchJson(path: string): Promise<unknown> {
+  const now = Date.now();
+  const existing = publicRequestCache.get(path);
+  if (existing && existing.expiresAt > now) {
+    return existing.data;
+  }
+
+  const response = await fetch(apiUrl(path));
+  const data = await parseJson(response);
+  if (response.ok) {
+    publicRequestCache.set(path, { expiresAt: now + PUBLIC_CACHE_TTL_MS, data });
+  }
+  return data;
+}
+
 /**
  * Loads homepage impact metrics from public APIs in parallel.
  * Merges `/api/public/stats` with dedicated count endpoints so values populate
@@ -131,17 +149,17 @@ export async function fetchPublicHomeStats(): Promise<PublicHomeStats> {
       reintResult,
       safehousesListResult,
     ] = await Promise.allSettled([
-      fetch(apiUrl("/api/public/stats")),
-      fetch(apiUrl("/api/public/residents/count")),
-      fetch(apiUrl("/api/public/safehouses/count")),
-      fetch(apiUrl("/api/public/recordings/count")),
-      fetch(apiUrl("/api/public/residents/reintegration-rate")),
-      fetch(apiUrl("/api/public/safehouses")),
+      cachedFetchJson("/api/public/stats"),
+      cachedFetchJson("/api/public/residents/count"),
+      cachedFetchJson("/api/public/safehouses/count"),
+      cachedFetchJson("/api/public/recordings/count"),
+      cachedFetchJson("/api/public/residents/reintegration-rate"),
+      cachedFetchJson("/api/public/safehouses"),
     ]);
 
-    const parseSettled = async (result: PromiseSettledResult<Response>): Promise<unknown> => {
+    const parseSettled = async (result: PromiseSettledResult<unknown>): Promise<unknown> => {
       if (result.status !== "fulfilled") return {};
-      return parseJson(result.value);
+      return result.value;
     };
 
     const [statsJson, residentsJson, shCountJson, recJson, reintJson, safehousesListJson] = await Promise.all([
@@ -241,17 +259,17 @@ export async function fetchPublicImpactBundle(): Promise<PublicImpactBundle> {
       allocationResult,
       trendResult,
     ] = await Promise.allSettled([
-      fetch(apiUrl("/api/public/residents/count")),
-      fetch(apiUrl("/api/public/impact/summary")),
-      fetch(apiUrl("/api/public/impact/program-outcomes")),
-      fetch(apiUrl("/api/public/impact/campaigns")),
-      fetch(apiUrl("/api/public/impact/allocation")),
-      fetch(apiUrl("/api/public/impact/donations-trend")),
+      cachedFetchJson("/api/public/residents/count"),
+      cachedFetchJson("/api/public/impact/summary"),
+      cachedFetchJson("/api/public/impact/program-outcomes"),
+      cachedFetchJson("/api/public/impact/campaigns"),
+      cachedFetchJson("/api/public/impact/allocation"),
+      cachedFetchJson("/api/public/impact/donations-trend"),
     ]);
 
-    const jsonOrDefault = async (result: PromiseSettledResult<Response>, fallback: unknown) => {
+    const jsonOrDefault = async (result: PromiseSettledResult<unknown>, fallback: unknown) => {
       if (result.status !== "fulfilled") return fallback;
-      return result.value.ok ? await result.value.json().catch(() => fallback) : fallback;
+      return result.value ?? fallback;
     };
 
     const residentsJson = await jsonOrDefault(residentsResult, {});

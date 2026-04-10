@@ -9,7 +9,7 @@ import { API_PREFIX } from "@/lib/apiBase";
 import type { Supporter } from "@/lib/donorsTypes";
 import { formatDateSafe } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type EditSupporterModalProps = {
   open: boolean;
@@ -180,7 +180,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-export function EditSupporterModal({
+export const EditSupporterModal = memo(function EditSupporterModal({
   open,
   onOpenChange,
   supporter,
@@ -197,6 +197,7 @@ export function EditSupporterModal({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const shouldAutoFocusRef = useRef(false);
 
   const resetForClose = useCallback(() => {
     setPhase("edit");
@@ -207,6 +208,7 @@ export function EditSupporterModal({
     setEmailError(null);
     setSaveError(null);
     setLoadingDetail(false);
+    shouldAutoFocusRef.current = false;
   }, []);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -247,16 +249,18 @@ export function EditSupporterModal({
       resetForClose();
       return;
     }
+    shouldAutoFocusRef.current = true;
     void loadDetail(supporter.id);
   }, [open, supporter, supporter?.id, loadDetail, resetForClose]);
 
   useEffect(() => {
-    if (!open || phase !== "edit" || loadingDetail || !form) return;
+    if (!open || phase !== "edit" || loadingDetail || !form || !shouldAutoFocusRef.current) return;
     const id = requestAnimationFrame(() => {
       firstFieldRef.current?.focus();
+      shouldAutoFocusRef.current = false;
     });
     return () => cancelAnimationFrame(id);
-  }, [open, phase, loadingDetail, form, supporter?.id]);
+  }, [open, phase, loadingDetail, supporter?.id, form]);
 
   const dirty = useMemo(() => {
     if (!form || !initialForm) return false;
@@ -333,7 +337,7 @@ export function EditSupporterModal({
         />
         <DialogPrimitive.Content
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 flex max-h-[min(92vh,880px)] w-[calc(100%-2rem)] max-w-[min(100%,40rem)] -translate-x-1/2 -translate-y-1/2 flex-col",
+            "fixed left-1/2 top-1/2 z-[60] flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[min(100%,40rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden",
             "rounded-[1.35rem] border p-0 font-body text-gray-900 dark:text-gray-100",
             "border-black/[0.08] bg-white/95 shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl",
             "dark:border-white/[0.10] dark:bg-[hsl(213_45%_8%)]/92 dark:shadow-[0_28px_90px_rgba(0,0,0,0.60)]",
@@ -355,7 +359,7 @@ export function EditSupporterModal({
                 e.preventDefault();
                 goConfirm();
               }}
-              className="flex max-h-[min(92vh,880px)] flex-col"
+              className="flex h-full max-h-[90vh] flex-col"
             >
               <div className="shrink-0 border-b border-black/[0.06] px-6 pb-4 pt-6 dark:border-white/[0.08]">
                 <DialogHeader className="space-y-0 text-left">
@@ -621,7 +625,7 @@ export function EditSupporterModal({
                 ) : null}
               </div>
 
-              <div className="shrink-0 border-t border-black/[0.06] px-6 py-4 dark:border-white/[0.08]">
+              <div className="sticky bottom-0 z-10 shrink-0 border-t border-black/[0.06] bg-white/95 px-6 py-4 dark:border-white/[0.08] dark:bg-[hsl(213_45%_8%)]/95">
                 {saveError ? (
                   <p className="mb-3 font-body text-sm text-destructive" role="status">
                     {saveError}
@@ -658,7 +662,7 @@ export function EditSupporterModal({
                       type="submit"
                       disabled={!canProceedToConfirm || saving || loadingDetail || !form}
                       className={cn(
-                        "min-w-[7.5rem] rounded-xl bg-primary-600 hover:bg-primary-700 font-body font-medium text-white",
+                        "min-w-[7.5rem] rounded-xl bg-blue-600 hover:bg-blue-700 font-body font-medium text-white",
                         "shadow-[0_10px_28px_-12px_rgba(59,130,246,0.65)] dark:shadow-[0_14px_38px_-18px_rgba(59,130,246,0.70)]",
                         "transition-[transform,box-shadow,filter] duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]",
                         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary-500/30",
@@ -719,4 +723,4 @@ export function EditSupporterModal({
       </DialogPortal>
     </Dialog>
   );
-}
+});

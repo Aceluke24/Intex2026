@@ -459,13 +459,13 @@ const RecordingsPage = () => {
           </div>
 
           {loadingSessions ? (
-            <div className="space-y-4">
+            <div className="mx-auto w-full max-w-5xl space-y-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-[132px] rounded-[1.1rem] bg-white/40" />
               ))}
             </div>
           ) : (
-            <>
+            <div className="mx-auto w-full max-w-5xl px-6 sm:px-8">
               <SessionTimeline
                 entries={filteredSessions}
                 onSelect={openEntry}
@@ -473,28 +473,32 @@ const RecordingsPage = () => {
                 onDelete={(id) => setDeleteTargetId(id)}
               />
 
-              <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={page <= 1}
-                  onClick={() => handleChangePage(page - 1)}
-                >
-                  Previous
-                </Button>
-                <p className="font-body text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
-                </p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={page >= totalPages}
-                  onClick={() => handleChangePage(page + 1)}
-                >
-                  Next
-                </Button>
+              <div className="mt-4 border-t border-border/60 pt-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="font-medium text-primary"
+                    disabled={page <= 1}
+                    onClick={() => handleChangePage(page - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <p className="font-body text-sm text-gray-500">
+                    Page {page} of {totalPages}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="font-medium text-primary"
+                    disabled={page >= totalPages}
+                    onClick={() => handleChangePage(page + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
-            </>
+            </div>
           )}
         </section>
       </StaffPageShell>

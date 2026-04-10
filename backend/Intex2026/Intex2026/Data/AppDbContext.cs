@@ -115,6 +115,24 @@ public class AppDbContext : DbContext
         builder.Entity<HomeVisitation>()
             .HasIndex(h => h.VisitDate);
 
+        builder.Entity<Donation>()
+            .HasIndex(d => d.DonationDate);
+
+        builder.Entity<Donation>()
+            .HasIndex(d => d.CampaignName);
+
+        builder.Entity<Donation>()
+            .HasIndex(d => d.SupporterId);
+
+        builder.Entity<Resident>()
+            .HasIndex(r => r.CreatedAt);
+
+        builder.Entity<ProcessRecording>()
+            .HasIndex(r => r.ResidentId);
+
+        builder.Entity<HomeVisitation>()
+            .HasIndex(v => v.ResidentId);
+
         // Expense: optional FK to Safehouse
         builder.Entity<Expense>()
             .HasOne(e => e.Safehouse)

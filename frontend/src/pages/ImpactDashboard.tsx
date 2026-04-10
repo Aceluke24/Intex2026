@@ -1,7 +1,6 @@
 import { PublicLayout } from "@/components/PublicLayout";
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ImpactCampaignsSection } from "@/components/impact/ImpactCampaignsSection";
 import { AnimatedCount } from "@/components/AnimatedCount";
 import {
   fetchPublicImpactBundle,
@@ -11,6 +10,11 @@ import {
   type PublicHomeStats,
 } from "@/lib/publicImpact";
 
+const LazyImpactCampaignsSection = lazy(async () => {
+  const module = await import("@/components/impact/ImpactCampaignsSection");
+  return { default: module.ImpactCampaignsSection };
+});
+
 function toFiniteNumberOrZero(value: unknown): number {
   if (typeof value !== "number") return 0;
   if (!Number.isFinite(value)) return 0;
@@ -18,7 +22,7 @@ function toFiniteNumberOrZero(value: unknown): number {
 }
 
 const ImpactDashboard = () => {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [data, setData] = useState<PublicImpactBundle | null>(null);
   const [homeStats, setHomeStats] = useState<PublicHomeStats | null>(null);
@@ -43,19 +47,26 @@ const ImpactDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       setLoadError(null);
-      const [bundle, stats] = await Promise.all([fetchPublicImpactBundle(), fetchPublicHomeStats()]);
-      setData(bundle);
-      setHomeStats(stats);
-      const homeEmpty =
-        stats.totalResidents == null &&
-        stats.totalSafehouses == null &&
-        stats.counselingSessionsCount == null &&
-        stats.reintegrationRatePercent == null;
-      if (!bundle.summary.survivors && !bundle.summary.totalDonations && homeEmpty) {
+      try {
+        const [bundle, stats] = await Promise.all([fetchPublicImpactBundle(), fetchPublicHomeStats()]);
+        setData(bundle);
+        setHomeStats(stats);
+        const homeEmpty =
+          stats.totalResidents == null &&
+          stats.totalSafehouses == null &&
+          stats.counselingSessionsCount == null &&
+          stats.reintegrationRatePercent == null;
+        if (!bundle.summary.survivors && !bundle.summary.totalDonations && homeEmpty) {
+          setLoadError("Live impact data is unavailable right now. Showing placeholders.");
+        }
+      } catch (error) {
+        console.error("Impact dashboard load failed:", error);
         setLoadError("Live impact data is unavailable right now. Showing placeholders.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     load();
   }, []);
@@ -65,25 +76,6 @@ const ImpactDashboard = () => {
     const timer = window.setTimeout(() => setAnimateCampaignBars(true), 80);
     return () => window.clearTimeout(timer);
   }, [validCampaigns.length]);
-
-  if (loading) {
-    return (
-      <PublicLayout overlayHeader>
-        <div className="min-h-[60vh] bg-background pt-[var(--public-header-height)]">
-          <div className="mx-auto max-w-7xl space-y-10 px-6 py-20 lg:px-12">
-            <Skeleton className="h-4 w-24 rounded-full" />
-            <Skeleton className="h-14 w-full max-w-xl rounded-lg" />
-            <Skeleton className="h-6 w-full max-w-lg rounded-lg" />
-            <div className="grid gap-6 border-t border-border pt-10 sm:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-lg" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </PublicLayout>
-    );
-  }
 
   return (
     <PublicLayout overlayHeader>
@@ -144,7 +136,11 @@ const ImpactDashboard = () => {
                   {item.label}
                 </p>
                 <p className="mt-2 font-display text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
-                  <AnimatedCount value={item.value} prefix={"prefix" in item ? item.prefix : ""} fallback="0" />
+                  {loading ? (
+                    <Skeleton className="h-10 w-28 rounded-md bg-navy-foreground/15" />
+                  ) : (
+                    <AnimatedCount value={item.value} prefix={"prefix" in item ? item.prefix : ""} fallback="0" />
+                  )}
                 </p>
               </div>
             ))}
@@ -268,7 +264,18 @@ const ImpactDashboard = () => {
           </div>
         </section>
 
-        <ImpactCampaignsSection campaigns={validCampaigns} animateBars={animateCampaignBars} />
+        <Suspense
+          fallback={
+            <section className="border-t border-border">
+              <div className="mx-auto max-w-7xl space-y-6 px-6 py-20 lg:px-12">
+                <Skeleton className="h-8 w-48 rounded-md" />
+                <Skeleton className="h-56 w-full rounded-lg" />
+              </div>
+            </section>
+          }
+        >
+          <LazyImpactCampaignsSection campaigns={validCampaigns} animateBars={animateCampaignBars} />
+        </Suspense>
 
         <section className="border-t border-border">
           <div className="mx-auto max-w-7xl space-y-12 px-6 py-20 lg:px-12">

@@ -3,6 +3,7 @@ using Intex2026.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Net.Mail;
 
 namespace Intex2026.Controllers;
@@ -14,14 +15,23 @@ public partial class PublicController : ControllerBase
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<PublicController> _logger;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan PublicCacheTtl = TimeSpan.FromSeconds(60);
     public PublicController(
         AppDbContext db,
         UserManager<ApplicationUser> userManager,
-        ILogger<PublicController> logger)
+        ILogger<PublicController> logger,
+        IMemoryCache cache)
     {
         _db = db;
         _userManager = userManager;
         _logger = logger;
+        _cache = cache;
+    }
+
+    private void ApplyPublicCacheHeaders()
+    {
+        Response.Headers.CacheControl = "public,max-age=60";
     }
 
     // POST /api/public/newsletter/subscribe — simple public mailing-list join
@@ -78,10 +88,16 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var count = await _db.Residents
-                .Select(r => r.ResidentId)
-                .Distinct()
-                .CountAsync();
+            ApplyPublicCacheHeaders();
+            var count = await _cache.GetOrCreateAsync("public:residents-count:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                return await _db.Residents
+                    .AsNoTracking()
+                    .Select(r => r.ResidentId)
+                    .Distinct()
+                    .CountAsync();
+            });
             return Ok(new { count });
         }
         catch (Exception ex)
@@ -100,7 +116,12 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var count = await _db.Safehouses.CountAsync();
+            ApplyPublicCacheHeaders();
+            var count = await _cache.GetOrCreateAsync("public:safehouses-count:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                return await _db.Safehouses.AsNoTracking().CountAsync();
+            });
             return Ok(new { count });
         }
         catch (Exception ex)
@@ -119,7 +140,12 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var count = await _db.ProcessRecordings.CountAsync();
+            ApplyPublicCacheHeaders();
+            var count = await _cache.GetOrCreateAsync("public:recordings-count:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                return await _db.ProcessRecordings.AsNoTracking().CountAsync();
+            });
             return Ok(new { count });
         }
         catch (Exception ex)
@@ -138,8 +164,21 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var totalResidents = await _db.Residents.CountAsync();
-            var completedReintegrations = await _db.Residents.CountAsync(r => r.ReintegrationStatus == "Completed");
+            ApplyPublicCacheHeaders();
+            var data = await _cache.GetOrCreateAsync("public:reint-rate:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                var totalResidentsTask = _db.Residents.AsNoTracking().CountAsync();
+                var completedReintegrationsTask = _db.Residents.AsNoTracking().CountAsync(r => r.ReintegrationStatus == "Completed");
+                await Task.WhenAll(totalResidentsTask, completedReintegrationsTask);
+                return new
+                {
+                    totalResidents = totalResidentsTask.Result,
+                    completedReintegrations = completedReintegrationsTask.Result
+                };
+            });
+            var totalResidents = data?.totalResidents ?? 0;
+            var completedReintegrations = data?.completedReintegrations ?? 0;
             var reintegrationRatePercent = totalResidents == 0
                 ? 0
                 : (int)Math.Round(completedReintegrations * 100.0 / totalResidents);
@@ -161,39 +200,36 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var survivors = await _db.Residents.CountAsync();
-
-            var totalDonations = await _db.Donations
-                .Where(d => d.Amount != null)
-                .SumAsync(d => d.Amount ?? 0);
-
-            var activePrograms = await _db.PartnerAssignments
-                .Select(p => p.ProgramArea)
-                .Distinct()
-                .CountAsync();
-
-            var totalEdu = await _db.EducationRecords.CountAsync();
-            var completed = await _db.EducationRecords
-                .CountAsync(e => e.CompletionStatus == "Completed");
-
-            var completionRate = totalEdu == 0 ? 0 : (int)(completed * 100.0 / totalEdu);
-
-            var activeCampaignsCutoff = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-60));
-            var activeCampaignsCount = await _db.Donations
-                .AsNoTracking()
-                .Where(d => d.CampaignName != null && d.DonationDate >= activeCampaignsCutoff)
-                .Select(d => d.CampaignName!)
-                .Distinct()
-                .CountAsync();
-
-            return Ok(new
+            ApplyPublicCacheHeaders();
+            var payload = await _cache.GetOrCreateAsync("public:impact-summary:v2", async entry =>
             {
-                survivors,
-                totalDonations,
-                activePrograms,
-                completionRate,
-                activeCampaignsCount
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                var survivorsTask = _db.Residents.AsNoTracking().CountAsync();
+                var totalDonationsTask = _db.Donations.AsNoTracking().Where(d => d.Amount != null).SumAsync(d => d.Amount ?? 0);
+                var activeProgramsTask = _db.PartnerAssignments.AsNoTracking().Select(p => p.ProgramArea).Distinct().CountAsync();
+                var educationAggTask = _db.EducationRecords.AsNoTracking()
+                    .GroupBy(_ => 1)
+                    .Select(g => new { Total = g.Count(), Completed = g.Count(e => e.CompletionStatus == "Completed") })
+                    .FirstOrDefaultAsync();
+                var activeCampaignsCutoff = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-60));
+                var activeCampaignsCountTask = _db.Donations.AsNoTracking()
+                    .Where(d => d.CampaignName != null && d.DonationDate >= activeCampaignsCutoff)
+                    .Select(d => d.CampaignName!)
+                    .Distinct()
+                    .CountAsync();
+                await Task.WhenAll(survivorsTask, totalDonationsTask, activeProgramsTask, educationAggTask, activeCampaignsCountTask);
+                var totalEdu = educationAggTask.Result?.Total ?? 0;
+                var completed = educationAggTask.Result?.Completed ?? 0;
+                return new
+                {
+                    survivors = survivorsTask.Result,
+                    totalDonations = totalDonationsTask.Result,
+                    activePrograms = activeProgramsTask.Result,
+                    completionRate = totalEdu == 0 ? 0 : (int)(completed * 100.0 / totalEdu),
+                    activeCampaignsCount = activeCampaignsCountTask.Result
+                };
             });
+            return Ok(payload);
         }
         catch (Exception ex)
         {
@@ -242,42 +278,57 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var safehouseRows = await _db.Safehouses
-                .Where(s => s.CapacityGirls > 0)
-                .Select(s => new { s.CurrentOccupancy, s.CapacityGirls })
-                .ToListAsync();
-
-            double safeHousing = 0;
-            if (safehouseRows.Count > 0)
+            ApplyPublicCacheHeaders();
+            var payload = await _cache.GetOrCreateAsync("public:program-outcomes:v2", async entry =>
             {
-                safeHousing = safehouseRows.Average(s => (double)s.CurrentOccupancy / s.CapacityGirls) * 100.0;
-            }
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                var safeHousingAggTask = _db.Safehouses.AsNoTracking()
+                    .Where(s => s.CapacityGirls > 0)
+                    .GroupBy(_ => 1)
+                    .Select(g => new
+                    {
+                        Occupancy = g.Sum(x => x.CurrentOccupancy),
+                        Capacity = g.Sum(x => x.CapacityGirls)
+                    })
+                    .FirstOrDefaultAsync();
+                var educationAggTask = _db.EducationRecords.AsNoTracking()
+                    .GroupBy(_ => 1)
+                    .Select(g => new { Total = g.Count(), Completed = g.Count(e => e.CompletionStatus == "Completed") })
+                    .FirstOrDefaultAsync();
+                var counselingAggTask = _db.ProcessRecordings.AsNoTracking()
+                    .GroupBy(_ => 1)
+                    .Select(g => new { Total = g.Count(), Progress = g.Count(p => p.ProgressNoted) })
+                    .FirstOrDefaultAsync();
+                var interventionAggTask = _db.InterventionPlans.AsNoTracking()
+                    .GroupBy(_ => 1)
+                    .Select(g => new { Total = g.Count(), Achieved = g.Count(p => p.Status == "Achieved") })
+                    .FirstOrDefaultAsync();
 
-            var totalEdu = await _db.EducationRecords.CountAsync();
-            var completedEdu = await _db.EducationRecords
-                .CountAsync(e => e.CompletionStatus == "Completed");
+                await Task.WhenAll(safeHousingAggTask, educationAggTask, counselingAggTask, interventionAggTask);
 
-            var educationRate = totalEdu == 0 ? 0 : completedEdu * 100.0 / totalEdu;
+                var safeCapacity = safeHousingAggTask.Result?.Capacity ?? 0;
+                var safeOccupancy = safeHousingAggTask.Result?.Occupancy ?? 0;
+                var totalEdu = educationAggTask.Result?.Total ?? 0;
+                var completedEdu = educationAggTask.Result?.Completed ?? 0;
+                var totalSessions = counselingAggTask.Result?.Total ?? 0;
+                var progress = counselingAggTask.Result?.Progress ?? 0;
+                var totalPlans = interventionAggTask.Result?.Total ?? 0;
+                var achieved = interventionAggTask.Result?.Achieved ?? 0;
 
-            var totalSessions = await _db.ProcessRecordings.CountAsync();
-            var progress = await _db.ProcessRecordings
-                .CountAsync(p => p.ProgressNoted);
+                var safeHousing = safeCapacity == 0 ? 0 : safeOccupancy * 100.0 / safeCapacity;
+                var educationRate = totalEdu == 0 ? 0 : completedEdu * 100.0 / totalEdu;
+                var counselingRate = totalSessions == 0 ? 0 : progress * 100.0 / totalSessions;
+                var planRate = totalPlans == 0 ? 0 : achieved * 100.0 / totalPlans;
 
-            var counselingRate = totalSessions == 0 ? 0 : progress * 100.0 / totalSessions;
-
-            var totalPlans = await _db.InterventionPlans.CountAsync();
-            var achieved = await _db.InterventionPlans
-                .CountAsync(p => p.Status == "Achieved");
-
-            var planRate = totalPlans == 0 ? 0 : achieved * 100.0 / totalPlans;
-
-            return Ok(new
-            {
-                safeHousing = Math.Round(safeHousing, 1),
-                education = Math.Round(educationRate, 1),
-                counseling = Math.Round(counselingRate, 1),
-                interventionPlans = Math.Round(planRate, 1)
+                return new
+                {
+                    safeHousing = Math.Round(safeHousing, 1),
+                    education = Math.Round(educationRate, 1),
+                    counseling = Math.Round(counselingRate, 1),
+                    interventionPlans = Math.Round(planRate, 1)
+                };
             });
+            return Ok(payload);
         }
         catch (Exception ex)
         {
@@ -295,19 +346,24 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var campaigns = await _db.Donations
-                .Where(d => d.CampaignName != null
-                    && d.CampaignName.Trim() != ""
-                    && d.CampaignName.Trim().Length >= 3)
-                .GroupBy(d => d.CampaignName!.Trim())
-                .Select(g => new
-                {
-                    name = g.Key,
-                    raised = g.Sum(x => x.Amount ?? 0),
-                    goal = (g.Sum(x => x.Amount ?? 0)) * 1.25m,
-                    daysLeft = 30
-                })
-                .ToListAsync();
+            ApplyPublicCacheHeaders();
+            var campaigns = await _cache.GetOrCreateAsync("public:impact-campaigns:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                return await _db.Donations.AsNoTracking()
+                    .Where(d => d.CampaignName != null
+                        && d.CampaignName.Trim() != ""
+                        && d.CampaignName.Trim().Length >= 3)
+                    .GroupBy(d => d.CampaignName!.Trim())
+                    .Select(g => new
+                    {
+                        name = g.Key,
+                        raised = g.Sum(x => x.Amount ?? 0),
+                        goal = (g.Sum(x => x.Amount ?? 0)) * 1.25m,
+                        daysLeft = 30
+                    })
+                    .ToListAsync();
+            });
 
             return Ok(campaigns);
         }
@@ -327,31 +383,35 @@ public partial class PublicController : ControllerBase
     {
         try
         {
-            var total = await _db.DonationAllocations.SumAsync(x => x.AmountAllocated);
-
-            if (total == 0)
+            ApplyPublicCacheHeaders();
+            var payload = await _cache.GetOrCreateAsync("public:impact-allocation:v2", async entry =>
             {
-                return Ok(new { direct = 0, outreach = 0, operations = 0 });
-            }
+                entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+                var grouped = await _db.DonationAllocations.AsNoTracking()
+                    .GroupBy(x => x.ProgramArea)
+                    .Select(g => new { ProgramArea = g.Key, Total = g.Sum(x => x.AmountAllocated) })
+                    .ToListAsync();
 
-            var direct = await _db.DonationAllocations
-                .Where(x => x.ProgramArea == "Education" || x.ProgramArea == "Wellbeing")
-                .SumAsync(x => x.AmountAllocated);
+                var total = grouped.Sum(x => x.Total);
+                if (total == 0)
+                {
+                    return new { direct = 0, outreach = 0, operations = 0 };
+                }
 
-            var outreach = await _db.DonationAllocations
-                .Where(x => x.ProgramArea == "Outreach")
-                .SumAsync(x => x.AmountAllocated);
+                var direct = grouped
+                    .Where(x => x.ProgramArea == "Education" || x.ProgramArea == "Wellbeing")
+                    .Sum(x => x.Total);
+                var outreach = grouped.Where(x => x.ProgramArea == "Outreach").Sum(x => x.Total);
+                var ops = grouped.Where(x => x.ProgramArea == "Operations").Sum(x => x.Total);
 
-            var ops = await _db.DonationAllocations
-                .Where(x => x.ProgramArea == "Operations")
-                .SumAsync(x => x.AmountAllocated);
-
-            return Ok(new
-            {
-                direct = (int)(direct * 100 / total),
-                outreach = (int)(outreach * 100 / total),
-                operations = (int)(ops * 100 / total)
+                return new
+                {
+                    direct = (int)(direct * 100 / total),
+                    outreach = (int)(outreach * 100 / total),
+                    operations = (int)(ops * 100 / total)
+                };
             });
+            return Ok(payload);
         }
         catch (Exception ex)
         {
@@ -379,34 +439,53 @@ public partial class PublicController : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> Stats()
     {
-        var activeResidents = await _db.Residents.CountAsync(r => r.CaseStatus == "Active");
-        var totalResidents = await _db.Residents.CountAsync();
-        var totalSafehouses = await _db.Safehouses.CountAsync();
-        var activeSafehouses = await _db.Safehouses.CountAsync(s => s.Status == "Active");
-        var counselingSessionsCount = await _db.ProcessRecordings.CountAsync();
-        // Reintegration completed per data model (ReintegrationStatus), not raw "status" string
-        var completedReintegrations = await _db.Residents.CountAsync(r => r.ReintegrationStatus == "Completed");
-        var totalDonors = await _db.Supporters.CountAsync(s => s.Status == "Active");
-        var totalMonetaryDonations = await _db.Donations
-            .Where(d => d.DonationType == "Monetary" && d.Amount.HasValue)
-            .SumAsync(d => d.Amount ?? 0);
-
-        var reintegrationRatePercent = totalResidents == 0
-            ? 0
-            : (int)Math.Round(completedReintegrations * 100.0 / totalResidents);
-
-        return Ok(new
+        ApplyPublicCacheHeaders();
+        var payload = await _cache.GetOrCreateAsync("public:stats:v2", async entry =>
         {
-            activeResidents,
-            totalResidents,
-            totalSafehouses,
-            activeSafehouses,
-            counselingSessionsCount,
-            completedReintegrations,
-            reintegrationRatePercent,
-            totalDonors,
-            totalMonetaryDonations
+            entry.AbsoluteExpirationRelativeToNow = PublicCacheTtl;
+            var residentAggTask = _db.Residents.AsNoTracking()
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Total = g.Count(),
+                    Active = g.Count(r => r.CaseStatus == "Active"),
+                    CompletedReintegrations = g.Count(r => r.ReintegrationStatus == "Completed")
+                })
+                .FirstOrDefaultAsync();
+            var safehouseAggTask = _db.Safehouses.AsNoTracking()
+                .GroupBy(_ => 1)
+                .Select(g => new { Total = g.Count(), Active = g.Count(s => s.Status == "Active") })
+                .FirstOrDefaultAsync();
+            var counselingSessionsCountTask = _db.ProcessRecordings.AsNoTracking().CountAsync();
+            var totalDonorsTask = _db.Supporters.AsNoTracking().CountAsync(s => s.Status == "Active");
+            var totalMonetaryDonationsTask = _db.Donations.AsNoTracking()
+                .Where(d => d.DonationType == "Monetary" && d.Amount.HasValue)
+                .SumAsync(d => d.Amount ?? 0);
+
+            await Task.WhenAll(residentAggTask, safehouseAggTask, counselingSessionsCountTask, totalDonorsTask, totalMonetaryDonationsTask);
+
+            var residentAgg = residentAggTask.Result;
+            var safehouseAgg = safehouseAggTask.Result;
+            var totalResidents = residentAgg?.Total ?? 0;
+            var completedReintegrations = residentAgg?.CompletedReintegrations ?? 0;
+            var reintegrationRatePercent = totalResidents == 0
+                ? 0
+                : (int)Math.Round(completedReintegrations * 100.0 / totalResidents);
+
+            return new
+            {
+                activeResidents = residentAgg?.Active ?? 0,
+                totalResidents,
+                totalSafehouses = safehouseAgg?.Total ?? 0,
+                activeSafehouses = safehouseAgg?.Active ?? 0,
+                counselingSessionsCount = counselingSessionsCountTask.Result,
+                completedReintegrations,
+                reintegrationRatePercent,
+                totalDonors = totalDonorsTask.Result,
+                totalMonetaryDonations = totalMonetaryDonationsTask.Result
+            };
         });
+        return Ok(payload);
     }
 
     // POST /api/public/donations — anonymous donation submission from the public donate page

@@ -340,6 +340,10 @@ const DonorsPage = () => {
     [editSupporterTarget, load],
   );
 
+  const handleEditSupporterModalOpenChange = useCallback((open: boolean) => {
+    if (!open) setEditSupporterTarget(null);
+  }, []);
+
   const supporterDeleteDetailLines = useMemo(() => {
     if (!deleteSupporterTarget) return undefined;
     return [
@@ -822,9 +826,7 @@ const DonorsPage = () => {
 
       <EditSupporterModal
         open={editSupporterTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditSupporterTarget(null);
-        }}
+        onOpenChange={handleEditSupporterModalOpenChange}
         supporter={editSupporterTarget}
         onSave={handleSaveSupporterEdit}
         onRequestDelete={(s) => {

@@ -4,6 +4,7 @@ using Intex2026.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Intex2026.Controllers;
 
@@ -13,15 +14,18 @@ public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ILogger<DashboardController> _logger;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan DashboardCacheTtl = TimeSpan.FromSeconds(60);
 
     private sealed record RecordingRow(int RecordingId, int ResidentId, string SessionType, DateOnly SessionDate);
     private sealed record VisitationRow(int VisitationId, int ResidentId, string VisitType, DateOnly VisitDate);
     private sealed record DonationRow(int DonationId, string DonationType, DateOnly DonationDate, decimal? Amount, decimal? EstimatedValue);
 
-    public DashboardController(AppDbContext db, ILogger<DashboardController> logger)
+    public DashboardController(AppDbContext db, ILogger<DashboardController> logger, IMemoryCache cache)
     {
         _db = db;
         _logger = logger;
+        _cache = cache;
     }
 
     [HttpGet]
@@ -33,7 +37,11 @@ public class DashboardController : ControllerBase
             if (!isAuthenticated)
             {
                 _logger.LogWarning("No auth user, returning limited dashboard data.");
-                var fallbackStats = await BuildHighLevelStatsAsync(ct);
+                var fallbackStats = await _cache.GetOrCreateAsync("dashboard:anon:stats:v1", async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = DashboardCacheTtl;
+                    return await BuildHighLevelStatsAsync(ct);
+                });
                 return Ok(new
                 {
                     stats = fallbackStats,
@@ -42,6 +50,9 @@ public class DashboardController : ControllerBase
             }
 
             string FormatDisplayDate(DateOnly d) => d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+            var cachedPayload = await _cache.GetOrCreateAsync("dashboard:auth:payload:v1", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = DashboardCacheTtl;
 
             var today = DateOnly.FromDateTime(DateTime.Today);
             var in14 = today.AddDays(14);
@@ -274,22 +285,24 @@ public class DashboardController : ControllerBase
 
             var stats = await BuildHighLevelStatsAsync(ct);
 
-            return Ok(new DashboardResponseDto(
-                primaryMetric,
-                supportingMetrics,
-                reintegrationMetric,
-                donationSpark,
-                residentSpark,
-                activityItems,
-                priorityCallouts,
-                liveContext,
-                snapshotMetrics,
-                donationActivity,
-                donationInsight,
-                residentsOverview,
-                insights,
-                stats,
-                true));
+                return new DashboardResponseDto(
+                    primaryMetric,
+                    supportingMetrics,
+                    reintegrationMetric,
+                    donationSpark,
+                    residentSpark,
+                    activityItems,
+                    priorityCallouts,
+                    liveContext,
+                    snapshotMetrics,
+                    donationActivity,
+                    donationInsight,
+                    residentsOverview,
+                    insights,
+                    stats,
+                    true);
+            });
+            return Ok(cachedPayload);
         }
         catch (Exception ex)
         {

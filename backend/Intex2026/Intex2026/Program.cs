@@ -108,6 +108,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IDonorAnalyticsService, DonorAnalyticsService>();
 builder.Services.AddScoped<IResidentAnalyticsService, ResidentAnalyticsService>();
 builder.Services.AddScoped<ISocialAnalyticsService, SocialAnalyticsService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<SlowQueryInterceptor>();
 
 // ── Database ──────────────────────────────────────────────────────────────────
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -145,36 +147,42 @@ if (builder.Environment.IsDevelopment())
 {
     if (IsSqliteConnectionString(connectionString) && IsSqliteConnectionString(authIdentityConnectionString))
     {
-        builder.Services.AddDbContext<AppDbContext>(options =>
+        builder.Services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseSqlite(connectionString)
+                .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
                 .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
-        builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+        builder.Services.AddDbContext<AuthIdentityDbContext>((sp, options) =>
             options
                 .UseSqlite(authIdentityConnectionString)
+                .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
                 .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
     }
     else
     {
-        builder.Services.AddDbContext<AppDbContext>(options =>
+        builder.Services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseSqlServer(connectionString)
+                .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
                 .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
-        builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+        builder.Services.AddDbContext<AuthIdentityDbContext>((sp, options) =>
             options
                 .UseSqlServer(authIdentityConnectionString)
+                .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
                 .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
     }
 }
 else
 {
-    builder.Services.AddDbContext<AppDbContext>(options =>
+    builder.Services.AddDbContext<AppDbContext>((sp, options) =>
         options
             .UseSqlServer(connectionString)
+            .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
             .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
-    builder.Services.AddDbContext<AuthIdentityDbContext>(options =>
+    builder.Services.AddDbContext<AuthIdentityDbContext>((sp, options) =>
         options
             .UseSqlServer(authIdentityConnectionString)
+            .AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>())
             .ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning)));
 }
 
@@ -342,6 +350,12 @@ using (var scope = app.Services.CreateScope())
 
             await appDb.Database.ExecuteSqlRawAsync("""
                 CREATE INDEX IF NOT EXISTS "IX_Donations_DonationTypeId" ON "Donations" ("DonationTypeId");
+                CREATE INDEX IF NOT EXISTS "IX_Donations_DonationDate" ON "Donations" ("DonationDate");
+                CREATE INDEX IF NOT EXISTS "IX_Donations_CampaignName" ON "Donations" ("CampaignName");
+                CREATE INDEX IF NOT EXISTS "IX_Donations_SupporterId" ON "Donations" ("SupporterId");
+                CREATE INDEX IF NOT EXISTS "IX_Residents_CreatedAt" ON "Residents" ("CreatedAt");
+                CREATE INDEX IF NOT EXISTS "IX_ProcessRecordings_ResidentId" ON "ProcessRecordings" ("ResidentId");
+                CREATE INDEX IF NOT EXISTS "IX_HomeVisitations_ResidentId" ON "HomeVisitations" ("ResidentId");
                 """);
 
             await appDb.Database.ExecuteSqlRawAsync("""
@@ -425,6 +439,30 @@ using (var scope = app.Services.CreateScope())
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Donations_DonationTypeId' AND object_id = OBJECT_ID('Donations'))
                 BEGIN
                     CREATE INDEX [IX_Donations_DonationTypeId] ON [Donations] ([DonationTypeId]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Donations_DonationDate' AND object_id = OBJECT_ID('Donations'))
+                BEGIN
+                    CREATE INDEX [IX_Donations_DonationDate] ON [Donations] ([DonationDate]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Donations_CampaignName' AND object_id = OBJECT_ID('Donations'))
+                BEGIN
+                    CREATE INDEX [IX_Donations_CampaignName] ON [Donations] ([CampaignName]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Donations_SupporterId' AND object_id = OBJECT_ID('Donations'))
+                BEGIN
+                    CREATE INDEX [IX_Donations_SupporterId] ON [Donations] ([SupporterId]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Residents_CreatedAt' AND object_id = OBJECT_ID('Residents'))
+                BEGIN
+                    CREATE INDEX [IX_Residents_CreatedAt] ON [Residents] ([CreatedAt]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ProcessRecordings_ResidentId' AND object_id = OBJECT_ID('ProcessRecordings'))
+                BEGIN
+                    CREATE INDEX [IX_ProcessRecordings_ResidentId] ON [ProcessRecordings] ([ResidentId]);
+                END
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_HomeVisitations_ResidentId' AND object_id = OBJECT_ID('HomeVisitations'))
+                BEGIN
+                    CREATE INDEX [IX_HomeVisitations_ResidentId] ON [HomeVisitations] ([ResidentId]);
                 END
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.foreign_keys
