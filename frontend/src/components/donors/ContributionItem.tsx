@@ -101,6 +101,9 @@ export function ContributionItem({ entry, index = 0, variant = "default", isLast
                 <span className={cn("font-body text-[10px] font-semibold uppercase tracking-[0.12em]", cfg.accent)}>
                   {cfg.label}
                 </span>
+                <span className="rounded-full border border-white/50 bg-white/70 px-2 py-0.5 font-body text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.08]">
+                  {entry.status ?? "One-time"}
+                </span>
               </div>
               <p className="mt-1 font-body text-sm leading-relaxed text-muted-foreground">{detail}</p>
               <p className="mt-2 flex items-center gap-1.5 font-body text-[11px] text-muted-foreground/75">
@@ -137,6 +140,9 @@ export function ContributionItem({ entry, index = 0, variant = "default", isLast
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="font-display text-sm font-semibold text-foreground">{entry.supporterName}</span>
           <span className={cn("font-body text-[11px] font-medium uppercase tracking-wide", cfg.accent)}>{cfg.label}</span>
+          <span className="rounded-full border border-white/50 bg-white/70 px-2 py-0.5 font-body text-[10px] font-medium text-muted-foreground dark:border-white/10 dark:bg-white/[0.08]">
+            {entry.status ?? "One-time"}
+          </span>
         </div>
         <p className="mt-1 font-body text-sm leading-relaxed text-muted-foreground">{detail}</p>
         <p className="mt-2 flex items-center gap-1.5 font-body text-[11px] text-muted-foreground/80">

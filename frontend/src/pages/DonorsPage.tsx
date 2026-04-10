@@ -39,7 +39,6 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 
 const DIRECTORY_PAGE_SIZES = [10, 20] as const;
 
@@ -134,8 +133,7 @@ function donorInitials(name: string | undefined) {
 }
 
 const CONTRIBUTION_TIMELINE_MAX = 10;
-
-type DonorView = "supporters" | "contributions";
+const TIMELINE_PAGE_SIZE = 12;
 
 function feedEntryTimestampMs(entry: FeedEntry): number {
   const raw = entry.createdAt ?? entry.at;
@@ -179,27 +177,21 @@ function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
 }
 
 function toContributionFeedEntry(contribution: DonationRecord): FeedEntry {
+  const status = contribution.isRecurring ? "Recurring" : "One-time";
   return {
     id: String(contribution.donationId),
     supporterName: resolveDonorName(contribution),
     kind: mapDonationTypeToFeedKind(contribution.donationType),
-    amount: contribution.amount,
+    status,
+    amount: contribution.amount ?? contribution.estimatedValue ?? null,
     hours: contribution.impactUnit?.toLowerCase() === "hours" ? contribution.estimatedValue : null,
-    description: contribution.campaignName?.trim() || "No campaign",
+    description: contribution.campaignName?.trim() || "General contribution",
     createdAt: contribution.donationDate,
     at: contribution.donationDate,
   };
 }
 
-function isElementFullyInView(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-  return rect.top >= 0 && rect.bottom <= window.innerHeight;
-}
-
 const DonorsPage = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [view, setView] = useState<DonorView>("supporters");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [supporters, setSupporters] = useState<Supporter[]>([]);
@@ -265,15 +257,7 @@ const DonorsPage = () => {
   const [supporterPage, setSupporterPage] = useState(1);
   const [supporterPageSize, setSupporterPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
-  const [contributionPage, setContributionPage] = useState(1);
-  const [contributionPageSize, setContributionPageSize] = useState(20);
-  const [contributionTypeFilter, setContributionTypeFilter] = useState("All");
-  const [campaignFilter, setCampaignFilter] = useState("");
-  const [campaignOptions, setCampaignOptions] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
-  const [minAmount, setMinAmount] = useState<string | null>(null);
-  const [maxAmount, setMaxAmount] = useState<string | null>(null);
+  const [timelinePage, setTimelinePage] = useState(1);
   const [viewContributionTarget, setViewContributionTarget] = useState<DonationRecord | null>(null);
   const [editContributionTarget, setEditContributionTarget] = useState<DonationRecord | null>(null);
   const [deleteContributionTarget, setDeleteContributionTarget] = useState<DonationRecord | null>(null);
@@ -287,8 +271,7 @@ const DonorsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [pendingContributionScroll, setPendingContributionScroll] = useState(false);
-  const contributionScrollRaf = useRef<number | null>(null);
+  const timelineSectionRef = useRef<HTMLDivElement | null>(null);
   const [addSupporterOpen, setAddSupporterOpen] = useState(false);
   const [pendingContributionSupporterId, setPendingContributionSupporterId] = useState<string | null>(null);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
@@ -300,78 +283,27 @@ const DonorsPage = () => {
     reload: reloadContributions,
   } = useDonations(
     {
-      page: contributionPage,
-      pageSize: contributionPageSize,
-      donationType: contributionTypeFilter,
-      campaignName: campaignFilter,
-      search,
-      dateFrom,
-      dateTo,
-      minAmount,
-      maxAmount,
+      page: timelinePage,
+      pageSize: TIMELINE_PAGE_SIZE,
+      donationType: "All",
+      campaignName: "",
+      search: "",
+      dateFrom: null,
+      dateTo: null,
+      minAmount: null,
+      maxAmount: null,
     },
-    view === "contributions",
+    true,
   );
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
 
   useEffect(() => {
-    setView(location.pathname === "/dashboard/contributions" ? "contributions" : "supporters");
-  }, [location.pathname]);
-
-  const handleViewChange = useCallback(
-    (next: DonorView) => {
-      if (next === "contributions") {
-        setPendingContributionScroll(true);
-        sessionStorage.setItem("scrollY", String(window.scrollY));
-      }
-      setView(next);
-      navigate(next === "contributions" ? "/dashboard/contributions" : "/dashboard/donors");
-    },
-    [navigate],
-  );
-
-  useEffect(() => {
-    if (view === "contributions") {
-      setContributionPage(1);
+    const totalPages = Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE));
+    if (timelinePage > totalPages) {
+      setTimelinePage(totalPages);
     }
-  }, [view]);
-
-  useEffect(() => {
-    if (view !== "contributions" || contributionsLoading || !pendingContributionScroll) return;
-    contributionScrollRaf.current = window.requestAnimationFrame(() => {
-      const section = document.getElementById("contribution-history");
-      if (!section || isElementFullyInView(section)) {
-        setPendingContributionScroll(false);
-        return;
-      }
-      section.scrollIntoView({ behavior: "smooth", block: "start" });
-      setPendingContributionScroll(false);
-    });
-    return () => {
-      if (contributionScrollRaf.current != null) {
-        window.cancelAnimationFrame(contributionScrollRaf.current);
-      }
-    };
-  }, [view, contributionsLoading, pendingContributionScroll, contributions.length]);
-
-  useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(contributionsTotal / contributionPageSize));
-    if (contributionPage > totalPages) {
-      setContributionPage(totalPages);
-    }
-  }, [contributionsTotal, contributionPage, contributionPageSize]);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const campaigns = await apiFetchJson<string[]>(`/api/campaigns`);
-        setCampaignOptions(Array.isArray(campaigns) ? campaigns : []);
-      } catch {
-        setCampaignOptions([]);
-      }
-    })();
-  }, []);
+  }, [contributionsTotal, timelinePage]);
 
   useEffect(() => {
     if (!editContributionTarget) return;
@@ -385,9 +317,6 @@ const DonorsPage = () => {
 
   /** Newest first, capped for the dashboard “Contribution timeline” only (full `feed` stays for profile activity). */
   const contributionTimelineFeed = useMemo(() => {
-    if (view === "contributions") {
-      return contributions.slice(0, CONTRIBUTION_TIMELINE_MAX).map(toContributionFeedEntry);
-    }
     return [...feed]
       .sort((a, b) => {
         const db = feedEntryTimestampMs(b);
@@ -396,7 +325,7 @@ const DonorsPage = () => {
         return String(b.id).localeCompare(String(a.id));
       })
       .slice(0, CONTRIBUTION_TIMELINE_MAX);
-  }, [feed, view, contributions]);
+  }, [feed]);
 
   const contributionListFeed = useMemo(() => contributions.map(toContributionFeedEntry), [contributions]);
 
@@ -746,79 +675,53 @@ const DonorsPage = () => {
           {/* Impact overview — timeline + allocation */}
           {!loading && <ImpactOverview feed={contributionTimelineFeed} allocation={allocationByDestination} />}
 
-          <div className="mb-4 flex justify-start">
-            <div className="flex rounded-2xl border border-white/35 bg-white/60 p-1 shadow-inner backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "supporters" && "bg-white shadow-sm dark:bg-white/15")}
-                onClick={() => handleViewChange("supporters")}
-              >
-                Supporters
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn("h-9 rounded-xl px-4 font-body text-sm", view === "contributions" && "bg-white shadow-sm dark:bg-white/15")}
-                onClick={() => handleViewChange("contributions")}
-              >
-                Contributions
-              </Button>
-            </div>
-          </div>
-
           {/* Directory */}
           <section className="mb-8 mt-6">
             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-                  {view === "supporters" ? "Community" : "Records"}
+                  Community
                 </p>
                 <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
-                  {view === "supporters" ? "Supporter directory" : "Contribution history"}
+                  Supporter directory
                 </h2>
                 <p className="mt-2 font-body text-sm text-muted-foreground">
-                  {view === "supporters"
-                    ? `${filtered.length} ${filtered.length === 1 ? "person" : "people"} match your filters`
-                    : `${contributionsTotal.toLocaleString()} total contributions`}
+                  {filtered.length} {filtered.length === 1 ? "person" : "people"} match your filters
                 </p>
               </div>
             </div>
-              {!loading && (
-                <div className="mb-4 flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
-                  {view === "supporters" ? (
-                    <Button
-                      type="button"
-                      onClick={handleAddSupporter}
-                      className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-                    >
-                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-                      <span className="relative z-[1] flex items-center justify-center">
-                        <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                        Add Supporter
-                      </span>
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      onClick={() => setAddOpen(true)}
-                      className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-                    >
-                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-                      <span className="relative z-[1] flex items-center justify-center">
-                        <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                        Add Contribution
-                      </span>
-                    </Button>
-                  )}
-                </div>
-              )}
+            {!loading && (
+              <div className="mb-4 flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  onClick={handleAddSupporter}
+                  className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+                >
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                  <span className="relative z-[1] flex items-center justify-center">
+                    <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                    Add Supporter
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+                >
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                  <span className="relative z-[1] flex items-center justify-center">
+                    <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                    Add Contribution
+                  </span>
+                </Button>
+              </div>
+            )}
 
             {!loading && (
               <>
               <div className="mb-8">
                 <FilterBar
-                  mode={view}
+                  mode="supporters"
                   search={search}
                   onSearchChange={setSearch}
                   typeFilter={typeFilter}
@@ -827,50 +730,19 @@ const DonorsPage = () => {
                   onStatusChange={setStatusFilter}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
-                  contributionTypeFilter={contributionTypeFilter}
-                  onContributionTypeChange={(v) => {
-                    setContributionTypeFilter(v);
-                    setContributionPage(1);
-                  }}
-                  campaignFilter={campaignFilter}
-                  onCampaignFilterChange={(v) => {
-                    setCampaignFilter(v);
-                    setContributionPage(1);
-                  }}
-                  campaignOptions={campaignOptions}
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
-                  onDateFromChange={(v) => {
-                    setDateFrom(v || null);
-                    setContributionPage(1);
-                  }}
-                  onDateToChange={(v) => {
-                    setDateTo(v || null);
-                    setContributionPage(1);
-                  }}
-                  minAmount={minAmount}
-                  maxAmount={maxAmount}
-                  onMinAmountChange={(v) => {
-                    setMinAmount(v || null);
-                    setContributionPage(1);
-                  }}
-                  onMaxAmountChange={(v) => {
-                    setMaxAmount(v || null);
-                    setContributionPage(1);
-                  }}
                 />
               </div>
               </>
             )}
 
-            <div id={view === "contributions" ? "contribution-history" : undefined} className="mt-6">
-              {loading && view === "supporters" ? (
+            <div className="mt-6">
+              {loading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
                   ))}
                 </div>
-              ) : view === "supporters" && viewMode === "table" ? (
+              ) : viewMode === "table" ? (
                 <div className="space-y-4">
                   <AnimatePresence mode="popLayout">
                     {paginatedFiltered.map((s, i) => (
@@ -888,7 +760,7 @@ const DonorsPage = () => {
                     <p className="py-24 text-center font-body text-sm text-muted-foreground">No supporters found.</p>
                   )}
                 </div>
-              ) : view === "supporters" ? (
+              ) : (
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                   {paginatedFiltered.map((s) => (
                     <SupporterCard
@@ -905,16 +777,8 @@ const DonorsPage = () => {
                     </p>
                   )}
                 </div>
-              ) : contributionsLoading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
-                  ))}
-                </div>
-              ) : (
-                <ContributionTimeline entries={contributionListFeed} />
               )}
-              {!loading && view === "supporters" && filtered.length > 0 ? (
+              {!loading && filtered.length > 0 ? (
                 <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <label className="flex items-center gap-2 font-body text-xs text-muted-foreground">
                     <span className="shrink-0 font-medium">Rows per page</span>
@@ -988,55 +852,67 @@ const DonorsPage = () => {
                   </p>
                 </div>
               ) : null}
-              {view === "contributions" && contributionsTotal > 0 ? (
-                <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <label className="flex items-center gap-2 font-body text-xs text-muted-foreground">
-                    <span className="shrink-0 font-medium">Rows per page</span>
-                    <select
-                      value={contributionPageSize}
-                      onChange={(e) => {
-                        setContributionPageSize(Number(e.target.value));
-                        setContributionPage(1);
-                      }}
-                      className="h-9 rounded-xl border border-border/60 bg-white/70 px-3 py-1.5 font-body text-sm text-foreground shadow-[inset_0_1px_2px_rgba(45,35,48,0.04)] focus:outline-none focus:ring-2 focus:ring-[hsl(340_40%_60%)]/30 dark:border-white/12 dark:bg-white/[0.08]"
-                    >
-                      {DIRECTORY_PAGE_SIZES.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
-                      disabled={contributionPage <= 1}
-                      onClick={() => setContributionPage((p) => Math.max(1, p - 1))}
-                    >
-                      <ChevronLeft className="mr-1 h-4 w-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
-                      disabled={contributionPage * contributionPageSize >= contributionsTotal}
-                      onClick={() => setContributionPage((p) => p + 1)}
-                    >
-                      Next
-                      <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="font-body text-xs text-muted-foreground sm:text-right">
-                    Page {contributionPage} of {Math.max(1, Math.ceil(contributionsTotal / contributionPageSize))}
-                  </p>
-                </div>
-              ) : null}
             </div>
+          </section>
+
+          <section ref={timelineSectionRef} id="contribution-timeline" className="mb-8 mt-12">
+            <div className="mb-8">
+              <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+                Contributions
+              </p>
+              <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
+                Contribution timeline
+              </h2>
+              <p className="mt-2 font-body text-sm text-muted-foreground">
+                {contributionsTotal.toLocaleString()} total contributions across all supporters
+              </p>
+            </div>
+            {contributionsLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
+                ))}
+              </div>
+            ) : (
+              <ContributionTimeline entries={contributionListFeed} />
+            )}
+            {contributionsTotal > 0 ? (
+              <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                    disabled={timelinePage <= 1}
+                    onClick={() => {
+                      setTimelinePage((p) => Math.max(1, p - 1));
+                      timelineSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
+                    disabled={timelinePage >= Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE))}
+                    onClick={() => {
+                      setTimelinePage((p) => Math.min(Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE)), p + 1));
+                      timelineSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    Next
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="font-body text-xs text-muted-foreground sm:text-right">
+                  Page {timelinePage} of {Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE))}
+                </p>
+              </div>
+            ) : null}
           </section>
       </StaffPageShell>
 
@@ -1047,15 +923,9 @@ const DonorsPage = () => {
           transition={{ delay: 0.55 }}
           whileHover={{ scale: 1.04, y: -2 }}
           whileTap={{ scale: 0.97 }}
-          onClick={() => {
-            if (view === "supporters") {
-              handleAddSupporter();
-              return;
-            }
-            setAddOpen(true);
-          }}
+          onClick={handleAddSupporter}
           className="fixed bottom-8 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] text-white shadow-[0_14px_44px_rgba(190,100,130,0.4)] lg:hidden"
-          aria-label={view === "supporters" ? "Add supporter" : "Log contribution"}
+          aria-label="Add supporter"
         >
           <Plus className="h-6 w-6" strokeWidth={2} />
         </motion.button>

@@ -37,6 +37,7 @@ export interface FeedEntry {
   id: string;
   supporterName: string;
   kind: ContributionKind;
+  status?: string;
   /** API may send null for non-applicable kinds */
   amount?: number | null;
   hours?: number | null;
