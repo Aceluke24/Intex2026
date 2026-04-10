@@ -66,8 +66,29 @@ export function useDonations(filters: DonationFilters, enabled = true, debounceM
     if (!enabled) return;
     setLoading(true);
     try {
-      const data = await apiFetchJson<{ total: number; items: DonationRecord[] }>(`${API_PREFIX}/donations?${query}`);
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const data = await apiFetchJson<{ total: number; items?: unknown[]; donations?: unknown[] }>(`${API_PREFIX}/donations?${query}`);
+      const rows = Array.isArray(data.donations) ? data.donations : Array.isArray(data.items) ? data.items : [];
+      console.log("Donations result:", rows.length);
+      const normalized = rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          donationId: Number(r.donationId ?? r.donation_id ?? 0),
+          supporterId: (r.supporterId ?? r.supporter_id ?? null) as number | null,
+          donationType: String(r.donationType ?? r.donation_type ?? "Monetary"),
+          donationDate: String(r.donationDate ?? r.donation_date ?? ""),
+          amount: (r.amount ?? null) as number | null,
+          estimatedValue: (r.estimatedValue ?? r.estimated_value ?? null) as number | null,
+          impactUnit: (r.impactUnit ?? r.impact_unit ?? null) as string | null,
+          isRecurring: Boolean(r.isRecurring ?? r.is_recurring ?? false),
+          campaignName: (r.campaignName ?? r.campaign_name ?? null) as string | null,
+          notes: (r.notes ?? null) as string | null,
+          supporterDisplayName: (r.supporterDisplayName ?? r.display_name ?? null) as string | null,
+          supporterOrganizationName: (r.supporterOrganizationName ?? null) as string | null,
+          supporterFirstName: (r.supporterFirstName ?? null) as string | null,
+          supporterLastName: (r.supporterLastName ?? null) as string | null,
+        } satisfies DonationRecord;
+      });
+      setItems(normalized);
       setTotal(Number(data.total) || 0);
     } finally {
       setLoading(false);

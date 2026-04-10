@@ -38,7 +38,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const DIRECTORY_PAGE_SIZES = [10, 20] as const;
@@ -179,6 +179,11 @@ function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
   }
 }
 
+function isElementFullyInView(element: Element): boolean {
+  const rect = element.getBoundingClientRect();
+  return rect.top >= 0 && rect.bottom <= window.innerHeight;
+}
+
 const DonorsPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -270,6 +275,8 @@ const DonorsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [pendingContributionScroll, setPendingContributionScroll] = useState(false);
+  const contributionScrollRaf = useRef<number | null>(null);
   const [addSupporterOpen, setAddSupporterOpen] = useState(false);
   const [pendingContributionSupporterId, setPendingContributionSupporterId] = useState<string | null>(null);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
@@ -302,6 +309,10 @@ const DonorsPage = () => {
 
   const handleViewChange = useCallback(
     (next: DonorView) => {
+      if (next === "contributions") {
+        setPendingContributionScroll(true);
+        sessionStorage.setItem("scrollY", String(window.scrollY));
+      }
       setView(next);
       navigate(next === "contributions" ? "/dashboard/contributions" : "/dashboard/donors");
     },
@@ -313,6 +324,24 @@ const DonorsPage = () => {
       setContributionPage(1);
     }
   }, [view]);
+
+  useEffect(() => {
+    if (view !== "contributions" || contributionsLoading || !pendingContributionScroll) return;
+    contributionScrollRaf.current = window.requestAnimationFrame(() => {
+      const section = document.getElementById("contribution-history");
+      if (!section || isElementFullyInView(section)) {
+        setPendingContributionScroll(false);
+        return;
+      }
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingContributionScroll(false);
+    });
+    return () => {
+      if (contributionScrollRaf.current != null) {
+        window.cancelAnimationFrame(contributionScrollRaf.current);
+      }
+    };
+  }, [view, contributionsLoading, pendingContributionScroll, contributions.length]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(contributionsTotal / contributionPageSize));
@@ -574,27 +603,7 @@ const DonorsPage = () => {
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
-      <StaffPageShell
-        title="Donors & Contributions"
-        description="Manage supporters and track impact across programs."
-        actions={
-          <div className="flex items-center gap-3">
-            <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }}>
-              <Button
-                type="button"
-                onClick={() => (view === "supporters" ? handleAddSupporter() : setAddOpen(true))}
-                className="relative h-12 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-6 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
-              >
-                <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
-                <span className="relative z-[1] flex items-center">
-                  <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
-                  {view === "supporters" ? "Add supporter" : "Log contribution"}
-                </span>
-              </Button>
-            </motion.div>
-          </div>
-        }
-      >
+      <StaffPageShell title="Donors & Contributions" description="Manage supporters and track impact across programs.">
         {loadError ? (
           <p className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive">
             {loadError}
@@ -772,6 +781,33 @@ const DonorsPage = () => {
             </div>
 
             {!loading && (
+              <>
+                {view === "contributions" ? (
+                  <div className="mb-4 flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
+                    <Button
+                      type="button"
+                      onClick={handleAddSupporter}
+                      className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+                    >
+                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                      <span className="relative z-[1] flex items-center justify-center">
+                        <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                        Add Supporter
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => setAddOpen(true)}
+                      className="relative h-11 overflow-hidden rounded-2xl border border-white/25 bg-gradient-to-r from-[hsl(340_44%_68%)] via-[hsl(350_42%_72%)] to-[hsl(10_46%_58%)] px-5 font-body font-semibold text-white shadow-[0_8px_32px_rgba(190,100,130,0.35)] transition-shadow duration-300 hover:shadow-[0_14px_44px_rgba(190,100,130,0.45)]"
+                    >
+                      <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-90" />
+                      <span className="relative z-[1] flex items-center justify-center">
+                        <Plus className="mr-2 h-4 w-4" strokeWidth={2.25} />
+                        Add Contribution
+                      </span>
+                    </Button>
+                  </div>
+                ) : null}
               <div className="mb-8">
                 <FilterBar
                   mode={view}
@@ -816,9 +852,10 @@ const DonorsPage = () => {
                   }}
                 />
               </div>
+              </>
             )}
 
-            <div className="mt-6">
+            <div id={view === "contributions" ? "contribution-history" : undefined} className="mt-6">
               {loading && view === "supporters" ? (
                 <div className="space-y-4">
                   {Array.from({ length: 5 }).map((_, i) => (

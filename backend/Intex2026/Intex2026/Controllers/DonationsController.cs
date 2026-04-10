@@ -103,8 +103,16 @@ public class DonationsController : ControllerBase
         if (supporterId.HasValue) query = query.Where(d => d.SupporterId == supporterId.Value);
         if (dateFrom.HasValue) query = query.Where(d => d.DonationDate >= dateFrom.Value);
         if (dateTo.HasValue) query = query.Where(d => d.DonationDate <= dateTo.Value);
-        if (minAmount.HasValue) query = query.Where(d => (d.Amount ?? d.EstimatedValue ?? 0m) >= minAmount.Value);
-        if (maxAmount.HasValue) query = query.Where(d => (d.Amount ?? d.EstimatedValue ?? 0m) <= maxAmount.Value);
+        if (minAmount.HasValue)
+        {
+            query = query.Where(d =>
+                (d.DonationType == "Monetary" ? (d.Amount ?? 0m) : (d.EstimatedValue ?? 0m)) >= minAmount.Value);
+        }
+        if (maxAmount.HasValue)
+        {
+            query = query.Where(d =>
+                (d.DonationType == "Monetary" ? (d.Amount ?? 0m) : (d.EstimatedValue ?? 0m)) <= maxAmount.Value);
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var q = search.Trim().ToLower();
@@ -119,7 +127,7 @@ public class DonationsController : ControllerBase
                 )));
         }
         var total = await query.CountAsync();
-        var items = await query
+        var donations = await query
             .OrderByDescending(d => d.DonationDate)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -147,7 +155,8 @@ public class DonationsController : ControllerBase
                 supporterLastName = d.Supporter != null ? d.Supporter.LastName : null
             })
             .ToListAsync();
-        return Ok(new { total, page, pageSize, items });
+        Console.WriteLine($"Donations result: {donations.Count}");
+        return Ok(new { donations, total, page, pageSize });
     }
 
     [HttpGet("{id:int}")]
