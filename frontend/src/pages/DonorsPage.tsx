@@ -7,7 +7,6 @@ import { KpiStatCard } from "@/components/KpiStatCard";
 import {
   AddContributionDialog,
   AddSupporterModal,
-  ContributionTimeline,
   EditSupporterModal,
   FilterBar,
   ImpactOverview,
@@ -38,7 +37,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Clock, Gift, HeartHandshake, Percent, Plus, TrendingUp, Users } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const DIRECTORY_PAGE_SIZES = [10, 20] as const;
 
@@ -133,8 +132,6 @@ function donorInitials(name: string | undefined) {
 }
 
 const CONTRIBUTION_TIMELINE_MAX = 10;
-const TIMELINE_PAGE_SIZE = 12;
-
 function feedEntryTimestampMs(entry: FeedEntry): number {
   const raw = entry.createdAt ?? entry.at;
   const t = new Date(raw).getTime();
@@ -174,21 +171,6 @@ function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
     default:
       return "monetary";
   }
-}
-
-function toContributionFeedEntry(contribution: DonationRecord): FeedEntry {
-  const status = contribution.isRecurring ? "Recurring" : "One-time";
-  return {
-    id: String(contribution.donationId),
-    supporterName: resolveDonorName(contribution),
-    kind: mapDonationTypeToFeedKind(contribution.donationType),
-    status,
-    amount: contribution.amount ?? contribution.estimatedValue ?? null,
-    hours: contribution.impactUnit?.toLowerCase() === "hours" ? contribution.estimatedValue : null,
-    description: contribution.campaignName?.trim() || "General contribution",
-    createdAt: contribution.donationDate,
-    at: contribution.donationDate,
-  };
 }
 
 const DonorsPage = () => {
@@ -257,7 +239,6 @@ const DonorsPage = () => {
   const [supporterPage, setSupporterPage] = useState(1);
   const [supporterPageSize, setSupporterPageSize] = useState(10);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
-  const [timelinePage, setTimelinePage] = useState(1);
   const [viewContributionTarget, setViewContributionTarget] = useState<DonationRecord | null>(null);
   const [editContributionTarget, setEditContributionTarget] = useState<DonationRecord | null>(null);
   const [deleteContributionTarget, setDeleteContributionTarget] = useState<DonationRecord | null>(null);
@@ -271,20 +252,16 @@ const DonorsPage = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const timelineSectionRef = useRef<HTMLDivElement | null>(null);
   const [addSupporterOpen, setAddSupporterOpen] = useState(false);
   const [pendingContributionSupporterId, setPendingContributionSupporterId] = useState<string | null>(null);
   const [deleteSupporterTarget, setDeleteSupporterTarget] = useState<Supporter | null>(null);
   const [editSupporterTarget, setEditSupporterTarget] = useState<Supporter | null>(null);
   const {
-    items: contributions,
-    total: contributionsTotal,
-    loading: contributionsLoading,
     reload: reloadContributions,
   } = useDonations(
     {
-      page: timelinePage,
-      pageSize: TIMELINE_PAGE_SIZE,
+      page: 1,
+      pageSize: 12,
       donationType: "All",
       campaignName: "",
       search: "",
@@ -297,13 +274,6 @@ const DonorsPage = () => {
   );
 
   const selected = useMemo(() => supporters.find((s) => s.id === selectedId) ?? null, [supporters, selectedId]);
-
-  useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE));
-    if (timelinePage > totalPages) {
-      setTimelinePage(totalPages);
-    }
-  }, [contributionsTotal, timelinePage]);
 
   useEffect(() => {
     if (!editContributionTarget) return;
@@ -326,8 +296,6 @@ const DonorsPage = () => {
       })
       .slice(0, CONTRIBUTION_TIMELINE_MAX);
   }, [feed]);
-
-  const contributionListFeed = useMemo(() => contributions.map(toContributionFeedEntry), [contributions]);
 
   const timelineForSelected = useMemo((): TimelineEntry[] => {
     if (!selected) return [];
@@ -855,65 +823,6 @@ const DonorsPage = () => {
             </div>
           </section>
 
-          <section ref={timelineSectionRef} id="contribution-timeline" className="mb-8 mt-12">
-            <div className="mb-8">
-              <p className="font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-                Contributions
-              </p>
-              <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl">
-                Contribution timeline
-              </h2>
-              <p className="mt-2 font-body text-sm text-muted-foreground">
-                {contributionsTotal.toLocaleString()} total contributions across all supporters
-              </p>
-            </div>
-            {contributionsLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-[84px] rounded-[1.15rem] bg-white/40" />
-                ))}
-              </div>
-            ) : (
-              <ContributionTimeline entries={contributionListFeed} />
-            )}
-            {contributionsTotal > 0 ? (
-              <div className="mt-8 flex w-full flex-col gap-4 border-t border-white/35 pt-6 dark:border-white/10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
-                    disabled={timelinePage <= 1}
-                    onClick={() => {
-                      setTimelinePage((p) => Math.max(1, p - 1));
-                      timelineSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                  >
-                    <ChevronLeft className="mr-1 h-4 w-4" />
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 rounded-xl border-white/50 bg-white/50 px-3 font-body dark:border-white/10 dark:bg-white/[0.07]"
-                    disabled={timelinePage >= Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE))}
-                    onClick={() => {
-                      setTimelinePage((p) => Math.min(Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE)), p + 1));
-                      timelineSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                  >
-                    Next
-                    <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="font-body text-xs text-muted-foreground sm:text-right">
-                  Page {timelinePage} of {Math.max(1, Math.ceil(contributionsTotal / TIMELINE_PAGE_SIZE))}
-                </p>
-              </div>
-            ) : null}
-          </section>
       </StaffPageShell>
 
         <motion.button
