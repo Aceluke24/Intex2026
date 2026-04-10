@@ -10,7 +10,7 @@ import type {
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { API_PREFIX } from "@/lib/apiBase";
+import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -44,8 +44,11 @@ const DashboardPage = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    const endpoint = `${API_PREFIX}/dashboard`;
     try {
-      const data = await apiFetchJson<DashboardApiResponse>(`${API_PREFIX}/dashboard`);
+      console.info("[Dashboard] requesting data from", apiUrl(endpoint));
+      const data = await apiFetchJson<DashboardApiResponse>(endpoint, { timeoutMs: 15000 });
+      console.info("[Dashboard] data received");
       setPrimaryMetric(data.primaryMetric);
       setSupportingMetrics(data.supportingMetrics);
       setPriorityCallouts(data.priorityCallouts);
@@ -91,25 +94,50 @@ const DashboardPage = () => {
       ]
     : insights;
 
+  const hasAnyDashboardData =
+    supportingMetrics.length > 0 || priorityCallouts.length > 0 || residentsOverview.length > 0 || quickInsights.length > 0;
+
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         title="Command Center"
         description="High-level operations snapshot."
       >
-        {loadError ? (
-          <p
-            className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 font-body text-sm text-destructive"
-            role="alert"
-          >
-            Could not load live data: {loadError}. Check that the API is running and you are signed in as an admin.
-          </p>
-        ) : null}
-
-        {loading || !primaryMetric || !snapshotMetrics ? (
+        {loading ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-16 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
             <p className="font-display text-lg font-semibold text-foreground">Loading dashboard…</p>
             <p className="font-body text-sm text-muted-foreground">Fetching command center data.</p>
+          </div>
+        ) : loadError ? (
+          <div
+            className="mb-6 flex min-h-[32vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-destructive/30 bg-destructive/5 px-6 py-10 text-center"
+            role="alert"
+          >
+            <p className="font-display text-lg font-semibold text-destructive">Unable to load dashboard</p>
+            <p className="max-w-2xl font-body text-sm text-destructive/90">
+              {loadError}. Check that the API is running, your auth session is valid, and the configured API URL is correct.
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="rounded-md border border-destructive/30 bg-background px-3 py-2 font-body text-sm text-foreground hover:bg-accent"
+            >
+              Retry
+            </button>
+          </div>
+        ) : !primaryMetric || !snapshotMetrics ? (
+          <div className="flex min-h-[32vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-amber-400/40 bg-amber-500/5 px-6 py-10 text-center">
+            <p className="font-display text-lg font-semibold text-foreground">Dashboard data is unavailable</p>
+            <p className="max-w-2xl font-body text-sm text-muted-foreground">
+              The API responded, but required fields were missing. Please verify the `GET /api/dashboard` payload.
+            </p>
+          </div>
+        ) : !hasAnyDashboardData ? (
+          <div className="flex min-h-[32vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-10 text-center backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
+            <p className="font-display text-lg font-semibold text-foreground">No dashboard data yet</p>
+            <p className="max-w-2xl font-body text-sm text-muted-foreground">
+              Data will appear here once residents, visits, donations, or activity records are available.
+            </p>
           </div>
         ) : (
           <>

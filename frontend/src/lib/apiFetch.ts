@@ -1,5 +1,9 @@
 import { API_PREFIX, apiUrl } from "@/lib/apiBase";
 
+type ApiFetchInit = RequestInit & {
+  timeoutMs?: number;
+};
+
 function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem("nss_access_token");
@@ -19,7 +23,7 @@ async function clearSessionAndRedirectLogin(): Promise<void> {
 }
 
 /** Cookie session (same as dashboard) + optional Bearer if `nss_access_token` is set. */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   const token = getBearerToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -27,11 +31,37 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    credentials: "include",
-    headers,
-  });
+  const timeoutMs = init.timeoutMs ?? 20000;
+  const combinedController = new AbortController();
+  const timeoutId = globalThis.setTimeout(
+    () => combinedController.abort(`Request timed out after ${timeoutMs}ms`),
+    timeoutMs
+  );
+  const externalAbortListener = () => combinedController.abort(init.signal?.reason ?? "Request was aborted.");
+  init.signal?.addEventListener("abort", externalAbortListener, { once: true });
+
+  const requestUrl = apiUrl(path);
+  let res: Response;
+  try {
+    res = await fetch(requestUrl, {
+      ...init,
+      credentials: "include",
+      headers,
+      signal: combinedController.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      const reason = String(combinedController.signal.reason ?? "");
+      if (reason.includes("timed out")) {
+        throw new Error(`Request failed for ${requestUrl}: timed out after ${timeoutMs}ms.`);
+      }
+      throw new Error(`Request aborted for ${requestUrl}.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+    init.signal?.removeEventListener("abort", externalAbortListener);
+  }
 
   if (res.status === 401 || res.status === 403) {
     void clearSessionAndRedirectLogin();
@@ -40,7 +70,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   return res;
 }
 
-export async function apiFetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiFetchJson<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
   const res = await apiFetch(path, init);
   if (!res.ok) {
     const text = await res.text();
