@@ -497,9 +497,8 @@ const VisitationRecordCard = memo(function VisitationRecordCard({
         }
       }}
     >
-      <RecordCrudActions className="absolute right-3 top-3 z-10" onView={onView} onEdit={onEdit} onDelete={onDelete} />
       <div className="pr-2">
-        <div className="flex justify-between gap-3 pr-12">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="font-body text-[11px] uppercase tracking-wide text-muted-foreground">{kindLabel}</div>
             <div className="font-display text-lg font-semibold text-foreground">{v.residentName}</div>
@@ -507,7 +506,10 @@ const VisitationRecordCard = memo(function VisitationRecordCard({
               {v.caseId} • {v.date}
             </div>
           </div>
-          <div className="shrink-0 text-right font-body text-xs text-muted-foreground">{v.staffName}</div>
+          <div className="flex shrink-0 items-start gap-3">
+            <span className="pt-1 text-right font-body text-xs text-muted-foreground">{v.staffName}</span>
+            <RecordCrudActions onView={onView} onEdit={onEdit} onDelete={onDelete} />
+          </div>
         </div>
         <div className="mt-2 font-body text-sm text-foreground/85">{v.observations || v.notes || "—"}</div>
         <div className="mt-3 flex flex-wrap gap-2">
