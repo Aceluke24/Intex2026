@@ -71,6 +71,7 @@ export function useDonations(filters: DonationFilters, enabled = true, debounceM
       console.log("Donations result:", rows.length);
       const normalized = rows.map((row) => {
         const r = row as Record<string, unknown>;
+        const supporter = (r.supporter ?? null) as Record<string, unknown> | null;
         return {
           donationId: Number(r.donationId ?? r.donation_id ?? 0),
           supporterId: (r.supporterId ?? r.supporter_id ?? null) as number | null,
@@ -82,10 +83,38 @@ export function useDonations(filters: DonationFilters, enabled = true, debounceM
           isRecurring: Boolean(r.isRecurring ?? r.is_recurring ?? false),
           campaignName: (r.campaignName ?? r.campaign_name ?? null) as string | null,
           notes: (r.notes ?? null) as string | null,
-          supporterDisplayName: (r.supporterDisplayName ?? r.display_name ?? null) as string | null,
-          supporterOrganizationName: (r.supporterOrganizationName ?? null) as string | null,
-          supporterFirstName: (r.supporterFirstName ?? null) as string | null,
-          supporterLastName: (r.supporterLastName ?? null) as string | null,
+          supporterDisplayName: (
+            r.supporterDisplayName ??
+            r.supporter_display_name ??
+            r.display_name ??
+            supporter?.display_name ??
+            supporter?.displayName ??
+            null
+          ) as string | null,
+          supporterOrganizationName: (
+            r.supporterOrganizationName ??
+            r.supporter_organization_name ??
+            r.organization_name ??
+            supporter?.organization_name ??
+            supporter?.organizationName ??
+            null
+          ) as string | null,
+          supporterFirstName: (
+            r.supporterFirstName ??
+            r.supporter_first_name ??
+            r.first_name ??
+            supporter?.first_name ??
+            supporter?.firstName ??
+            null
+          ) as string | null,
+          supporterLastName: (
+            r.supporterLastName ??
+            r.supporter_last_name ??
+            r.last_name ??
+            supporter?.last_name ??
+            supporter?.lastName ??
+            null
+          ) as string | null,
         } satisfies DonationRecord;
       });
       setItems(normalized);

@@ -146,21 +146,20 @@ function feedEntryTimestampMs(entry: FeedEntry): number {
 function resolveDonorName(contribution: DonationRecord): string {
   const displayName = contribution.supporterDisplayName?.trim();
   if (displayName) return displayName;
-  const orgName = contribution.supporterOrganizationName?.trim();
-  if (orgName) return orgName;
   const first = contribution.supporterFirstName?.trim() ?? "";
   const last = contribution.supporterLastName?.trim() ?? "";
   const full = `${first} ${last}`.trim();
-  return full || "Anonymous";
+  if (full) return full;
+  const orgName = contribution.supporterOrganizationName?.trim();
+  if (orgName) return orgName;
+  return "Anonymous";
 }
 
 function formatContributionAmount(contribution: DonationRecord): string {
-  if (contribution.amount != null) {
-    return `$${Number(contribution.amount).toLocaleString()}`;
-  }
-  const value = contribution.estimatedValue ?? 0;
+  const value = contribution.amount ?? contribution.estimatedValue ?? 0;
   const unit = contribution.impactUnit?.trim();
-  return unit ? `${Number(value).toLocaleString()} ${unit}` : Number(value).toLocaleString();
+  if (unit) return `${Number(value).toLocaleString()} ${unit}`;
+  return `$${Number(value).toLocaleString()}`;
 }
 
 function mapDonationTypeToFeedKind(donationType: string): FeedEntry["kind"] {
@@ -779,11 +778,9 @@ const DonorsPage = () => {
                 </p>
               </div>
             </div>
-
-            {!loading && (
-              <>
-                {view === "contributions" ? (
-                  <div className="mb-4 flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
+              {!loading && (
+                <div className="mb-4 flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
+                  {view === "supporters" ? (
                     <Button
                       type="button"
                       onClick={handleAddSupporter}
@@ -795,6 +792,7 @@ const DonorsPage = () => {
                         Add Supporter
                       </span>
                     </Button>
+                  ) : (
                     <Button
                       type="button"
                       onClick={() => setAddOpen(true)}
@@ -806,8 +804,12 @@ const DonorsPage = () => {
                         Add Contribution
                       </span>
                     </Button>
-                  </div>
-                ) : null}
+                  )}
+                </div>
+              )}
+
+            {!loading && (
+              <>
               <div className="mb-8">
                 <FilterBar
                   mode={view}
@@ -908,6 +910,8 @@ const DonorsPage = () => {
                   {contributions.map((c, i) => {
                     const donorLabel = resolveDonorName(c);
                     const displayAmount = formatContributionAmount(c);
+                    const campaignLabel = c.campaignName?.trim() || "General";
+                    const typeLabel = c.donationType?.trim() || "Unknown";
                     return (
                       <motion.div
                         key={c.donationId}
@@ -930,9 +934,9 @@ const DonorsPage = () => {
                         <div className="relative z-[1] flex min-w-0 flex-1 items-center gap-4 pr-4 sm:pr-28">
                           <div className="min-w-0 flex-1">
                             <p className="truncate font-display text-base font-semibold tracking-[-0.02em] text-foreground">{donorLabel}</p>
-                            <p className="mt-1 truncate font-body text-xs text-muted-foreground/90">{c.campaignName || "No campaign"}</p>
+                            <p className="mt-1 truncate font-body text-xs text-muted-foreground/90">{campaignLabel}</p>
                           </div>
-                          <div className="hidden w-[5.25rem] shrink-0 font-body text-xs text-muted-foreground sm:block">{c.donationType}</div>
+                          <div className="hidden w-[5.25rem] shrink-0 font-body text-xs text-muted-foreground sm:block">{typeLabel}</div>
                           <div className="hidden w-[6rem] shrink-0 text-right font-body text-sm tabular-nums font-semibold text-foreground/95 md:block">
                             {displayAmount}
                           </div>
@@ -1084,9 +1088,15 @@ const DonorsPage = () => {
           transition={{ delay: 0.55 }}
           whileHover={{ scale: 1.04, y: -2 }}
           whileTap={{ scale: 0.97 }}
-          onClick={() => setAddOpen(true)}
+          onClick={() => {
+            if (view === "supporters") {
+              handleAddSupporter();
+              return;
+            }
+            setAddOpen(true);
+          }}
           className="fixed bottom-8 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(340_42%_68%)] to-[hsl(10_46%_56%)] text-white shadow-[0_14px_44px_rgba(190,100,130,0.4)] lg:hidden"
-          aria-label="Log contribution"
+          aria-label={view === "supporters" ? "Add supporter" : "Log contribution"}
         >
           <Plus className="h-6 w-6" strokeWidth={2} />
         </motion.button>
@@ -1184,10 +1194,10 @@ const DonorsPage = () => {
           {viewContributionTarget ? (
             <div className="space-y-3 font-body text-sm">
               <p><strong>Donor:</strong> {resolveDonorName(viewContributionTarget)}</p>
-              <p><strong>Type:</strong> {viewContributionTarget.donationType}</p>
+              <p><strong>Type:</strong> {viewContributionTarget.donationType?.trim() || "Unknown"}</p>
               <p><strong>Amount/Value:</strong> {formatContributionAmount(viewContributionTarget)}</p>
               <p><strong>Impact unit:</strong> {viewContributionTarget.impactUnit || "—"}</p>
-              <p><strong>Campaign:</strong> {viewContributionTarget.campaignName || "No campaign"}</p>
+              <p><strong>Campaign:</strong> {viewContributionTarget.campaignName?.trim() || "General"}</p>
               <p><strong>Date:</strong> {new Date(viewContributionTarget.donationDate).toLocaleDateString()}</p>
               <p><strong>Status:</strong> {viewContributionTarget.isRecurring ? "Recurring" : "One-time"}</p>
               <p><strong>Notes:</strong> {viewContributionTarget.notes || "—"}</p>
