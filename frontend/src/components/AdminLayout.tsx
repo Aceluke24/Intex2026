@@ -33,12 +33,18 @@ function navItemActive(pathname: string, itemPath: string): boolean {
 
 const navGroups = [
   {
+    label: "Overview",
+    items: [
+      { label: "Overview Command Center", path: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
     label: "Programs & Operations",
     items: [
-      { label: "Programs Dashboard", path: "/dashboard/programs", icon: Activity },
       { label: "Caseload Inventory", path: "/dashboard/caseload", icon: ClipboardList },
       { label: "Process Recordings", path: "/dashboard/recordings", icon: FileText },
       { label: "Visitations & Conferences", path: "/dashboard/visitations", icon: MapPin },
+      { label: "Programs Dashboard", path: "/dashboard/programs", icon: Activity },
     ],
   },
   {
@@ -51,8 +57,9 @@ const navGroups = [
   {
     label: "Finance & Contributions",
     items: [
+      { label: "Donors", path: "/dashboard/donors", icon: Heart },
+      { label: "Contributions", path: "/dashboard/donors", icon: Heart },
       { label: "Finance Dashboard", path: "/dashboard/finance", icon: DollarSign },
-      { label: "Donors & Contributions", path: "/dashboard/donors", icon: Heart },
       { label: "Expenses", path: "/dashboard/expenses", icon: Receipt },
     ],
   },
@@ -66,12 +73,6 @@ const navGroups = [
     label: "Settings & Administration",
     items: [
       { label: "Staff & Users", path: "/dashboard/staff", icon: Users },
-    ],
-  },
-  {
-    label: "Overview",
-    items: [
-      { label: "Command Center", path: "/dashboard", icon: LayoutDashboard },
     ],
   },
 ];
@@ -169,7 +170,7 @@ export const AdminLayout = ({
                   const active = navItemActive(location.pathname, item.path);
                   return (
                     <Link
-                      key={item.path}
+                      key={`${group.label}-${item.label}`}
                       to={item.path}
                       title={collapsed ? item.label : undefined}
                       className={cn(
