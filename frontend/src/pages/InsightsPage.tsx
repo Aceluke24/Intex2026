@@ -129,9 +129,11 @@ const InsightsPage = () => {
     setLoadError(null);
     const loadErrors: string[] = [];
 
-    const [retentionResult, residentResult] = await Promise.allSettled([
+    const [retentionResult, residentResult, reintegrationResult, socialMediaResult] = await Promise.allSettled([
       apiFetchJson<DonorRetentionResponse>(`${API_PREFIX}/insights/donor-retention`),
       apiFetchJson<ResidentRiskResponse>(`${API_PREFIX}/insights/resident-risk-ml`),
+      apiFetchJson<ReintegrationResponse>(`${API_PREFIX}/insights/reintegration-analysis`),
+      apiFetchJson<SocialMediaResponse>(`${API_PREFIX}/insights/social-media-insights`),
     ]);
 
     if (retentionResult.status === "fulfilled") {
@@ -176,6 +178,18 @@ const InsightsPage = () => {
         setResidentScoredAt(null);
         loadErrors.push("Resident risk insights are temporarily unavailable.");
       }
+    }
+
+    if (reintegrationResult.status === "fulfilled") {
+      setReintegrationMeta(reintegrationResult.value);
+    } else {
+      setReintegrationMeta({ available: false, message: "Reintegration insights unavailable.", rows: [] });
+    }
+
+    if (socialMediaResult.status === "fulfilled") {
+      setSocialMediaMeta(socialMediaResult.value);
+    } else {
+      setSocialMediaMeta({ available: false, message: "Social media insights unavailable.", rows: [] });
     }
 
     setLoadError(loadErrors.length ? loadErrors.join(" ") : null);
@@ -301,6 +315,19 @@ const InsightsPage = () => {
       })
       .slice(0, 12);
   }, [residentRisk, residentViewMode]);
+
+  const socialMediaRows = useMemo(() => {
+    const rows = socialMediaMeta?.rows ?? [];
+    const filtered = socialViewMode === "significant" ? rows.filter((r) => r.significant) : rows;
+    return [...filtered].sort((a, b) => b.irr - a.irr);
+  }, [socialMediaMeta, socialViewMode]);
+
+  const reintegrationRows = useMemo(() => {
+    const rows = reintegrationMeta?.rows ?? [];
+    return [...rows].sort(
+      (a, b) => Math.abs(Math.log(b.oddsRatio)) - Math.abs(Math.log(a.oddsRatio))
+    );
+  }, [reintegrationMeta]);
 
   const insightDescription =
     donorScoreSource === "ml"
@@ -579,6 +606,202 @@ const InsightsPage = () => {
                   </tbody>
                 </table>
               </div>
+            </motion.section>
+
+            {/* ── Social Media Insights ── */}
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
+              aria-labelledby="social-media-heading"
+            >
+              <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 id="social-media-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
+                    Social Media Insights
+                  </h2>
+                  <p className="font-body text-xs text-muted-foreground">
+                    Post characteristics associated with higher donation referrals — Negative Binomial regression
+                    {socialMediaMeta?.metrics ? ` • n=${socialMediaMeta.metrics.nPosts} posts • AIC ${socialMediaMeta.metrics.aic?.toFixed(0)}` : ""}
+                    {socialMediaMeta?.trainedAt ? ` • Trained ${new Date(socialMediaMeta.trainedAt).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                {socialMediaMeta?.available && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setSocialViewMode("significant")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        socialViewMode === "significant"
+                          ? "border border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      Significant only
+                    </button>
+                    <button
+                      onClick={() => setSocialViewMode("all")}
+                      className={`rounded-lg px-3 py-1.5 font-body text-sm font-medium transition-colors ${
+                        socialViewMode === "all"
+                          ? "border border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                          : "border border-[hsl(350,16%,92%)] bg-white/50 text-muted-foreground hover:bg-white/70 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      All factors
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!socialMediaMeta?.available ? (
+                <p className="font-body text-sm text-muted-foreground">
+                  {socialMediaMeta?.message ?? "Social media model artifacts not found. Run train_social_media_insights.py to generate them."}
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
+                  <table className="w-full min-w-[700px] text-left">
+                    <thead className={dashboardTableHeadRowClass}>
+                      <tr>
+                        {["Factor", "IRR", "95% CI", "p-value", "Signal"].map((h) => (
+                          <th key={h} className={dashboardTableHeadCellClass}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className={dashboardTableBodyClass}>
+                      {socialMediaRows.map((row) => (
+                        <tr key={row.feature} className={dashboardTableRowClass}>
+                          <td className={dashboardTableCellClass}>
+                            <span className="font-medium text-foreground">{row.feature}</span>
+                          </td>
+                          <td className={dashboardTableCellClass}>
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                row.irr >= 1
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                              }`}
+                            >
+                              {row.irr.toFixed(2)}×
+                            </span>
+                          </td>
+                          <td className={dashboardTableCellClass}>
+                            {row.ciLow != null && row.ciHigh != null
+                              ? `${row.ciLow.toFixed(2)} – ${row.ciHigh.toFixed(2)}`
+                              : "—"}
+                          </td>
+                          <td className={dashboardTableCellClass}>
+                            {row.pValue != null
+                              ? row.pValue < 0.001
+                                ? row.pValue.toExponential(2)
+                                : row.pValue.toFixed(3)
+                              : "—"}
+                          </td>
+                          <td className={dashboardTableCellClass}>
+                            {row.significant ? (
+                              <span className="text-emerald-600 dark:text-emerald-400">{row.irr >= 1 ? "▲ Boosts" : "▼ Reduces"}</span>
+                            ) : (
+                              <span className="text-muted-foreground">–</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {!socialMediaRows.length && (
+                        <tr>
+                          <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={5}>
+                            No factors match this filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </motion.section>
+
+            {/* ── Reintegration Success Factors ── */}
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[1.25rem] border border-white/50 bg-white/45 p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
+              aria-labelledby="reintegration-heading"
+            >
+              <div className="mb-4">
+                <h2 id="reintegration-heading" className="font-display text-lg font-semibold tracking-tight text-foreground">
+                  Reintegration Success Factors
+                </h2>
+                <p className="font-body text-xs text-muted-foreground">
+                  Directional associations with successful reintegration — Logistic regression
+                  {reintegrationMeta?.metrics ? ` • n=${reintegrationMeta.metrics.nObservations} residents` : ""}
+                  {reintegrationMeta?.trainedAt ? ` • Trained ${new Date(reintegrationMeta.trainedAt).toLocaleDateString()}` : ""}
+                </p>
+              </div>
+
+              {!reintegrationMeta?.available ? (
+                <p className="font-body text-sm text-muted-foreground">
+                  {reintegrationMeta?.message ?? "Reintegration model artifacts not found. Run train_reintegration_analysis.py to generate them."}
+                </p>
+              ) : (
+                <>
+                  {reintegrationMeta.hasConvergenceIssues && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 font-body text-sm text-amber-800 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-300">
+                      Model fit is near-perfect on this dataset (likely due to limited sample size), so odds ratios and confidence intervals are unreliable. Directions below are indicators only.
+                    </div>
+                  )}
+                  <div className="overflow-x-auto rounded-[1.1rem] border border-white/40 dark:border-white/10">
+                    <table className="w-full min-w-[560px] text-left">
+                      <thead className={dashboardTableHeadRowClass}>
+                        <tr>
+                          {["Factor", "Direction", "Relative strength"].map((h) => (
+                            <th key={h} className={dashboardTableHeadCellClass}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className={dashboardTableBodyClass}>
+                        {reintegrationRows.map((row) => {
+                          const logMag = Math.abs(Math.log(Math.max(row.oddsRatio, 1e-40)));
+                          const maxLogMag = Math.abs(Math.log(Math.max(reintegrationRows[0]?.oddsRatio ?? 1, 1e-40)));
+                          const strengthPct = maxLogMag > 0 ? Math.round((logMag / maxLogMag) * 100) : 0;
+                          return (
+                            <tr key={row.feature} className={dashboardTableRowClass}>
+                              <td className={dashboardTableCellClass}>
+                                <span className="font-medium text-foreground">{row.feature.replace(/_/g, " ")}</span>
+                              </td>
+                              <td className={dashboardTableCellClass}>
+                                <span
+                                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    row.direction === "positive"
+                                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                                  }`}
+                                >
+                                  {row.direction === "positive" ? "Positive" : "Negative"}
+                                </span>
+                              </td>
+                              <td className={dashboardTableCellClass}>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className={`h-full rounded-full ${row.direction === "positive" ? "bg-emerald-500" : "bg-rose-500"}`}
+                                      style={{ width: `${strengthPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="font-body text-xs text-muted-foreground">{strengthPct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!reintegrationRows.length && (
+                          <tr>
+                            <td className="px-2 py-3 text-sm text-muted-foreground" colSpan={3}>
+                              No reintegration factors available.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </motion.section>
           </div>
         )}
