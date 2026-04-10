@@ -1,11 +1,9 @@
 import { AdminLayout } from "@/components/AdminLayout";
-import { CommandCenterKpis, PriorityCallouts, ResidentsList, DonationChart } from "@/components/dashboard";
+import { PriorityCallouts, ResidentsList } from "@/components/dashboard";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
 import type {
-  AttentionItem,
   DashboardMetric,
-  DonationMonth,
   PriorityCallout,
   ResidentRow,
 } from "@/lib/dashboardTypes";
@@ -19,20 +17,15 @@ const ease = [0.22, 1, 0.36, 1] as const;
 type DashboardApiResponse = {
   primaryMetric: DashboardMetric;
   supportingMetrics: DashboardMetric[];
-  reintegrationMetric: DashboardMetric;
-  donationSpark: number[];
-  residentSpark: number[];
-  activityItems: AttentionItem[];
   priorityCallouts: PriorityCallout[];
-  liveContext: {
-    residentCount: number;
-    safehouseCount: number;
-    donationMonthLabel: string;
-    donationTrendPhrase: string;
-    retentionLabel: string;
+  snapshotMetrics: {
+    activeResidents: number;
+    highCriticalRiskCount: number;
+    upcomingVisits7Days: number;
+    monthlyDonations: string;
+    repeatDonorRate: number | null;
+    totalDonationsCount: number;
   };
-  donationActivity: DonationMonth[];
-  donationInsight: string;
   residentsOverview: ResidentRow[];
   insights: string[];
 };
@@ -43,14 +36,8 @@ const DashboardPage = () => {
 
   const [primaryMetric, setPrimaryMetric] = useState<DashboardMetric | null>(null);
   const [supportingMetrics, setSupportingMetrics] = useState<DashboardMetric[]>([]);
-  const [reintegrationMetric, setReintegrationMetric] = useState<DashboardMetric | null>(null);
-  const [donationSpark, setDonationSpark] = useState<number[]>([]);
-  const [residentSpark, setResidentSpark] = useState<number[]>([]);
-  const [activityItems, setActivityItems] = useState<AttentionItem[]>([]);
   const [priorityCallouts, setPriorityCallouts] = useState<PriorityCallout[]>([]);
-  const [liveContext, setLiveContext] = useState<DashboardApiResponse["liveContext"] | null>(null);
-  const [donationActivity, setDonationActivity] = useState<DonationMonth[]>([]);
-  const [donationInsight, setDonationInsight] = useState("");
+  const [snapshotMetrics, setSnapshotMetrics] = useState<DashboardApiResponse["snapshotMetrics"] | null>(null);
   const [residentsOverview, setResidentsOverview] = useState<ResidentRow[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
 
@@ -61,14 +48,8 @@ const DashboardPage = () => {
       const data = await apiFetchJson<DashboardApiResponse>(`${API_PREFIX}/dashboard`);
       setPrimaryMetric(data.primaryMetric);
       setSupportingMetrics(data.supportingMetrics);
-      setReintegrationMetric(data.reintegrationMetric);
-      setDonationSpark(data.donationSpark);
-      setResidentSpark(data.residentSpark);
-      setActivityItems(data.activityItems);
       setPriorityCallouts(data.priorityCallouts);
-      setLiveContext(data.liveContext);
-      setDonationActivity(data.donationActivity);
-      setDonationInsight(data.donationInsight);
+      setSnapshotMetrics(data.snapshotMetrics);
       setResidentsOverview(
         (data.residentsOverview ?? []).map((r) => ({
           id: r.id,
@@ -90,13 +71,31 @@ const DashboardPage = () => {
     void load();
   }, [load]);
 
-  const supportingForKpis = supportingMetrics.filter((s) => s.key !== "retention");
+  const donationMetric = supportingMetrics.find((s) => s.key === "donations");
+  const visitMetric = supportingMetrics.find((s) => s.key === "conferences");
+  const retentionMetric = supportingMetrics.find((s) => s.key === "retention");
+
+  const attentionRows = (() => {
+    const urgent = residentsOverview.filter((r) => r.status === "At Risk");
+    const recentNonStable = residentsOverview.filter((r) => r.status !== "Stable" && r.status !== "At Risk");
+    return [...urgent, ...recentNonStable].slice(0, 7);
+  })();
+
+  const quickInsights = snapshotMetrics
+    ? [
+        `${snapshotMetrics.highCriticalRiskCount} residents currently High/Critical risk`,
+        `${snapshotMetrics.monthlyDonations} donated this month across ${snapshotMetrics.totalDonationsCount} total gifts`,
+        snapshotMetrics.repeatDonorRate !== null
+          ? `${snapshotMetrics.repeatDonorRate.toFixed(1)}% repeat donor rate (strong retention)`
+          : "Repeat donor rate will populate as donation history grows",
+      ]
+    : insights;
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
       <StaffPageShell
         title="Command Center"
-        description="What needs attention today — data from your connected systems."
+        description="High-level operations snapshot."
       >
         {loadError ? (
           <p
@@ -107,38 +106,20 @@ const DashboardPage = () => {
           </p>
         ) : null}
 
-        {loading || !primaryMetric || !reintegrationMetric || !liveContext ? (
+        {loading || !primaryMetric || !snapshotMetrics ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-16 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
             <p className="font-display text-lg font-semibold text-foreground">Loading dashboard…</p>
             <p className="font-body text-sm text-muted-foreground">Fetching command center data.</p>
           </div>
         ) : (
           <>
-            <section className="mb-12 lg:mb-16" aria-labelledby="kpi-heading">
-              <h2
-                id="kpi-heading"
-                className="mb-8 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-              >
-                Operations at a glance
-              </h2>
-              <CommandCenterKpis
-                primary={primaryMetric}
-                supporting={supportingForKpis}
-                reintegration={reintegrationMetric}
-                activityItems={activityItems}
-                donationSpark={donationSpark}
-                residentSpark={residentSpark}
-              />
-            </section>
-
-            <section className="mb-12 lg:mb-16" aria-labelledby="priority-heading">
+            <section className="mb-8 lg:mb-10" aria-labelledby="priority-heading">
               <h2
                 id="priority-heading"
-                className="mb-3 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+                className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
               >
-                Priority intelligence
+                Priority Alerts
               </h2>
-              <p className="mb-8 font-body text-sm text-muted-foreground">Signals that may need a response this week</p>
               <PriorityCallouts items={priorityCallouts} />
             </section>
 
@@ -147,81 +128,61 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="mb-12 space-y-8 lg:mb-16"
-              aria-labelledby="context-heading"
+              className="mb-8 lg:mb-10"
+              aria-labelledby="metrics-heading"
             >
               <h2
-                id="context-heading"
-                className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+                id="metrics-heading"
+                className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
               >
-                Live context
+                Key Metrics
               </h2>
-              <div className="max-w-3xl space-y-6 font-body text-[17px] leading-[1.65] text-foreground/88 sm:text-lg">
-                <p>
-                  Currently supporting{" "}
-                  <strong className="font-semibold text-foreground tabular-nums">{liveContext.residentCount}</strong>{" "}
-                  active residents across{" "}
-                  <strong className="font-semibold text-foreground tabular-nums">{liveContext.safehouseCount}</strong>{" "}
-                  safehouses.
-                </p>
-                <p>
-                  <strong className="font-semibold tabular-nums text-foreground">{liveContext.donationMonthLabel}</strong>{" "}
-                  in donations this month, {liveContext.donationTrendPhrase}. Repeat gift rate (supporters with 2+ gifts) is{" "}
-                  <strong className="font-semibold tabular-nums text-foreground">{liveContext.retentionLabel}</strong>.
-                </p>
-              </div>
-            </motion.section>
-
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.4, ease }}
-              className="mb-12 lg:mb-16"
-              aria-labelledby="donations-heading"
-            >
-              <h2
-                id="donations-heading"
-                className="mb-8 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-              >
-                Donation trends
-              </h2>
-              <DonationChart
-                data={
-                  donationActivity.length
-                    ? donationActivity
-                    : [{ month: "—", total: 0, newDonors: 0, returningDonors: 0 }]
-                }
-                insight={donationInsight}
-              />
-            </motion.section>
-
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.4, ease }}
-              className="mb-12 lg:mb-16"
-              aria-labelledby="residents-heading"
-            >
-              <div className="mb-8 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-                <div>
-                  <h2
-                    id="residents-heading"
-                    className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {[
+                  {
+                    label: "Active Residents",
+                    value: String(snapshotMetrics.activeResidents),
+                    trend: primaryMetric.trendLabel,
+                  },
+                  {
+                    label: "High / Critical Risk",
+                    value: String(snapshotMetrics.highCriticalRiskCount),
+                    trend: snapshotMetrics.highCriticalRiskCount > 0 ? "Needs review" : "No urgent risk",
+                  },
+                  {
+                    label: "Upcoming Home Visits (7 days)",
+                    value: String(snapshotMetrics.upcomingVisits7Days),
+                    trend: visitMetric?.trendLabel ?? "",
+                  },
+                  {
+                    label: "Monthly Donations",
+                    value: snapshotMetrics.monthlyDonations,
+                    trend: donationMetric?.trendLabel ?? "",
+                  },
+                  {
+                    label: "Repeat Donor Rate",
+                    value:
+                      snapshotMetrics.repeatDonorRate !== null ? `${snapshotMetrics.repeatDonorRate.toFixed(1)}%` : "—",
+                    trend: retentionMetric?.trendLabel ?? "",
+                  },
+                  {
+                    label: "Total Donations",
+                    value: String(snapshotMetrics.totalDonationsCount),
+                    trend: "",
+                  },
+                ].map((metric) => (
+                  <div
+                    key={metric.label}
+                    className="rounded-2xl border border-white/50 bg-white/55 px-4 py-4 shadow-[0_6px_24px_rgba(45,35,48,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
                   >
-                    Resident overview
-                  </h2>
-                  <p className="mt-2 font-body text-sm text-muted-foreground">Status and last touchpoint</p>
-                </div>
-                <p className="font-body text-xs text-muted-foreground">IDs are anonymized.</p>
+                    <p className="font-display text-3xl font-semibold tabular-nums tracking-tight text-foreground">{metric.value}</p>
+                    <p className="mt-1 font-body text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      {metric.label}
+                    </p>
+                    {metric.trend ? <p className="mt-2 font-body text-xs text-muted-foreground">{metric.trend}</p> : null}
+                  </div>
+                ))}
               </div>
-              <ResidentsList rows={residentsOverview} />
-              {!loadError && residentsOverview.length === 0 && (
-                <p className="mt-4 font-body text-sm text-muted-foreground">
-                  No active residents in census. Add cases or check caseload.
-                </p>
-              )}
             </motion.section>
 
             <motion.section
@@ -229,23 +190,36 @@ const DashboardPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.4, ease }}
-              className="border-t border-white/35 pt-12 dark:border-white/10"
-              aria-labelledby="insights-heading"
+              className="mb-4"
+              aria-labelledby="snapshot-heading"
             >
               <h2
-                id="insights-heading"
-                className="font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
+                id="snapshot-heading"
+                className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
               >
-                Insights
+                Operational Snapshot
               </h2>
-              <p className="mt-2 font-body text-sm text-muted-foreground">Light signals from your data</p>
-              <ul className="mt-10 max-w-2xl space-y-6 border-l-2 border-[hsl(340,22%,88%)] pl-8">
-                {insights.map((line, i) => (
-                  <li key={i} className="font-body text-[15px] leading-relaxed text-foreground/85">
-                    {line}
-                  </li>
-                ))}
-              </ul>
+              <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+                <div className="rounded-2xl border border-white/50 bg-white/45 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]">
+                  <h3 className="mb-3 font-display text-lg font-semibold tracking-tight text-foreground">
+                    Residents Requiring Attention
+                  </h3>
+                  <ResidentsList rows={attentionRows} />
+                  {!loadError && attentionRows.length === 0 && (
+                    <p className="mt-4 font-body text-sm text-muted-foreground">No high-risk or recently updated residents.</p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-white/50 bg-white/45 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]">
+                  <h3 className="mb-3 font-display text-lg font-semibold tracking-tight text-foreground">Quick Insights</h3>
+                  <ul className="space-y-3">
+                    {quickInsights.slice(0, 3).map((line, i) => (
+                      <li key={i} className="font-body text-sm leading-relaxed text-foreground/85">
+                        - {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </motion.section>
           </>
         )}

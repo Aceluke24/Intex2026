@@ -2,9 +2,9 @@ import type { ResidentRow, ResidentStatus } from "@/lib/dashboardTypes";
 import { cn } from "@/lib/utils";
 
 const statusStyles: Record<ResidentStatus, string> = {
-  Stable: "bg-[hsl(145,22%,93%)]/95 text-[hsl(150,18%,34%)]",
-  "At Risk": "bg-[hsl(35,24%,93%)]/95 text-[hsl(28,22%,38%)]",
-  Progressing: "bg-[hsl(350,22%,94%)]/95 text-[hsl(340,18%,40%)]",
+  Stable: "bg-[hsl(145,44%,88%)] text-[hsl(145,52%,24%)]",
+  "At Risk": "bg-[hsl(2,80%,90%)] text-[hsl(2,72%,34%)]",
+  Progressing: "bg-[hsl(45,92%,86%)] text-[hsl(33,78%,28%)]",
 };
 
 type ResidentsListProps = {

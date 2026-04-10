@@ -1,5 +1,4 @@
 import type { PriorityCallout } from "@/lib/dashboardTypes";
-import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -8,27 +7,21 @@ type PriorityCalloutsProps = {
   items: PriorityCallout[];
 };
 
-/** Large flowing intelligence blocks — not a card grid */
 export function PriorityCallouts({ items }: PriorityCalloutsProps) {
   return (
-    <div className="space-y-4 lg:space-y-5">
-      {items.map((item, i) => (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {items.slice(0, 5).map((item, i) => (
         <motion.div
           key={item.id}
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease, delay: 0.05 * i }}
-          className={cn(
-            "rounded-2xl px-6 py-7 shadow-[0_2px_24px_rgba(45,35,48,0.04)] transition-all duration-200 sm:px-8 sm:py-8",
-            "bg-gradient-to-br from-[hsl(350,38%,97%)]/90 via-[hsl(36,36%,99%)] to-[hsl(36,32%,98%)]",
-            "hover:shadow-[0_8px_40px_rgba(45,35,48,0.07)]",
-            item.align === "right" ? "ml-auto max-w-[min(100%,40rem)] lg:max-w-[min(100%,44rem)]" : "mr-auto max-w-[min(100%,44rem)] lg:max-w-[min(100%,48rem)]"
-          )}
+          className="rounded-2xl border border-[hsl(350,42%,86%)] bg-gradient-to-br from-[hsl(350,38%,97%)] via-[hsl(36,36%,99%)] to-[hsl(36,32%,98%)] px-5 py-5 shadow-[0_8px_30px_rgba(45,35,48,0.08)] transition-all duration-200 hover:shadow-[0_14px_36px_rgba(45,35,48,0.12)]"
         >
-          <p className="font-display text-[clamp(1.125rem,2.4vw,1.35rem)] font-semibold leading-snug tracking-tight text-foreground">
+          <p className="font-display text-lg font-semibold leading-snug tracking-tight text-foreground">
             {item.headline}
           </p>
-          <p className="mt-3 max-w-prose font-body text-[15px] leading-relaxed text-muted-foreground">{item.supporting}</p>
+          <p className="mt-2 font-body text-sm leading-relaxed text-foreground/80">{item.supporting}</p>
         </motion.div>
       ))}
     </div>

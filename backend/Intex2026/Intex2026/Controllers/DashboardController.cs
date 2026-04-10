@@ -224,6 +224,14 @@ public class DashboardController : ControllerBase
                 ? $"{retPct:F1}% — {repeatDonorCount} repeat of {donorDen} donors"
                 : "—");
 
+        var snapshotMetrics = new SnapshotMetricsDto(
+            activeTotal,
+            highRiskCount,
+            visitsThisWeek,
+            FormatMoneyCompact(curSum),
+            retPct,
+            donations.Count);
+
             return Ok(new DashboardResponseDto(
                 primaryMetric,
                 supportingMetrics,
@@ -233,6 +241,7 @@ public class DashboardController : ControllerBase
                 activityItems,
                 priorityCallouts,
                 liveContext,
+                snapshotMetrics,
                 donationActivity,
                 donationInsight,
                 residentsOverview,
@@ -365,6 +374,7 @@ public class DashboardController : ControllerBase
         List<AttentionItemDto> ActivityItems,
         List<PriorityCalloutDto> PriorityCallouts,
         LiveContextDto LiveContext,
+        SnapshotMetricsDto SnapshotMetrics,
         List<DonationMonthDto> DonationActivity,
         string DonationInsight,
         List<ResidentRowDto> ResidentsOverview,
@@ -390,6 +400,14 @@ public class DashboardController : ControllerBase
         string DonationMonthLabel,
         string DonationTrendPhrase,
         string RetentionLabel);
+
+    private sealed record SnapshotMetricsDto(
+        int ActiveResidents,
+        int HighCriticalRiskCount,
+        int UpcomingVisits7Days,
+        string MonthlyDonations,
+        double? RepeatDonorRate,
+        int TotalDonationsCount);
 
     private sealed record ResidentRowDto(string Id, string? Safehouse, string Status, string LastSession);
 }
