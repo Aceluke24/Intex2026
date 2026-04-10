@@ -20,57 +20,104 @@ type SafehouseCapacityRowDto = {
   occupancyRatio: number;
 };
 
-type DashboardResponseDto = {
-  kpis?: {
-    residentRiskSummary: {
-      activeResidents: number;
-      byRiskLevel: RiskLevelCountDto[];
-      highCriticalCount: number;
-    };
-    visits: {
-      next7Days: number;
-      overdueFollowUps: number;
-    };
-    donorHealth: {
-      repeatDonorRate: number | null;
-      repeatDonors: number;
-      totalDonors: number;
-      activeDonors30Days: number;
-      totalThisMonth: number;
-    };
-    impactValue: {
-      totalThisMonth: number;
-      monetaryThisMonth: number;
-      inKindThisMonth: number;
-      timeThisMonth: number;
-    };
-    safehouseCapacity: {
-      nearCapacityCount: number;
-      nearCapacity: SafehouseCapacityRowDto[];
-    };
-    incidents: {
-      last7Days: number;
-      unresolvedCount: number;
-      severityBreakdown: RiskLevelCountDto[];
-    };
-    caseProgress: {
-      inProgressPercent: number;
-      achievedPercent: number;
-      overduePlans: number;
-      totalPlans: number;
-    };
-    wellbeing: {
-      avgGeneralHealthScore30Days: number | null;
-      isCritical: boolean;
-    };
-    education: {
-      avgProgressPercent: number | null;
-      avgAttendanceRate: number | null;
-    };
+type DashboardKpisDto = {
+  residentRiskSummary: {
+    activeResidents: number;
+    byRiskLevel: RiskLevelCountDto[];
+    highCriticalCount: number;
   };
+  visits: {
+    next7Days: number;
+    overdueFollowUps: number;
+  };
+  donorHealth: {
+    repeatDonorRate: number | null;
+    repeatDonors: number;
+    totalDonors: number;
+    activeDonors30Days: number;
+    totalThisMonth: number;
+  };
+  impactValue: {
+    totalThisMonth: number;
+    monetaryThisMonth: number;
+    inKindThisMonth: number;
+    timeThisMonth: number;
+  };
+  safehouseCapacity: {
+    nearCapacityCount: number;
+    nearCapacity: SafehouseCapacityRowDto[];
+  };
+  incidents: {
+    last7Days: number;
+    unresolvedCount: number;
+    severityBreakdown: RiskLevelCountDto[];
+  };
+  caseProgress: {
+    inProgressPercent: number;
+    achievedPercent: number;
+    overduePlans: number;
+    totalPlans: number;
+  };
+  wellbeing: {
+    avgGeneralHealthScore30Days: number | null;
+    isCritical: boolean;
+  };
+  education: {
+    avgProgressPercent: number | null;
+    avgAttendanceRate: number | null;
+  };
+};
+
+type DashboardResponseDto = {
+  kpis?: DashboardKpisDto;
   insights?: string[];
   generatedAtUtc?: string;
 };
+
+type LooseDashboardResponse = DashboardResponseDto & {
+  residentRiskSummary?: DashboardKpisDto["residentRiskSummary"];
+  resident_risk_summary?: DashboardKpisDto["residentRiskSummary"];
+  visits?: DashboardKpisDto["visits"];
+  donorHealth?: DashboardKpisDto["donorHealth"];
+  donor_health?: DashboardKpisDto["donorHealth"];
+  impactValue?: DashboardKpisDto["impactValue"];
+  impact_value?: DashboardKpisDto["impactValue"];
+  safehouseCapacity?: DashboardKpisDto["safehouseCapacity"];
+  safehouse_capacity?: DashboardKpisDto["safehouseCapacity"];
+  incidents?: DashboardKpisDto["incidents"];
+  caseProgress?: DashboardKpisDto["caseProgress"];
+  wellbeing?: DashboardKpisDto["wellbeing"];
+  education?: DashboardKpisDto["education"];
+};
+
+function hasKeys(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && Object.keys(value).length > 0;
+}
+
+function hasAnyDefinedValue(value: unknown): value is Record<string, unknown> {
+  return hasKeys(value) && Object.values(value).some((entry) => entry != null);
+}
+
+function normalizeDashboardResponse(response: LooseDashboardResponse): DashboardResponseDto {
+  const normalizedKpis = hasKeys(response.kpis)
+    ? response.kpis
+    : {
+        residentRiskSummary: response.residentRiskSummary ?? response.resident_risk_summary,
+        visits: response.kpis?.visits ?? response.visits,
+        donorHealth: response.donorHealth ?? response.donor_health,
+        impactValue: response.impactValue ?? response.impact_value,
+        safehouseCapacity: response.safehouseCapacity ?? response.safehouse_capacity,
+        incidents: response.kpis?.incidents ?? response.incidents,
+        caseProgress: response.kpis?.caseProgress ?? response.caseProgress,
+        wellbeing: response.kpis?.wellbeing ?? response.wellbeing,
+        education: response.kpis?.education ?? response.education,
+      };
+
+  return {
+    ...response,
+    kpis: hasAnyDefinedValue(normalizedKpis) ? normalizedKpis : undefined,
+  };
+}
 
 function DashboardSkeleton() {
   return (
@@ -129,19 +176,24 @@ function statusTone(level: string) {
 }
 
 const DashboardPage = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardResponseDto | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
 
   const loadOverview = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
-      const data = await apiFetchJson<DashboardResponseDto>(`${API_PREFIX}/dashboard`, { timeoutMs: 20000 });
-      setData(data);
-      setInsights(data.insights ?? []);
+      const response = await apiFetchJson<LooseDashboardResponse>(`${API_PREFIX}/dashboard`, { timeoutMs: 20000 });
+      console.log("Dashboard API response:", response);
+      const normalized = normalizeDashboardResponse(response);
+      const kpiKeys = normalized.kpis ? Object.keys(normalized.kpis) : [];
+      console.log("Dashboard API keys:", Object.keys(response ?? {}), "KPI keys:", kpiKeys);
+      setData(normalized);
+      setInsights(normalized.insights ?? []);
     } catch (e) {
-      console.error("Dashboard API error:", e);
+      console.error("Dashboard fetch failed:", e);
       setError(e instanceof Error ? e.message : "Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -149,11 +201,11 @@ const DashboardPage = () => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     void loadOverview();
   }, [loadOverview]);
 
   const kpis = data?.kpis;
+  const hasKpiData = hasAnyDefinedValue(kpis);
   const riskBreakdown = kpis?.residentRiskSummary.byRiskLevel ?? [];
   const severityBreakdown = kpis?.incidents.severityBreakdown ?? [];
 
@@ -167,27 +219,27 @@ const DashboardPage = () => {
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <Link to="/dashboard/caseload" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-red-300 hover:bg-red-50/40 dark:hover:bg-red-950/20">
                 <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Resident Risk Summary</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-red-700 dark:text-red-300">{kpis ? kpis.residentRiskSummary.highCriticalCount : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">{kpis ? `${kpis.residentRiskSummary.activeResidents} active residents` : "No data available"}</p>
+                <p className="mt-2 font-display text-3xl font-semibold text-red-700 dark:text-red-300">{hasKpiData && kpis?.residentRiskSummary ? kpis.residentRiskSummary.highCriticalCount : "No data available"}</p>
+                <p className="mt-1 font-body text-sm text-muted-foreground">{hasKpiData && kpis?.residentRiskSummary ? `${kpis.residentRiskSummary.activeResidents} active residents` : "No data available"}</p>
               </Link>
               <Link to="/dashboard/visitations" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-amber-300 hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
                 <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Upcoming / Missed Visits</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{kpis ? `${kpis.visits.next7Days} / ${kpis.visits.overdueFollowUps}` : "No data available"}</p>
+                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.visits ? `${kpis.visits.next7Days} / ${kpis.visits.overdueFollowUps}` : "No data available"}</p>
                 <p className="mt-1 font-body text-sm text-muted-foreground">Next 7 days / Overdue follow-ups</p>
               </Link>
               <Link to="/dashboard/donors" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20">
                 <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Donor Health</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{kpis ? formatPct(kpis.donorHealth.repeatDonorRate) : "No data available"}</p>
-                <p className="mt-1 font-body text-sm text-muted-foreground">{kpis ? `${kpis.donorHealth.activeDonors30Days} active donors (30d)` : "No data available"}</p>
+                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.donorHealth ? formatPct(kpis.donorHealth.repeatDonorRate) : "No data available"}</p>
+                <p className="mt-1 font-body text-sm text-muted-foreground">{hasKpiData && kpis?.donorHealth ? `${kpis.donorHealth.activeDonors30Days} active donors (30d)` : "No data available"}</p>
               </Link>
               <Link to="/dashboard/donors" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20">
                 <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Total Impact Value</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{kpis ? formatMoney(kpis.impactValue.totalThisMonth) : "No data available"}</p>
+                <p className="mt-2 font-display text-3xl font-semibold text-foreground">{hasKpiData && kpis?.impactValue ? formatMoney(kpis.impactValue.totalThisMonth) : "No data available"}</p>
                 <p className="mt-1 font-body text-sm text-muted-foreground">Monetary + In-Kind + Time this month</p>
               </Link>
               <Link to="/dashboard/caseload" className="rounded-xl border border-border/60 bg-card p-5 shadow-sm transition hover:border-amber-300 hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
                 <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Safehouse Capacity Alert</p>
-                <p className="mt-2 font-display text-3xl font-semibold text-amber-700 dark:text-amber-300">{kpis ? kpis.safehouseCapacity.nearCapacityCount : "No data available"}</p>
+                <p className="mt-2 font-display text-3xl font-semibold text-amber-700 dark:text-amber-300">{hasKpiData && kpis?.safehouseCapacity ? kpis.safehouseCapacity.nearCapacityCount : "No data available"}</p>
                 <p className="mt-1 font-body text-sm text-muted-foreground">Safehouses above 90% occupancy</p>
               </Link>
             </section>
@@ -209,7 +261,7 @@ const DashboardPage = () => {
 
               <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
                 <h2 className="font-display text-lg font-semibold text-foreground">Incident Alerts</h2>
-                {!kpis ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
+                {!hasKpiData || !kpis?.incidents ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
                   <div className="mt-4 space-y-3">
                     <p className="font-body text-sm text-foreground">
                       Last 7 days: <span className="font-semibold">{kpis.incidents.last7Days}</span> | Unresolved: <span className="font-semibold text-red-700 dark:text-red-300">{kpis.incidents.unresolvedCount}</span>
@@ -230,7 +282,7 @@ const DashboardPage = () => {
             <section className="grid gap-4 xl:grid-cols-2">
               <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
                 <h2 className="font-display text-lg font-semibold text-foreground">Case Progress Signal</h2>
-                {!kpis ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
+                {!hasKpiData || !kpis?.caseProgress ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
                   <div className="mt-4 space-y-2 font-body text-sm text-foreground">
                     <p>In Progress: <span className="font-semibold text-amber-700 dark:text-amber-300">{formatPct(kpis.caseProgress.inProgressPercent)}</span></p>
                     <p>Achieved: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatPct(kpis.caseProgress.achievedPercent)}</span></p>
@@ -240,7 +292,7 @@ const DashboardPage = () => {
               </div>
               <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
                 <h2 className="font-display text-lg font-semibold text-foreground">Wellbeing + Education Snapshot</h2>
-                {!kpis ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
+                {!hasKpiData || !kpis?.wellbeing || !kpis?.education ? <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p> : (
                   <div className="mt-4 space-y-2 font-body text-sm text-foreground">
                     <p>
                       Health score (30d):{" "}
@@ -263,7 +315,7 @@ const DashboardPage = () => {
             <section className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
               <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
                 <h2 className="font-display text-lg font-semibold text-foreground">Capacity Watchlist</h2>
-                {!kpis || kpis.safehouseCapacity.nearCapacity.length === 0 ? (
+                {!hasKpiData || !kpis?.safehouseCapacity || kpis.safehouseCapacity.nearCapacity.length === 0 ? (
                   <p className="mt-4 font-body text-sm text-muted-foreground">No data available</p>
                 ) : (
                   <ul className="mt-4 space-y-2">
