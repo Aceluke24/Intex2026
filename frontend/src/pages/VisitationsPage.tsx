@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { format, isValid, parse } from "date-fns";
 import { motion } from "framer-motion";
 import { AlertTriangle, Calendar, Clock, MapPin, Plus, Shield, X } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type ResidentOption = { residentId: number; internalCode: string; caseControlNo: string };
@@ -550,6 +550,19 @@ const VisitationsPage = () => {
   const [selectedVisit, setSelectedVisit] = useState<VisitationRow | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteVisitTarget, setDeleteVisitTarget] = useState<{ id: number; residentName: string } | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const isFirstPageLoad = useRef(true);
+
+  const scrollToResults = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (listRef.current) {
+      listRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Fallback for environments that do not support smooth options.
+    window.scrollTo(0, 0);
+  }, []);
 
   const ensureResidents = useCallback(async () => {
     if ((fieldOptions.residents?.length ?? 0) > 0) return;
@@ -635,7 +648,17 @@ const VisitationsPage = () => {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (isFirstPageLoad.current) {
+      isFirstPageLoad.current = false;
+      return;
+    }
+    scrollToResults();
+  }, [page, scrollToResults]);
+
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
+  const handlePrevPage = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
+  const handleNextPage = useCallback(() => setPage((p) => p + 1), []);
 
   const openRow = (v: VisitationRow) => {
     setSelected(v);
@@ -866,6 +889,7 @@ const VisitationsPage = () => {
             </Button>
           </div>
 
+          <div ref={listRef}>
           <TabsContent value="visits" className="mt-0 outline-none">
             {loading ? (
               <div className="grid gap-4 md:grid-cols-2">
@@ -901,7 +925,7 @@ const VisitationsPage = () => {
                       size="sm"
                       className="rounded-xl"
                       disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      onClick={handlePrevPage}
                     >
                       Previous
                     </Button>
@@ -914,7 +938,7 @@ const VisitationsPage = () => {
                       size="sm"
                       className="rounded-xl"
                       disabled={page >= totalPages}
-                      onClick={() => setPage((p) => p + 1)}
+                      onClick={handleNextPage}
                     >
                       Next
                     </Button>
@@ -959,7 +983,7 @@ const VisitationsPage = () => {
                       size="sm"
                       className="rounded-xl"
                       disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      onClick={handlePrevPage}
                     >
                       Previous
                     </Button>
@@ -972,7 +996,7 @@ const VisitationsPage = () => {
                       size="sm"
                       className="rounded-xl"
                       disabled={page >= totalPages}
-                      onClick={() => setPage((p) => p + 1)}
+                      onClick={handleNextPage}
                     >
                       Next
                     </Button>
@@ -981,6 +1005,7 @@ const VisitationsPage = () => {
               </>
             )}
           </TabsContent>
+          </div>
         </Tabs>
       </StaffPageShell>
 
