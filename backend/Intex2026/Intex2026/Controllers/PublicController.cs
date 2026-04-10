@@ -450,29 +450,56 @@ public partial class PublicController : ControllerBase
             authUser.SupporterId = linkedSupporter.SupporterId;
             await _userManager.UpdateAsync(authUser);
         }
-        else if (!isAnonymous)
+
+        var trimmedFirst = string.IsNullOrWhiteSpace(req.FirstName) ? null : req.FirstName.Trim();
+        var trimmedLast = string.IsNullOrWhiteSpace(req.LastName) ? null : req.LastName.Trim();
+        var hasName =
+            !string.IsNullOrWhiteSpace(trimmedFirst)
+            || !string.IsNullOrWhiteSpace(trimmedLast)
+            || !string.IsNullOrWhiteSpace(req.DisplayName?.Trim());
+
+        if (supporterId == null)
         {
-            if (string.IsNullOrWhiteSpace(normalizedEmail))
+            if (isAnonymous)
             {
-                return BadRequest(new { error = "Email is required unless donation is anonymous." });
+                var anon = await GetOrCreateAnonymousSupporterAsync();
+                supporterId = anon.SupporterId;
             }
-
-            try
+            else if (!string.IsNullOrWhiteSpace(normalizedEmail))
             {
-                _ = new MailAddress(normalizedEmail);
+                try
+                {
+                    _ = new MailAddress(normalizedEmail);
+                }
+                catch
+                {
+                    return BadRequest(new { error = "Please enter a valid email address." });
+                }
+
+                var supporter = await EnsureSupporterByEmailAsync(
+                    normalizedEmail,
+                    trimmedFirst,
+                    trimmedLast,
+                    req.DisplayName);
+
+                supporterId = supporter.SupporterId;
             }
-            catch
+            else if (hasName)
             {
-                return BadRequest(new { error = "Please enter a valid email address." });
+                var supporter = await CreateSupporterWithNameOnlyAsync(
+                    trimmedFirst,
+                    trimmedLast,
+                    req.DisplayName);
+
+                supporterId = supporter.SupporterId;
             }
-
-            var supporter = await EnsureSupporterByEmailAsync(
-                normalizedEmail,
-                req.FirstName,
-                req.LastName,
-                req.DisplayName);
-
-            supporterId = supporter.SupporterId;
+            else
+            {
+                return BadRequest(new
+                {
+                    error = "Please provide your email or name so we can acknowledge your gift."
+                });
+            }
         }
 
         var validatedCampaignName = NormalizeAndValidateCampaignName(req.CampaignName, out var campaignValidationError);
@@ -576,6 +603,7 @@ public class PublicDonationRequest
     public string? impact_unit { get => ImpactUnit; set => ImpactUnit = value; }
     public bool is_recurring { get => IsRecurring; set => IsRecurring = value; }
     public string? campaign_name { get => CampaignName; set => CampaignName = value; }
+    public string? notes { get => Notes; set => Notes = value; }
 }
 
 public class NewsletterSubscribeRequest
@@ -617,6 +645,71 @@ partial class PublicController
         }
 
         return email.Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Shared placeholder so anonymous donations satisfy non-null FK on Donations.SupporterId.
+    /// </summary>
+    private const string AnonymousDonorInternalEmail = "__anonymous_donor@internal.invalid";
+
+    private async Task<Supporter> GetOrCreateAnonymousSupporterAsync()
+    {
+        var existing = await _db.Supporters
+            .OrderBy(s => s.SupporterId)
+            .FirstOrDefaultAsync(s => s.Email == AnonymousDonorInternalEmail);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var supporter = new Supporter
+        {
+            SupporterType = "MonetaryDonor",
+            DisplayName = "Anonymous",
+            Email = AnonymousDonorInternalEmail,
+            RelationshipType = "Local",
+            Status = "Active",
+            AcquisitionChannel = "Website",
+            FirstDonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _db.Supporters.Add(supporter);
+        await _db.SaveChangesAsync();
+        return supporter;
+    }
+
+    private async Task<Supporter> CreateSupporterWithNameOnlyAsync(
+        string? firstName,
+        string? lastName,
+        string? displayName)
+    {
+        var trimmedFirst = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim();
+        var trimmedLast = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim();
+        var computedDisplay = !string.IsNullOrWhiteSpace(displayName)
+            ? displayName.Trim()
+            : $"{trimmedFirst} {trimmedLast}".Trim();
+        if (string.IsNullOrWhiteSpace(computedDisplay))
+        {
+            computedDisplay = "Supporter";
+        }
+
+        var supporter = new Supporter
+        {
+            SupporterType = "MonetaryDonor",
+            DisplayName = computedDisplay,
+            FirstName = trimmedFirst,
+            LastName = trimmedLast,
+            RelationshipType = "Local",
+            Status = "Active",
+            AcquisitionChannel = "Website",
+            FirstDonationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _db.Supporters.Add(supporter);
+        await _db.SaveChangesAsync();
+        return supporter;
     }
 
     private async Task<Supporter> EnsureSupporterByEmailAsync(

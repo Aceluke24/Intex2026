@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Heart, CheckCircle } from "lucide-react";
+import { Heart, CheckCircle, TrendingUp } from "lucide-react";
 import { API_BASE } from "@/lib/apiBase";
 import { PublicSafetyNote } from "@/components/PublicSafetyNote";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,6 +72,34 @@ export default function DonatePage() {
 
   const emailFromForm = !isAuthenticated || anonymous;
 
+  const parseApiErrorMessage = (raw: string, status: number): string => {
+    const fallback =
+      "Something went wrong processing your donation. Please try again or contact support.";
+    if (!raw.trim()) {
+      if (status === 402) {
+        return "Payment could not be completed. Please try again or use a different method.";
+      }
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const err = parsed.error ?? parsed.message ?? parsed.title;
+      const detail = typeof parsed.detail === "string" ? parsed.detail : null;
+      if (typeof err === "string" && err.trim()) {
+        return err.trim();
+      }
+      if (detail?.trim()) {
+        return detail.trim();
+      }
+    } catch {
+      /* not JSON */
+    }
+    if (raw.length < 400 && raw.trim()) {
+      return raw.trim();
+    }
+    return fallback;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -83,7 +111,7 @@ export default function DonatePage() {
       parsedAmount < 1 ||
       !/^\d+(\.\d{1,2})?$/.test(amount)
     ) {
-      setError("Enter a valid amount (minimum $1, max 2 decimal places)");
+      setError("Enter a valid amount (minimum $1, max 2 decimal places).");
       setSubmitting(false);
       return;
     }
@@ -91,15 +119,34 @@ export default function DonatePage() {
     const noteLower = selectedNote.toLowerCase();
     const trimmedFirst = firstName.trim();
     const trimmedLast = lastName.trim();
+    const trimmedEmail = email.trim();
     const displayFromForm =
       trimmedFirst || trimmedLast
         ? [trimmedFirst, trimmedLast].filter(Boolean).join(" ").trim()
         : null;
 
+    if (!anonymous && !isAuthenticated) {
+      const hasName = Boolean(trimmedFirst || trimmedLast);
+      const hasEmail = trimmedEmail.length > 0;
+      if (!hasName && !hasEmail) {
+        setError("Please enter your email or your name so we can acknowledge your gift.");
+        setSubmitting(false);
+        return;
+      }
+      if (hasEmail) {
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+        if (!emailOk) {
+          setError("Please enter a valid email address.");
+          setSubmitting(false);
+          return;
+        }
+      }
+    }
+
     const payload: Record<string, unknown> = {
       firstName: anonymous ? null : trimmedFirst || null,
       lastName: anonymous ? null : trimmedLast || null,
-      email: emailFromForm ? email.trim() || null : user?.email ?? null,
+      email: anonymous ? null : emailFromForm ? trimmedEmail || null : user?.email ?? null,
       displayName: anonymous ? null : displayFromForm,
       isAnonymous: anonymous,
       userId: user?.id ?? null,
@@ -127,12 +174,16 @@ export default function DonatePage() {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Submission failed. Please try again.");
+        throw new Error(parseApiErrorMessage(text, res.status));
       }
 
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong processing your donation. Please try again or contact support.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -193,58 +244,82 @@ export default function DonatePage() {
                 Your generous contribution has been recorded. We'll be in touch soon.
               </p>
               {!isAuthenticated && (
-                <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left">
-                  <p className="font-body text-sm font-medium text-blue-900">
-                    Create an account to track this donation and future contributions.
-                  </p>
-                  <p className="mt-1 font-body text-sm text-blue-700">
-                    Sign in to keep a record of your generosity 💙
-                  </p>
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate("/signup?redirect=/donate")}
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                    >
-                      Claim this donation
-                    </button>
+                <div className="mt-6 rounded-xl bg-background/90 p-5 shadow-sm text-left">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex gap-3">
+                      <TrendingUp className="mt-0.5 h-5 w-5 shrink-0 text-terracotta" aria-hidden />
+                      <div>
+                        <p className="font-body text-sm font-semibold text-foreground">
+                          Track your impact
+                        </p>
+                        <p className="mt-1 font-body text-sm text-muted-foreground leading-relaxed">
+                          Create an account to track your donations and see the lives you&apos;re impacting.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                      <Button
+                        type="button"
+                        onClick={() => navigate("/signup?redirect=/donate")}
+                        className="rounded-xl bg-terracotta px-5 font-body font-medium text-terracotta-foreground shadow-sm hover:bg-terracotta/90"
+                      >
+                        Create Account
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate("/login?redirect=/donate")}
+                        className="rounded-xl border-border/80 bg-background/80 font-body font-medium"
+                      >
+                        Sign In
+                      </Button>
+                    </div>
                   </div>
+                  <p className="mt-4 font-body text-xs text-muted-foreground">
+                    You can still donate without an account.
+                  </p>
                 </div>
               )}
             </motion.div>
           ) : (
             <>
               {!authLoading && !isAuthenticated && (
-                <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-blue-500" />
-                      <p className="font-semibold text-gray-900 dark:text-white">
-                        Track your impact
-                      </p>
+                <div className="mb-6 rounded-xl bg-background/90 p-5 sm:p-6 shadow-sm">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-terracotta">
+                        <TrendingUp className="h-5 w-5" aria-hidden />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-display text-base font-semibold tracking-tight text-foreground">
+                          Track your impact
+                        </p>
+                        <p className="mt-1 font-body text-sm text-muted-foreground leading-relaxed">
+                          Create an account to track your donations and see the lives you&apos;re impacting.
+                        </p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
-                      Sign in to keep a record of your generosity 💙
-                    </p>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                      <Button
+                        type="button"
+                        onClick={() => navigate("/signup?redirect=/donate")}
+                        className="rounded-xl bg-terracotta px-5 font-body font-medium text-terracotta-foreground shadow-sm hover:bg-terracotta/90"
+                      >
+                        Create Account
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate("/login?redirect=/donate")}
+                        className="rounded-xl border-border/80 bg-background/80 font-body font-medium"
+                      >
+                        Sign In
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      onClick={() => navigate("/login")}
-                      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 transition hover:bg-gray-100 dark:border-white/20 dark:bg-transparent dark:text-white dark:hover:bg-white/10"
-                    >
-                      Sign In
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => navigate("/signup?redirect=/donate")}
-                      className="rounded-lg bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700"
-                    >
-                      Create Account
-                    </Button>
-                  </div>
-                </div>
+                  <p className="mt-4 font-body text-xs text-muted-foreground">
+                    You can still donate without an account.
+                  </p>
                 </div>
               )}
 
@@ -256,15 +331,22 @@ export default function DonatePage() {
                 className="bg-background/90 rounded-xl p-8 sm:p-10 space-y-6 shadow-sm"
               >
                 {!authLoading && (
-                  <label className="flex items-center gap-2 font-body text-sm text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={anonymous}
-                      onChange={(e) => setAnonymous(e.target.checked)}
-                      className="h-4 w-4 rounded border-input text-terracotta focus:ring-terracotta/50"
-                    />
-                    Donate anonymously
-                  </label>
+                  <div className="space-y-2">
+                    <label className="flex cursor-pointer items-center gap-2 font-body text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={anonymous}
+                        onChange={(e) => setAnonymous(e.target.checked)}
+                        className="h-4 w-4 rounded border-input text-terracotta focus:ring-terracotta/50"
+                      />
+                      Donate anonymously
+                    </label>
+                    {anonymous && (
+                      <p className="font-body text-xs text-muted-foreground pl-6">
+                        Your donation will be recorded anonymously.
+                      </p>
+                    )}
+                  </div>
                 )}
 
               {/* Name row */}
