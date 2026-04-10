@@ -108,7 +108,8 @@ public class ResidentsController : ControllerBase
                 r.CaseStatus, r.CaseCategory, r.DateOfAdmission,
                 r.InitialRiskLevel, r.CurrentRiskLevel,
                 r.ReintegrationStatus, r.AssignedSocialWorker,
-                r.PresentAge, r.LengthOfStay
+                r.PresentAge, r.LengthOfStay,
+                r.CreatedAt
             })
             .ToListAsync();
 

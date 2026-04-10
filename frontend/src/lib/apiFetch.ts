@@ -80,12 +80,26 @@ function maskToken(token: string | null): string {
 }
 
 function shouldRedirectOnUnauthorized(path: string): boolean {
-  return !(
+  const isAuthEndpoint = (
     path.includes("/auth/login") ||
     path.includes("/auth/register") ||
     path.includes("/auth/providers") ||
     path.includes("/auth/external-login")
   );
+  if (isAuthEndpoint) {
+    return false;
+  }
+
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  // Only force navigation on protected routes; public routes should remain public.
+  const pathname = window.location.pathname;
+  const publicRoutes = new Set(["/", "/login", "/signup", "/google-callback", "/unauthorized"]);
+  const isPublicRoute = publicRoutes.has(pathname);
+
+  return !isPublicRoute;
 }
 
 function toDebugHeaders(headers: Headers): Record<string, string> {
@@ -115,6 +129,9 @@ function logRequestDebug(path: string, requestUrl: string, info: AuthDebugInfo):
 
 async function clearSessionAndRedirectLogin(): Promise<void> {
   if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") {
+    return;
+  }
   try {
     await fetch(apiUrl(`${API_PREFIX}/auth/logout`), {
       method: "POST",
@@ -177,6 +194,12 @@ export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<R
   console.info("[apiFetch] response", { path, requestUrl, status: res.status, ok: res.ok });
 
   if (res.status === 401 || res.status === 403) {
+    console.log("[apiFetch] unauthorized response", {
+      path,
+      status: res.status,
+      pathname: typeof window !== "undefined" ? window.location.pathname : "(server)",
+      willRedirect: shouldRedirectOnUnauthorized(path),
+    });
     if (shouldRedirectOnUnauthorized(path)) {
       void clearSessionAndRedirectLogin();
     }

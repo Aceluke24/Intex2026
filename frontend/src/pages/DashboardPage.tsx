@@ -1,320 +1,329 @@
 import { AdminLayout } from "@/components/AdminLayout";
-import { PriorityCallouts, ResidentsList } from "@/components/dashboard";
 import { DASHBOARD_CONTENT_MAX_WIDTH } from "@/components/dashboard-shell";
 import { StaffPageShell } from "@/components/staff/StaffPageShell";
-import type {
-  DashboardMetric,
-  PriorityCallout,
-  ResidentRow,
-} from "@/lib/dashboardTypes";
-import { motion } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { SkeletonCard } from "@/components/SkeletonLoaders";
+import { API_PREFIX } from "@/lib/apiBase";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { API_PREFIX, apiUrl } from "@/lib/apiBase";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-const ease = [0.22, 1, 0.36, 1] as const;
-
-type DashboardApiResponse = {
-  primaryMetric: DashboardMetric;
-  supportingMetrics: DashboardMetric[];
-  priorityCallouts: PriorityCallout[];
-  snapshotMetrics: {
-    activeResidents: number;
-    highCriticalRiskCount: number;
-    upcomingVisits7Days: number;
-    monthlyDonations: string;
-    repeatDonorRate: number | null;
-    totalDonationsCount: number;
-  };
-  residentsOverview: ResidentRow[];
-  insights: string[];
-  stats?: {
-    totalResidents: number;
-    activeCases: number;
-    highRiskCases: number;
-    totalDonationsThisMonth: number;
-    activeSafehouses: number;
-    avgHealthScore: number | null;
-    avgEducationProgress: number | null;
-    recentIncidents: number;
-  };
-  isAuthenticated?: boolean;
+type ResidentItem = {
+  residentId: number;
+  internalCode: string;
+  caseControlNo: string;
+  caseStatus: string;
+  currentRiskLevel: string;
+  dateOfAdmission: string;
+  createdAt?: string;
 };
 
-const fallbackSnapshot: DashboardApiResponse["snapshotMetrics"] = {
-  activeResidents: 0,
-  highCriticalRiskCount: 0,
-  upcomingVisits7Days: 0,
-  monthlyDonations: "$0",
-  repeatDonorRate: null,
-  totalDonationsCount: 0,
+type DonationItem = {
+  supporterId: number | null;
+  donationDate: string;
+  donationType: string;
+  amount: number | null;
+  estimatedValue: number | null;
 };
+
+type VisitationItem = {
+  id: number;
+  residentId: number;
+  residentName: string;
+  date: string;
+  status: string;
+};
+
+type PagedResponse<T> = {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: T[];
+};
+
+type SummaryCard = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+const STALE_DONOR_DAYS = 60;
+
+function asDate(value: string): Date {
+  return new Date(`${value}T00:00:00`);
+}
+
+function differenceInDays(later: Date, earlier: Date): number {
+  const ms = later.getTime() - earlier.getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
+function isWithinNext7Days(value: string): boolean {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  const date = asDate(value);
+  return date >= start && date <= end;
+}
+
+function isWithinLast7Days(value: string): boolean {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  start.setDate(start.getDate() - 7);
+  const date = asDate(value);
+  return date >= start;
+}
+
+function isThisMonth(value: string): boolean {
+  const now = new Date();
+  const date = asDate(value);
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+function donationValue(d: DonationItem): number {
+  if (d.donationType === "Monetary") return d.amount ?? 0;
+  if (d.donationType === "InKind") return d.estimatedValue ?? d.amount ?? 0;
+  return d.amount ?? d.estimatedValue ?? 0;
+}
+
+async function fetchAllPages<T>(path: string, pageSize = 250): Promise<T[]> {
+  let page = 1;
+  let total = 0;
+  const rows: T[] = [];
+
+  do {
+    const data = await apiFetchJson<PagedResponse<T>>(`${path}?page=${page}&pageSize=${pageSize}`, { timeoutMs: 20000 });
+    rows.push(...(data.items ?? []));
+    total = data.total ?? rows.length;
+    if ((data.items ?? []).length === 0) break;
+    page += 1;
+  } while (rows.length < total);
+
+  return rows;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonCard key={i} className="rounded-xl p-5 shadow-sm" />
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+        <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-9 rounded-md bg-muted/60" />
+            ))}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-7 rounded-md bg-muted/60" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 shadow-sm" role="alert">
+      <p className="font-display text-lg font-semibold text-destructive">Unable to load overview</p>
+      <p className="mt-2 font-body text-sm text-destructive/90">{message}</p>
+    </div>
+  );
+}
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [residents, setResidents] = useState<ResidentItem[]>([]);
+  const [donations, setDonations] = useState<DonationItem[]>([]);
+  const [visits, setVisits] = useState<VisitationItem[]>([]);
 
-  const [primaryMetric, setPrimaryMetric] = useState<DashboardMetric | null>(null);
-  const [supportingMetrics, setSupportingMetrics] = useState<DashboardMetric[]>([]);
-  const [priorityCallouts, setPriorityCallouts] = useState<PriorityCallout[]>([]);
-  const [snapshotMetrics, setSnapshotMetrics] = useState<DashboardApiResponse["snapshotMetrics"] | null>(null);
-  const [residentsOverview, setResidentsOverview] = useState<ResidentRow[]>([]);
-  const [insights, setInsights] = useState<string[]>([]);
-
-  const load = useCallback(async () => {
+  const loadOverview = useCallback(async () => {
     setLoading(true);
-    setLoadError(null);
-    const endpoint = `${API_PREFIX}/dashboard`;
+    setError(null);
     try {
-      console.info("[Dashboard] requesting data from", apiUrl(endpoint));
-      const data = await apiFetchJson<DashboardApiResponse>(endpoint, { timeoutMs: 15000 });
-      console.info("[Dashboard] data received");
-      const hasFullPayload = Boolean(data.primaryMetric && data.snapshotMetrics);
-      setPrimaryMetric(
-        data.primaryMetric ?? {
-          key: "residents",
-          label: "Active cases",
-          value: String(data.stats?.activeCases ?? 0),
-          trendLabel: data.isAuthenticated === false ? "Limited public dashboard view" : "Current active census",
-          trend: "neutral",
-          icon: "users",
-        }
-      );
-      setSupportingMetrics(data.supportingMetrics ?? []);
-      setPriorityCallouts(data.priorityCallouts ?? []);
-      setSnapshotMetrics(
-        data.snapshotMetrics ?? {
-          activeResidents: data.stats?.activeCases ?? 0,
-          highCriticalRiskCount: data.stats?.highRiskCases ?? 0,
-          upcomingVisits7Days: 0,
-          monthlyDonations: `$${Math.round(data.stats?.totalDonationsThisMonth ?? 0)}`,
-          repeatDonorRate: null,
-          totalDonationsCount: 0,
-        }
-      );
-      setResidentsOverview(
-        (data.residentsOverview ?? []).map((r) => ({
-          id: r.id,
-          safehouse: r.safehouse,
-          status: r.status as ResidentRow["status"],
-          lastSession: r.lastSession,
-        }))
-      );
-      setInsights(
-        data.insights ?? [
-          `${data.stats?.activeCases ?? 0} active cases`,
-          `${data.stats?.highRiskCases ?? 0} high-risk cases`,
-          `${data.stats?.activeSafehouses ?? 0} active safehouses`,
-        ]
-      );
-      if (!hasFullPayload && data.isAuthenticated === false) {
-        setLoadError("Unable to load live data. Showing last known snapshot.");
-      }
+      const [residentRows, donationRows, visitRows] = await Promise.all([
+        fetchAllPages<ResidentItem>(`${API_PREFIX}/residents`),
+        fetchAllPages<DonationItem>(`${API_PREFIX}/donations`),
+        fetchAllPages<VisitationItem>(`${API_PREFIX}/visitations`),
+      ]);
+      setResidents(residentRows);
+      setDonations(donationRows);
+      setVisits(visitRows);
     } catch (e) {
-      console.error("[Dashboard]", e);
-      setLoadError("Unable to load live data. Showing last known snapshot.");
-      setSnapshotMetrics((existing) => existing ?? fallbackSnapshot);
-      setPrimaryMetric((existing) =>
-        existing ?? {
-          key: "residents",
-          label: "Active residents",
-          value: "0",
-          trendLabel: "Live data currently unavailable",
-          trend: "neutral",
-          icon: "users",
-        }
-      );
-      setSupportingMetrics((existing) => existing ?? []);
-      setPriorityCallouts((existing) => existing ?? []);
-      setResidentsOverview((existing) => existing ?? []);
-      setInsights((existing) =>
-        existing.length > 0
-          ? existing
-          : ["Unable to load live data. Showing last known snapshot."]
-      );
+      console.error("Dashboard API error:", e);
+      setError(e instanceof Error ? e.message : "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadOverview();
+  }, [loadOverview]);
 
-  const donationMetric = supportingMetrics.find((s) => s.key === "donations");
-  const visitMetric = supportingMetrics.find((s) => s.key === "conferences");
-  const retentionMetric = supportingMetrics.find((s) => s.key === "retention");
+  const derived = useMemo(() => {
+    const activeResidents = residents.filter((r) => r.caseStatus === "Active");
+    const highRiskResidents = activeResidents.filter((r) =>
+      ["HIGH", "CRITICAL"].includes((r.currentRiskLevel ?? "").toUpperCase())
+    );
+    const upcomingVisits = visits.filter((v) => isWithinNext7Days(v.date));
+    const openActionItems = visits.filter((v) => v.status === "Pending").length;
+    const residentsAddedLast7 = residents.filter((r) => isWithinLast7Days(r.dateOfAdmission)).length;
+    const donationsLast7 = donations.filter((d) => isWithinLast7Days(d.donationDate)).length;
+    const visitsLast7 = visits.filter((v) => isWithinLast7Days(v.date)).length;
 
-  const attentionRows = (() => {
-    const urgent = residentsOverview.filter((r) => r.status === "At Risk");
-    const recentNonStable = residentsOverview.filter((r) => r.status !== "Stable" && r.status !== "At Risk");
-    return [...urgent, ...recentNonStable].slice(0, 7);
-  })();
+    const lastDonationBySupporter = new Map<number, Date>();
+    donations.forEach((d) => {
+      if (!d.supporterId) return;
+      const donationDate = asDate(d.donationDate);
+      const prev = lastDonationBySupporter.get(d.supporterId);
+      if (!prev || donationDate > prev) {
+        lastDonationBySupporter.set(d.supporterId, donationDate);
+      }
+    });
+    const now = new Date();
+    const atRiskDonors = Array.from(lastDonationBySupporter.values()).filter(
+      (last) => differenceInDays(now, last) >= STALE_DONOR_DAYS
+    ).length;
 
-  const quickInsights = snapshotMetrics
-    ? [
-        `${snapshotMetrics.highCriticalRiskCount} residents currently High/Critical risk`,
-        `${snapshotMetrics.monthlyDonations} donated this month across ${snapshotMetrics.totalDonationsCount} total gifts`,
-        snapshotMetrics.repeatDonorRate !== null
-          ? `${snapshotMetrics.repeatDonorRate.toFixed(1)}% repeat donor rate (strong retention)`
-          : "Repeat donor rate will populate as donation history grows",
-      ]
-    : insights;
+    const attentionResidents = highRiskResidents
+      .map((r) => {
+        const lastUpdatedAt = r.createdAt ? new Date(r.createdAt) : asDate(r.dateOfAdmission);
+        return {
+          key: `${r.residentId}`,
+          idLabel: r.internalCode?.trim() || r.caseControlNo || `Resident #${r.residentId}`,
+          risk: (r.currentRiskLevel || "Unknown").toUpperCase(),
+          daysSinceUpdate: differenceInDays(now, lastUpdatedAt),
+        };
+      })
+      .sort((a, b) => {
+        const riskWeight = (risk: string) => (risk === "CRITICAL" ? 0 : risk === "HIGH" ? 1 : 2);
+        const byRisk = riskWeight(a.risk) - riskWeight(b.risk);
+        if (byRisk !== 0) return byRisk;
+        return b.daysSinceUpdate - a.daysSinceUpdate;
+      })
+      .slice(0, 8);
 
-  const hasAnyDashboardData =
-    supportingMetrics.length > 0 || priorityCallouts.length > 0 || residentsOverview.length > 0 || quickInsights.length > 0;
+    const totalThisMonth = donations
+      .filter((d) => isThisMonth(d.donationDate))
+      .reduce((sum, d) => sum + donationValue(d), 0);
+
+    const insights: string[] = [];
+    if (highRiskResidents.length > 0) {
+      insights.push(`${highRiskResidents.length} residents require immediate attention.`);
+    } else {
+      insights.push("No high-risk residents.");
+    }
+    if (upcomingVisits.length === 0) {
+      insights.push("No visits scheduled in the next 7 days.");
+    }
+    if (totalThisMonth === 0) {
+      insights.push("No donation activity recorded this month.");
+    }
+    if (openActionItems > 0) {
+      insights.push(`${openActionItems} action item${openActionItems === 1 ? "" : "s"} still open.`);
+    }
+
+    const cards: SummaryCard[] = [
+      {
+        label: "Residents At Risk",
+        value: String(highRiskResidents.length),
+        detail: highRiskResidents.length > 0 ? "High + Critical cases" : "No high-risk residents",
+      },
+      {
+        label: "Upcoming Visits",
+        value: String(upcomingVisits.length),
+        detail: upcomingVisits.length > 0 ? "Due in next 7 days" : "No upcoming visits scheduled",
+      },
+      {
+        label: "At-Risk Donors",
+        value: String(atRiskDonors),
+        detail: `No donation in ${STALE_DONOR_DAYS}+ days`,
+      },
+      {
+        label: "Open Action Items",
+        value: String(openActionItems),
+        detail: openActionItems > 0 ? "Pending follow-ups" : "No open action items",
+      },
+      {
+        label: "New Activity (7 days)",
+        value: String(residentsAddedLast7 + donationsLast7 + visitsLast7),
+        detail: `${residentsAddedLast7} residents, ${donationsLast7} donations, ${visitsLast7} visits`,
+      },
+    ];
+
+    return { cards, attentionResidents, insights };
+  }, [residents, donations, visits]);
 
   return (
     <AdminLayout contentClassName={DASHBOARD_CONTENT_MAX_WIDTH}>
-      <StaffPageShell
-        title="Command Center"
-        description="High-level operations snapshot."
-      >
-        {loading ? (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-16 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
-            <p className="font-display text-lg font-semibold text-foreground">Loading dashboard…</p>
-            <p className="font-body text-sm text-muted-foreground">Fetching command center data.</p>
-          </div>
-        ) : (
-          <>
-            {loadError ? (
-              <div
-                className="mb-6 rounded-[1.1rem] border border-amber-400/30 bg-amber-500/5 px-6 py-4 text-center"
-                role="status"
-              >
-                <p className="font-display text-base font-semibold text-foreground">
-                  Unable to load live data. Showing last known snapshot.
-                </p>
-              </div>
-            ) : null}
-            {!primaryMetric || !snapshotMetrics ? (
-              <div className="flex min-h-[32vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-amber-400/40 bg-amber-500/5 px-6 py-10 text-center">
-                <p className="font-display text-lg font-semibold text-foreground">Dashboard data is unavailable</p>
-                <p className="max-w-2xl font-body text-sm text-muted-foreground">
-                  The API responded, but required fields were missing. Please verify the `GET /api/dashboard` payload.
-                </p>
-              </div>
-            ) : !hasAnyDashboardData ? (
-              <div className="flex min-h-[32vh] flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-white/50 bg-white/40 px-6 py-10 text-center backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]">
-                <p className="font-display text-lg font-semibold text-foreground">No dashboard data yet</p>
-                <p className="max-w-2xl font-body text-sm text-muted-foreground">
-                  Data will appear here once residents, visits, donations, or activity records are available.
-                </p>
-              </div>
-            ) : (
-              <>
-                <section className="mb-8 lg:mb-10" aria-labelledby="priority-heading">
-                  <h2
-                    id="priority-heading"
-                    className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-                  >
-                    Priority Alerts
-                  </h2>
-                  <PriorityCallouts items={priorityCallouts} />
-                </section>
+      <StaffPageShell title="Overview" description="Executive operational summary.">
+        {loading ? <DashboardSkeleton /> : null}
+        {!loading && error ? <ErrorState message={error} /> : null}
+        {!loading && !error ? (
+          <div className="space-y-6">
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              {derived.cards.map((card) => (
+                <article key={card.label} className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+                  <p className="font-body text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{card.label}</p>
+                  <p className="mt-2 font-display text-3xl font-semibold text-foreground">{card.value}</p>
+                  <p className="mt-1 font-body text-sm text-muted-foreground">{card.detail}</p>
+                </article>
+              ))}
+            </section>
 
-                <motion.section
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, ease }}
-                  className="mb-8 lg:mb-10"
-                  aria-labelledby="metrics-heading"
-                >
-                  <h2
-                    id="metrics-heading"
-                    className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-                  >
-                    Key Metrics
-                  </h2>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {[
-                      {
-                        label: "Active Residents",
-                        value: String(snapshotMetrics.activeResidents),
-                        trend: primaryMetric.trendLabel,
-                      },
-                      {
-                        label: "High / Critical Risk",
-                        value: String(snapshotMetrics.highCriticalRiskCount),
-                        trend: snapshotMetrics.highCriticalRiskCount > 0 ? "Needs review" : "No urgent risk",
-                      },
-                      {
-                        label: "Upcoming Home Visits (7 days)",
-                        value: String(snapshotMetrics.upcomingVisits7Days),
-                        trend: visitMetric?.trendLabel ?? "",
-                      },
-                      {
-                        label: "Monthly Donations",
-                        value: snapshotMetrics.monthlyDonations,
-                        trend: donationMetric?.trendLabel ?? "",
-                      },
-                      {
-                        label: "Repeat Donor Rate",
-                        value:
-                          snapshotMetrics.repeatDonorRate !== null ? `${snapshotMetrics.repeatDonorRate.toFixed(1)}%` : "—",
-                        trend: retentionMetric?.trendLabel ?? "",
-                      },
-                      {
-                        label: "Total Donations",
-                        value: String(snapshotMetrics.totalDonationsCount),
-                        trend: "",
-                      },
-                    ].map((metric) => (
-                      <div
-                        key={metric.label}
-                        className="rounded-2xl border border-white/50 bg-white/55 px-4 py-4 shadow-[0_6px_24px_rgba(45,35,48,0.06)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06]"
+            <section className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+                <h2 className="font-display text-lg font-semibold text-foreground">Residents Requiring Attention</h2>
+                {derived.attentionResidents.length === 0 ? (
+                  <p className="mt-4 font-body text-sm text-muted-foreground">No high-risk residents 🎉</p>
+                ) : (
+                  <ul className="mt-4 space-y-2">
+                    {derived.attentionResidents.map((resident) => (
+                      <li
+                        key={resident.key}
+                        className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2"
                       >
-                        <p className="font-display text-3xl font-semibold tabular-nums tracking-tight text-foreground">{metric.value}</p>
-                        <p className="mt-1 font-body text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                          {metric.label}
-                        </p>
-                        {metric.trend ? <p className="mt-2 font-body text-xs text-muted-foreground">{metric.trend}</p> : null}
-                      </div>
+                        <p className="font-body text-sm font-medium text-foreground">{resident.idLabel}</p>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={
+                              resident.risk === "CRITICAL"
+                                ? "rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
+                                : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700"
+                            }
+                          >
+                            {resident.risk}
+                          </span>
+                          <span className="font-body text-xs text-muted-foreground">{resident.daysSinceUpdate}d since update</span>
+                        </div>
+                      </li>
                     ))}
-                  </div>
-                </motion.section>
+                  </ul>
+                )}
+              </div>
 
-                <motion.section
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, ease }}
-                  className="mb-4"
-                  aria-labelledby="snapshot-heading"
-                >
-                  <h2
-                    id="snapshot-heading"
-                    className="mb-4 font-display text-xl font-semibold tracking-[-0.02em] text-foreground sm:text-2xl"
-                  >
-                    Operational Snapshot
-                  </h2>
-                  <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
-                    <div className="rounded-2xl border border-white/50 bg-white/45 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]">
-                      <h3 className="mb-3 font-display text-lg font-semibold tracking-tight text-foreground">
-                        Residents Requiring Attention
-                      </h3>
-                      <ResidentsList rows={attentionRows} />
-                      {!loadError && attentionRows.length === 0 && (
-                        <p className="mt-4 font-body text-sm text-muted-foreground">No high-risk or recently updated residents.</p>
-                      )}
-                    </div>
-                    <div className="rounded-2xl border border-white/50 bg-white/45 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]">
-                      <h3 className="mb-3 font-display text-lg font-semibold tracking-tight text-foreground">Quick Insights</h3>
-                      <ul className="space-y-3">
-                        {quickInsights.slice(0, 3).map((line, i) => (
-                          <li key={i} className="font-body text-sm leading-relaxed text-foreground/85">
-                            - {line}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </motion.section>
-              </>
-            )}
-          </>
-        )}
+              <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+                <h2 className="font-display text-lg font-semibold text-foreground">Operational Insights</h2>
+                <ul className="mt-4 space-y-2">
+                  {derived.insights.map((line) => (
+                    <li key={line} className="rounded-lg border border-border/60 bg-background px-3 py-2 font-body text-sm text-foreground">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </StaffPageShell>
     </AdminLayout>
   );

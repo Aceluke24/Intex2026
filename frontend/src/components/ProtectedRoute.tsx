@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -7,6 +7,9 @@ interface Props {
 
 export function ProtectedRoute({ requiredRole }: Props) {
   const { user, loading, isAdmin, isDonor } = useAuth();
+  const { pathname } = useLocation();
+
+  console.log("Auth state:", { user, loading, pathname });
 
   if (loading) {
     return (
