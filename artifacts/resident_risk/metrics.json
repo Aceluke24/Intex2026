@@ -1,0 +1,5 @@
+{
+  "roc_auc": 1.0,
+  "pr_auc": 1.0,
+  "n_training_rows": 1319
+}

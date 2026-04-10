@@ -1,0 +1,5 @@
+{
+  "model_name": "resident_risk_escalation",
+  "trained_at": "2026-04-09T23:30:32.237076",
+  "lookahead_days": 30
+}
