@@ -1,9 +1,9 @@
 name: Nightly ML Pipelines
 
 on:
-  schedule:
-    - cron: '0 3 * * *' # 3 AM UTC nightly
-  workflow_dispatch:
+  #schedule:
+   # - cron: '0 3 * * *' # 3 AM UTC nightly
+  #workflow_dispatch:
 
 jobs:
   run-pipelines:
